@@ -1,5 +1,6 @@
 import { Link, NavLink } from 'react-router-dom';
-import { useTheme } from '../theme/ThemeProvider';
+import { Button } from '../bits/Button';
+import { useTheme } from '../../theme/ThemeProvider';
 
 const navLinkBase =
   'text-sm font-medium px-3 py-1.5 rounded-lg transition-colors hover:text-sky-500';
@@ -48,14 +49,19 @@ export function Header() {
           </NavLink>
         </nav>
 
-        <button
+        <Button
           type="button"
+          variant="ghost"
           onClick={toggleTheme}
-          className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 shadow-sm transition hover:border-sky-400 hover:text-sky-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-sky-400 dark:hover:text-sky-300"
+          className="h-8 px-3 text-xs"
         >
-          <span aria-hidden="true">{theme === 'dark' ? '🌙' : '☀️'}</span>
-          <span className="hidden sm:inline">{theme === 'dark' ? 'Dark' : 'Light'} mode</span>
-        </button>
+          <span aria-hidden="true" className="mr-1">
+            {theme === 'dark' ? '🌙' : '☀️'}
+          </span>
+          <span className="hidden sm:inline">
+            {theme === 'dark' ? 'Dark' : 'Light'} mode
+          </span>
+        </Button>
       </div>
     </header>
   );
