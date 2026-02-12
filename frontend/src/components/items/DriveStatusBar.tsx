@@ -3,7 +3,6 @@ import IconButton from '@/components/bits/IconButton';
 
 type DriveStatusBarProps = {
   totalUsedBytes: number;
-  totalLimitBytes: number;
   selectionSummary?: string;
 };
 
@@ -17,7 +16,6 @@ function formatSize(bytes: number): string {
 
 export default function DriveStatusBar({
   totalUsedBytes,
-  totalLimitBytes,
   selectionSummary,
 }: DriveStatusBarProps) {
   return (
@@ -30,7 +28,7 @@ export default function DriveStatusBar({
             </IconButton>
           </Link>
           <span className="whitespace-nowrap">
-            Storage used: {formatSize(totalUsedBytes)} of {formatSize(totalLimitBytes)}
+            Storage used: {formatSize(totalUsedBytes)}
           </span>
         </div>
 

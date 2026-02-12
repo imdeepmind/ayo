@@ -9,8 +9,6 @@ export interface FileItem {
   owner: string;
 }
 
-export const TOTAL_STORAGE_LIMIT_BYTES = 15 * 1024 * 1024 * 1024; // 15 GB
-
 export const files: FileItem[] = [
   {
     id: '1',

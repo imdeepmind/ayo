@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { files, TOTAL_STORAGE_LIMIT_BYTES, calculateTotalUsedBytes } from '@/mock-data/files';
+import { files, calculateTotalUsedBytes } from '@/mock-data/files';
 import DriveToolbar from '@/components/items/DriveToolbar';
 import DriveFileTable from '@/components/items/DriveFileTable';
 import DriveStatusBar from '@/components/items/DriveStatusBar';
@@ -33,7 +33,7 @@ export default function Home() {
           <DriveFileTable files={filteredFiles} />
         </div>
 
-        <DriveStatusBar totalUsedBytes={totalUsedBytes} totalLimitBytes={TOTAL_STORAGE_LIMIT_BYTES} />
+        <DriveStatusBar totalUsedBytes={totalUsedBytes} />
       </div>
     </div>
   );
