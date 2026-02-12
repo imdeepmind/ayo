@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { Card } from '../bits/Card';
-import { PageSubtitle, PageTitle } from '../bits/Typography';
+import Card from '@/components/bits/Card';
+import { PageSubtitle, PageTitle } from '@/components/bits/Typography';
 
 type AuthCardProps = {
   title: string;
@@ -9,7 +9,7 @@ type AuthCardProps = {
   footer?: ReactNode;
 };
 
-export function AuthCard({ title, description, children, footer }: AuthCardProps) {
+export default function AuthCard({ title, description, children, footer }: AuthCardProps) {
   return (
     <Card>
       <div className="mb-6">

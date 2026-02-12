@@ -17,7 +17,7 @@ const primaryClasses =
 const ghostClasses =
   'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus:ring-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 dark:focus:ring-slate-500';
 
-export function Button({ variant = 'primary', fullWidth, className = '', children, ...rest }: ButtonProps) {
+export default function Button({ variant = 'primary', fullWidth, className = '', children, ...rest }: ButtonProps) {
   const variantClasses = variant === 'primary' ? primaryClasses : ghostClasses;
   const widthClasses = fullWidth ? 'w-full' : '';
 

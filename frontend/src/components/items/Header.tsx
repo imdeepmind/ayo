@@ -1,16 +1,16 @@
 import { Link, NavLink } from 'react-router-dom';
-import { Button } from '../bits/Button';
-import { useTheme } from '../../theme/ThemeProvider';
+import Button from '@/components/bits/Button';
+import { useTheme } from '@/theme/ThemeProvider';
 
 const navLinkBase =
   'text-sm font-medium px-3 py-1.5 rounded-lg transition-colors hover:text-sky-500';
 
-export function Header() {
+export default function Header() {
   const { theme, toggleTheme } = useTheme();
 
   return (
-    <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/80 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/80">
-      <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
+    <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/80 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/80 w-full">
+      <div className="mx-auto flex h-14 w-full items-center justify-between px-4 md:px-8 lg:px-16">
         <div className="flex items-center gap-2">
           <Link to="/" className="flex items-baseline gap-1">
             <span className="text-lg font-semibold tracking-tight">ayo</span>

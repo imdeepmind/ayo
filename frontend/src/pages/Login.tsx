@@ -1,9 +1,9 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { PageSection } from '../components/bits/Section';
-import { AuthCard } from '../components/items/AuthCard';
-import { TextInput } from '../components/bits/Input';
-import { Button } from '../components/bits/Button';
+import PageSection from '@/components/bits/Section';
+import AuthCard from '@/components/items/AuthCard';
+import TextInput from '@/components/bits/Input';
+import Button from '@/components/bits/Button';
 
 export default function Login() {
   const navigate = useNavigate();

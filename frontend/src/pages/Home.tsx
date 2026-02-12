@@ -1,42 +1,40 @@
-import logo from '../assets/images/logo-universal.png';
-import { PageSection } from '../components/bits/Section';
-import { Card } from '../components/bits/Card';
-import { PageSubtitle, PageTitle, SectionLabel } from '../components/bits/Typography';
+import { useMemo, useState } from 'react';
+import { files, TOTAL_STORAGE_LIMIT_BYTES, calculateTotalUsedBytes } from '@/mock-data/files';
+import DriveToolbar from '@/components/items/DriveToolbar';
+import DriveFileTable from '@/components/items/DriveFileTable';
+import DriveStatusBar from '@/components/items/DriveStatusBar';
 
 export default function Home() {
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredFiles = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return files;
+    return files.filter((file) => {
+      const nameMatch = file.name.toLowerCase().includes(query);
+      const typeMatch = file.type.toLowerCase().includes(query);
+      return nameMatch || typeMatch;
+    });
+  }, [searchQuery]);
+
+  const totalUsedBytes = useMemo(() => calculateTotalUsedBytes(files), []);
+
   return (
-    <PageSection size="lg">
-      <Card>
-        <div className="mb-6 flex flex-col items-center gap-4">
-          <img
-            src={logo}
-            alt="ayo logo"
-            className="h-20 w-20 object-contain drop-shadow-[0_0_25px_rgba(56,189,248,0.55)]"
+    <div className="w-full">
+      <div className="relative w-full pb-16">
+        <div className="mx-auto w-full px-4 pt-6 md:px-8 lg:px-16">
+          <DriveToolbar
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            onUploadClick={() => {
+              // placeholder for future upload handler
+            }}
           />
-          <PageTitle>
-            ayo <span className="text-sky-500">file server</span>
-          </PageTitle>
-          <PageSubtitle className="max-w-md">
-            A minimal starter home page. Use the navigation above to explore the auth flows.
-          </PageSubtitle>
+          <DriveFileTable files={filteredFiles} />
         </div>
 
-        <div className="grid gap-4 text-sm text-slate-600 dark:text-slate-300 sm:grid-cols-3">
-          <div className="rounded-xl border border-slate-200/70 bg-slate-50/80 p-4 dark:border-slate-700/70 dark:bg-slate-900/40">
-            <SectionLabel>Status</SectionLabel>
-            <p>Routing & Tailwind are wired up.</p>
-          </div>
-          <div className="rounded-xl border border-slate-200/70 bg-slate-50/80 p-4 dark:border-slate-700/70 dark:bg-slate-900/40">
-            <SectionLabel>Auth</SectionLabel>
-            <p>Try the Login, Register, and Reset pages.</p>
-          </div>
-          <div className="rounded-xl border border-slate-200/70 bg-slate-50/80 p-4 dark:border-slate-700/70 dark:bg-slate-900/40">
-            <SectionLabel>Theme</SectionLabel>
-            <p>Use the header toggle to switch dark / light.</p>
-          </div>
-        </div>
-      </Card>
-    </PageSection>
+        <DriveStatusBar totalUsedBytes={totalUsedBytes} totalLimitBytes={TOTAL_STORAGE_LIMIT_BYTES} />
+      </div>
+    </div>
   );
 }
-

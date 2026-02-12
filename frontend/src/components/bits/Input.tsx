@@ -5,7 +5,7 @@ type TextInputProps = InputHTMLAttributes<HTMLInputElement> & {
   id: string;
 };
 
-export function TextInput({ label, id, className = '', ...rest }: TextInputProps) {
+export default function TextInput({ label, id, className = '', ...rest }: TextInputProps) {
   return (
     <div className="space-y-1">
       <label

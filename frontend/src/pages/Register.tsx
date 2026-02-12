@@ -1,8 +1,8 @@
 import { FormEvent, useState } from 'react';
-import { PageSection } from '../components/bits/Section';
-import { AuthCard } from '../components/items/AuthCard';
-import { TextInput } from '../components/bits/Input';
-import { Button } from '../components/bits/Button';
+import PageSection from '@/components/bits/Section';
+import AuthCard from '@/components/items/AuthCard';
+import TextInput from '@/components/bits/Input';
+import Button from '@/components/bits/Button';
 
 export default function Register() {
   const [username, setUsername] = useState('');

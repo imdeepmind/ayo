@@ -5,7 +5,7 @@ type SectionProps = {
   size?: 'md' | 'lg';
 } & HTMLAttributes<HTMLElement>;
 
-export function PageSection({ children, size = 'md', className = '', ...rest }: SectionProps) {
+export default function PageSection({ children, size = 'md', className = '', ...rest }: SectionProps) {
   const widthClasses = size === 'lg' ? 'max-w-2xl' : 'max-w-md';
 
   return (

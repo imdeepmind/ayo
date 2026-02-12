@@ -4,7 +4,7 @@ type CardProps = {
   children: ReactNode;
 } & HTMLAttributes<HTMLDivElement>;
 
-export function Card({ children, className = '', ...rest }: CardProps) {
+export default function Card({ children, className = '', ...rest }: CardProps) {
   return (
     <div
       {...rest}
