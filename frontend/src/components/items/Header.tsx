@@ -9,7 +9,7 @@ export default function Header() {
   const { theme, toggleTheme } = useTheme();
 
   return (
-    <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/80 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/80 w-full">
+    <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/80 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/80 w-full mb-4">
       <div className="mx-auto flex h-14 w-full items-center justify-between px-4 md:px-8 lg:px-16">
         <div className="flex items-center gap-2">
           <Link to="/" className="flex items-baseline gap-1">

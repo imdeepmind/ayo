@@ -1,6 +1,7 @@
 package main
 
 import (
+	"ayo/backend/services"
 	"embed"
 
 	"github.com/wailsapp/wails/v2"
@@ -15,6 +16,9 @@ var assets embed.FS
 func main() {
 	// Create an instance of the app structure
 	app := NewApp()
+
+	// Internal Services
+	authService := services.NewAuthService()
 
 	// Create application with options
 	err := wails.Run(&options.App{
@@ -47,6 +51,7 @@ func main() {
 		},
 		Bind: []interface{}{
 			app,
+			authService,
 		},
 	})
 

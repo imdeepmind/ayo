@@ -5,20 +5,33 @@ import AuthCard from '@/components/items/AuthCard';
 import TextInput from '@/components/bits/Input';
 import Button from '@/components/bits/Button';
 
+import { Login as LoginService } from "../../wailsjs/go/services/AuthService";
+
 export default function Login() {
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (event: FormEvent) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
+    setIsLoading(true);
 
-    if (username === 'admin' && password === 'password') {
-      navigate('/');
-    } else {
-      setError('Invalid username or password. Try admin / password.');
+    try {
+      const result = await LoginService(username, password);
+
+      if (result) {
+        navigate('/');
+      } else {
+        setError('Invalid username or password. Try admin / password.');
+      }
+    } catch (err: any) {
+      console.error('Login error:', err);
+      setError(err || 'An unexpected error occurred. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -28,7 +41,7 @@ export default function Login() {
         title="Login"
         description={
           <>
-            Use the demo credentials <span className="font-mono">admin / password</span> to sign in.
+            Please provide your username and password to login to your ayo drive.
           </>
         }
         footer={
@@ -79,8 +92,8 @@ export default function Login() {
             </p>
           )}
 
-          <Button type="submit" fullWidth className="mt-2">
-            Sign in
+          <Button type="submit" fullWidth className="mt-2" disabled={isLoading}>
+            {isLoading ? 'Signing in...' : 'Sign in'}
           </Button>
         </form>
       </AuthCard>
