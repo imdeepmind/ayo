@@ -56,10 +56,18 @@ func (s *Service) Register(input RegisterInput) (*User, error) {
 		return nil, errors.ErrInternalServer
 	}
 
-	user, err := s.repo.CreateUser(context.Background(), input.Username, string(hashedPassword), recoveryKey)
+	hashedRecoveryKey, err := bcrypt.GenerateFromPassword([]byte(recoveryKey), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, errors.ErrInternalServer
+	}
+
+	user, err := s.repo.CreateUser(context.Background(), input.Username, string(hashedPassword), string(hashedRecoveryKey))
 	if err != nil {
 		return nil, err
 	}
+
+	// we want to return the original recovery key to the user so user can store it
+	user.RecoveryKey = recoveryKey
 
 	return user, nil
 }
