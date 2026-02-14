@@ -1,11 +1,10 @@
 package main
 
 import (
-	"ayo/backend/db"
-	"ayo/backend/repository"
-	"ayo/backend/services"
-
-	"embed"
+	"ayo/internal/auth"
+	"ayo/internal/platform/database"
+	"context"
+	"fmt"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -13,21 +12,41 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 )
 
-//go:embed all:frontend/dist
-var assets embed.FS
+// App struct
+type App struct {
+	ctx context.Context
+}
+
+// NewApp creates a new App application struct
+func NewApp() *App {
+	return &App{}
+}
+
+// startup is called when the app starts. The context is saved
+// so we can call the runtime methods
+func (a *App) startup(ctx context.Context) {
+	a.ctx = ctx
+}
+
+// Greet returns a greeting for the given name
+func (a *App) Greet(name string) string {
+	return fmt.Sprintf("Hello %s, It's show time!", name)
+}
 
 func main() {
 	// Create an instance of the app structure
 	app := NewApp()
 
 	// Internal Services
-	db, err := db.NewDatabase("ayo.db")
+	// Use local data directory for development simplicity
+	db, err := database.NewDatabase("data/ayo.db")
 	if err != nil {
 		panic(err)
 	}
 
-	authRepository := repository.NewAuthRepository(db)
-	authService := services.NewAuthService(authRepository)
+	// Initialize Auth Module
+	authRepository := auth.NewRepository(db)
+	authService := auth.NewService(authRepository)
 
 	// Create application with options
 	err = wails.Run(&options.App{

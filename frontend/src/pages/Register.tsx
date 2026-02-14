@@ -4,7 +4,7 @@ import AuthCard from '@/components/items/AuthCard';
 import TextInput from '@/components/bits/Input';
 import Button from '@/components/bits/Button';
 
-import { Register as RegisterService } from "../../wailsjs/go/services/AuthService";
+import { Register as RegisterService } from "../../wailsjs/go/auth/Service";
 
 export default function Register() {
   const [username, setUsername] = useState('');
@@ -15,7 +15,7 @@ export default function Register() {
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
-    RegisterService(username, password).then((result) => {
+    RegisterService({ Username: username, Password: password }).then((result) => {
       console.log(result);
     });
   };

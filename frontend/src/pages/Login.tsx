@@ -5,7 +5,7 @@ import AuthCard from '@/components/items/AuthCard';
 import TextInput from '@/components/bits/Input';
 import Button from '@/components/bits/Button';
 
-import { Login as LoginService } from "../../wailsjs/go/services/AuthService";
+import { Login as LoginService } from "../../wailsjs/go/auth/Service";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -20,7 +20,7 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      const result = await LoginService(username, password);
+      const result = await LoginService({ Username: username, Password: password });
 
       if (result) {
         navigate('/');
