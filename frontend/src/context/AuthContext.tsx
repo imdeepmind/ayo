@@ -4,6 +4,7 @@ import {
   Login as LoginService,
   Logout as LogoutService,
   Register as RegisterService,
+  ResetPassword as ResetPasswordService,
 } from '../../wailsjs/go/auth/Service';
 import { auth } from '../../wailsjs/go/models';
 
@@ -13,6 +14,7 @@ interface AuthContextType {
   login: (input: auth.LoginInput) => Promise<boolean>;
   register: (input: auth.RegisterInput) => Promise<auth.User | null>;
   logout: () => Promise<void>;
+  resetPassword: (input: auth.ResetPasswordInput) => Promise<void>;
   refreshSession: () => Promise<void>;
 }
 
@@ -78,8 +80,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
   };
 
+  const resetPassword = async (input: auth.ResetPasswordInput) => {
+    try {
+      await ResetPasswordService(input);
+    } catch (error) {
+      console.error('Password reset failed:', error);
+      throw error;
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ session, isLoading, login, register, logout, refreshSession }}>
+    <AuthContext.Provider
+      value={{ session, isLoading, login, register, logout, resetPassword, refreshSession }}
+    >
       {children}
     </AuthContext.Provider>
   );

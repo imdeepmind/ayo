@@ -88,7 +88,8 @@ export default function Register() {
 
             <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-300 dark:border-amber-700">
               <p className="text-sm text-amber-800 dark:text-amber-200">
-                ⚠️ <strong>Important:</strong> Store this recovery key in a safe place. You will need it to restore your account if you forget your password.
+                ⚠️ <strong>Important:</strong> Store this recovery key in a safe place. You will
+                need it to restore your account if you forget your password.
               </p>
             </div>
 

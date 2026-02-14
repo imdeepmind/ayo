@@ -9,3 +9,9 @@ type LoginInput struct {
 	Username string `validate:"required"`
 	Password string `validate:"required"`
 }
+
+type ResetPasswordInput struct {
+	Username    string `validate:"required"`
+	NewPassword string `validate:"required"`
+	RecoveryKey string `validate:"required"`
+}

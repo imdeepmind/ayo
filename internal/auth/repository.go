@@ -12,6 +12,7 @@ import (
 type Repository interface {
 	CreateUser(ctx context.Context, username string, passwordHash string, recoveryKey string) (*User, error)
 	GetUserByUsername(ctx context.Context, username string) (*User, error)
+	UpdateUserPassword(ctx context.Context, id int64, passwordHash string) error
 }
 
 type repository struct {
@@ -65,11 +66,11 @@ func (r *repository) CreateUser(ctx context.Context, username string, passwordHa
 }
 
 func (r *repository) GetUserByUsername(ctx context.Context, username string) (*User, error) {
-	query := `SELECT id, username, password_hash FROM users WHERE username = ?`
+	query := `SELECT id, username, password_hash, recovery_key FROM users WHERE username = ?`
 	row := r.db.QueryRowContext(ctx, query, username)
 
 	var user User
-	err := row.Scan(&user.ID, &user.Username, &user.PasswordHash)
+	err := row.Scan(&user.ID, &user.Username, &user.PasswordHash, &user.RecoveryKey)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -77,4 +78,13 @@ func (r *repository) GetUserByUsername(ctx context.Context, username string) (*U
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 	return &user, nil
+}
+
+func (r *repository) UpdateUserPassword(ctx context.Context, id int64, passwordHash string) error {
+	query := `UPDATE users SET password_hash = ? WHERE id = ?`
+	_, err := r.db.ExecContext(ctx, query, passwordHash, id)
+	if err != nil {
+		return fmt.Errorf("failed to update user password: %w", err)
+	}
+	return nil
 }

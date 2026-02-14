@@ -105,3 +105,31 @@ func (s *Service) Logout() {
 func (s *Service) GetSession() *Session {
 	return s.session
 }
+
+func (s *Service) ResetPassword(input ResetPasswordInput) error {
+	if err := s.validate.Struct(input); err != nil {
+		return errors.ErrInvalidInput
+	}
+
+	user, err := s.repo.GetUserByUsername(context.Background(), input.Username)
+	if err != nil {
+		return err
+	}
+
+	if user == nil {
+		return errors.ErrUserNotFound
+	}
+
+	fmt.Println("Hash Key: ", user.RecoveryKey, "Input Key: ", input.RecoveryKey)
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.RecoveryKey), []byte(input.RecoveryKey)); err != nil {
+		return errors.ErrInvalidRecoveryKey
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return errors.ErrInternalServer
+	}
+
+	return s.repo.UpdateUserPassword(context.Background(), user.ID, string(hashedPassword))
+}

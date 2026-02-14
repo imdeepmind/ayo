@@ -17,3 +17,7 @@ export function Logout() {
 export function Register(arg1) {
   return window['go']['auth']['Service']['Register'](arg1);
 }
+
+export function ResetPassword(arg1) {
+  return window['go']['auth']['Service']['ResetPassword'](arg1);
+}

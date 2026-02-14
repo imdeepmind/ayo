@@ -28,6 +28,22 @@ export namespace auth {
 	        this.Password = source["Password"];
 	    }
 	}
+	export class ResetPasswordInput {
+	    Username: string;
+	    NewPassword: string;
+	    RecoveryKey: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ResetPasswordInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Username = source["Username"];
+	        this.NewPassword = source["NewPassword"];
+	        this.RecoveryKey = source["RecoveryKey"];
+	    }
+	}
 	export class Session {
 	    UserId: number;
 	    Username: string;

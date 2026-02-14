@@ -9,3 +9,5 @@ export function Login(arg1:auth.LoginInput):Promise<boolean>;
 export function Logout():Promise<void>;
 
 export function Register(arg1:auth.RegisterInput):Promise<auth.User>;
+
+export function ResetPassword(arg1:auth.ResetPasswordInput):Promise<void>;
