@@ -5,24 +5,33 @@ import Register from '@/pages/Register';
 import Reset from '@/pages/Reset';
 import Header from '@/components/items/Header';
 import { ThemeProvider } from '@/theme/ThemeProvider';
+import { AuthProvider } from '@/context/AuthContext';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import PublicRoute from '@/components/PublicRoute';
 
 function App() {
   return (
-    <ThemeProvider>
-      <BrowserRouter>
-        <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
-          <Header />
-          <main className="flex-1">
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/auth/login" element={<Login />} />
-              <Route path="/auth/register" element={<Register />} />
-              <Route path="/auth/reset" element={<Reset />} />
-            </Routes>
-          </main>
-        </div>
-      </BrowserRouter>
-    </ThemeProvider>
+    <AuthProvider>
+      <ThemeProvider>
+        <BrowserRouter>
+          <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+            <Header />
+            <main className="flex-1">
+              <Routes>
+                <Route element={<ProtectedRoute />}>
+                  <Route path="/" element={<Home />} />
+                </Route>
+                <Route element={<PublicRoute />}>
+                  <Route path="/auth/login" element={<Login />} />
+                  <Route path="/auth/register" element={<Register />} />
+                  <Route path="/auth/reset" element={<Reset />} />
+                </Route>
+              </Routes>
+            </main>
+          </div>
+        </BrowserRouter>
+      </ThemeProvider>
+    </AuthProvider>
   );
 }
 

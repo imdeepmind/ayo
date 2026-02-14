@@ -4,11 +4,11 @@ import PageSection from '@/components/bits/Section';
 import AuthCard from '@/components/items/AuthCard';
 import TextInput from '@/components/bits/Input';
 import Button from '@/components/bits/Button';
-
-import { Login as LoginService } from "../../wailsjs/go/auth/Service";
+import { useAuth } from '@/context/AuthContext';
 
 export default function Login() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +20,7 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      const result = await LoginService({ Username: username, Password: password });
+      const result = await login({ Username: username, Password: password });
 
       if (result) {
         navigate('/');

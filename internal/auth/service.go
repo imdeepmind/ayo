@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
-	stdErrors "errors"
 	"fmt"
 
 	"ayo/internal/errors"
@@ -14,7 +13,7 @@ import (
 )
 
 type Session struct {
-	UserId   string
+	UserId   int64
 	Username string
 }
 
@@ -43,24 +42,20 @@ func GenerateRecoveryKey() (string, error) {
 }
 
 func (s *Service) Register(input RegisterInput) (*User, error) {
-	// 1. Input Validation
 	if err := s.validate.Struct(input); err != nil {
 		return nil, errors.ErrInvalidInput
 	}
 
-	// 2. Generate Recovery Key
 	recoveryKey, err := GenerateRecoveryKey()
 	if err != nil {
 		return nil, errors.ErrInternalServer
 	}
 
-	// 3. Hash Password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, errors.ErrInternalServer
 	}
 
-	// 4. Create User in Repository
 	user, err := s.repo.CreateUser(context.Background(), input.Username, string(hashedPassword), recoveryKey)
 	if err != nil {
 		return nil, err
@@ -69,20 +64,36 @@ func (s *Service) Register(input RegisterInput) (*User, error) {
 	return user, nil
 }
 
-// Login is a dummy login method
 func (s *Service) Login(input LoginInput) (bool, error) {
 	if err := s.validate.Struct(input); err != nil {
 		return false, errors.ErrInvalidInput
 	}
 
-	// Dummy logic - unchanged as requested
-	if input.Username == "admin" && input.Password == "password" {
-		s.session = &Session{
-			UserId:   "1",
-			Username: input.Username,
-		}
-		return true, nil
+	user, err := s.repo.GetUserByUsername(context.Background(), input.Username)
+	if err != nil {
+		return false, err
 	}
 
-	return false, stdErrors.New("invalid username or password")
+	if user == nil {
+		return false, errors.ErrUserNotFound
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {
+		return false, errors.ErrInvalidPassword
+	}
+
+	s.session = &Session{
+		UserId:   user.ID,
+		Username: user.Username,
+	}
+
+	return true, nil
+}
+
+func (s *Service) Logout() {
+	s.session = nil
+}
+
+func (s *Service) GetSession() *Session {
+	return s.session
 }

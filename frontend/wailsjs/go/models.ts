@@ -28,6 +28,20 @@ export namespace auth {
 	        this.Password = source["Password"];
 	    }
 	}
+	export class Session {
+	    UserId: number;
+	    Username: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Session(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.UserId = source["UserId"];
+	        this.Username = source["Username"];
+	    }
+	}
 	export class User {
 	    ID: number;
 	    Username: string;

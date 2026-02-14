@@ -65,11 +65,11 @@ func (r *repository) CreateUser(ctx context.Context, username string, passwordHa
 }
 
 func (r *repository) GetUserByUsername(ctx context.Context, username string) (*User, error) {
-	query := `SELECT id, username, password_hash, recovery_key FROM users WHERE username = ?`
+	query := `SELECT id, username, password_hash FROM users WHERE username = ?`
 	row := r.db.QueryRowContext(ctx, query, username)
 
 	var user User
-	err := row.Scan(&user.ID, &user.Username, &user.PasswordHash, &user.RecoveryKey)
+	err := row.Scan(&user.ID, &user.Username, &user.PasswordHash)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
