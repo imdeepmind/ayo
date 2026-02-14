@@ -1,5 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import PageSection from '@/components/bits/Section';
 import AuthCard from '@/components/items/AuthCard';
 import TextInput from '@/components/bits/Input';
@@ -12,29 +13,25 @@ export default function Register() {
   const { register } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [recoveryKey, setRecoveryKey] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    setError(null);
-    setMessage(null);
     setIsLoading(true);
 
     try {
       const user = await register({ Username: username, Password: password });
       if (user) {
         setRecoveryKey(user.RecoveryKey);
-        setMessage('Account created successfully! Please download your recovery key.');
+        toast.success('Account created successfully! Please download your recovery key.');
       } else {
-        setError('Failed to create account. Please try again.');
+        toast.error('Failed to create account. Please try again.');
       }
     } catch (err) {
       console.error('Registration error:', err);
-      setError(String(err) || 'An unexpected error occurred. Please try again.');
+      toast.error(String(err) || 'An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -46,13 +43,13 @@ export default function Register() {
     setIsSaving(true);
     try {
       await SaveRecoveryKey(username, recoveryKey);
-      // After saving, redirect to login
+      toast.success('Recovery key saved successfully! Redirecting to login...');
       setTimeout(() => {
         navigate('/auth/login');
       }, 500);
     } catch (err) {
       console.error('Failed to save recovery key:', err);
-      setError('Failed to save recovery key. Please try again.');
+      toast.error('Failed to save recovery key. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -66,13 +63,6 @@ export default function Register() {
           recoveryKey
             ? 'Save your recovery key securely. You will need it to restore your account.'
             : 'Create a simple demo account with a username and password.'
-        }
-        footer={
-          message && (
-            <p className="text-sm text-emerald-600 dark:text-emerald-400" role="status">
-              {message}
-            </p>
-          )
         }
       >
         {recoveryKey ? (
@@ -125,12 +115,6 @@ export default function Register() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Choose a strong password"
             />
-
-            {error && (
-              <p className="text-sm text-red-500 dark:text-red-400" role="alert">
-                {error}
-              </p>
-            )}
 
             <Button type="submit" fullWidth className="mt-2" disabled={isLoading}>
               {isLoading ? 'Creating account...' : 'Create account'}

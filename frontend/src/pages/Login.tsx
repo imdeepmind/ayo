@@ -1,5 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import PageSection from '@/components/bits/Section';
 import AuthCard from '@/components/items/AuthCard';
 import TextInput from '@/components/bits/Input';
@@ -11,25 +12,24 @@ export default function Login() {
   const { login } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    setError(null);
     setIsLoading(true);
 
     try {
       const result = await login({ Username: username, Password: password });
 
       if (result) {
+        toast.success('Login successful!');
         navigate('/');
       } else {
-        setError('Invalid username or password. Try admin / password.');
+        toast.error('Invalid username or password.');
       }
     } catch (err) {
       console.error('Login error:', err);
-      setError(String(err) || 'An unexpected error occurred. Please try again.');
+      toast.error(String(err) || 'An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -81,12 +81,6 @@ export default function Login() {
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Enter your password"
           />
-
-          {error && (
-            <p className="text-sm text-red-500 dark:text-red-400" role="alert">
-              {error}
-            </p>
-          )}
 
           <Button type="submit" fullWidth className="mt-2" disabled={isLoading}>
             {isLoading ? 'Signing in...' : 'Sign in'}

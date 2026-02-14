@@ -1,5 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import PageSection from '@/components/bits/Section';
 import AuthCard from '@/components/items/AuthCard';
 import TextInput from '@/components/bits/Input';
@@ -10,8 +11,6 @@ export default function Reset() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [recoveryKey, setRecoveryKey] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { resetPassword } = useAuth();
@@ -19,8 +18,6 @@ export default function Reset() {
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    setError(null);
-    setSuccess(false);
     setIsSubmitting(true);
 
     try {
@@ -29,11 +26,11 @@ export default function Reset() {
         NewPassword: password,
         RecoveryKey: recoveryKey,
       });
-      setSuccess(true);
+      toast.success('Password reset successfully! Redirecting to login...');
       navigate('/auth/login');
     } catch (err) {
       console.error(err);
-      setError(String(err) || 'An unexpected error occurred');
+      toast.error(String(err) || 'An unexpected error occurred');
     } finally {
       setIsSubmitting(false);
     }
@@ -44,16 +41,6 @@ export default function Reset() {
       <AuthCard
         title="Reset password"
         description="Provide your username, recovery key, and a new password."
-        footer={
-          (error || success) && (
-            <p
-              className={`text-sm ${error ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}
-              role="status"
-            >
-              {error || (success && 'Password reset successfully! Redirecting to login...')}
-            </p>
-          )
-        }
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <TextInput
