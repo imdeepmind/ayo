@@ -1,7 +1,10 @@
 package main
 
 import (
+	"ayo/backend/db"
+	"ayo/backend/repository"
 	"ayo/backend/services"
+
 	"embed"
 
 	"github.com/wailsapp/wails/v2"
@@ -18,10 +21,16 @@ func main() {
 	app := NewApp()
 
 	// Internal Services
-	authService := services.NewAuthService()
+	db, err := db.NewDatabase("ayo.db")
+	if err != nil {
+		panic(err)
+	}
+
+	authRepository := repository.NewAuthRepository(db)
+	authService := services.NewAuthService(authRepository)
 
 	// Create application with options
-	err := wails.Run(&options.App{
+	err = wails.Run(&options.App{
 		Title:  "ayo",
 		Width:  1024,
 		Height: 768,

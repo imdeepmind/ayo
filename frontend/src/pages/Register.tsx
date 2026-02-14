@@ -4,14 +4,20 @@ import AuthCard from '@/components/items/AuthCard';
 import TextInput from '@/components/bits/Input';
 import Button from '@/components/bits/Button';
 
+import { Register as RegisterService } from "../../wailsjs/go/services/AuthService";
+
 export default function Register() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
-    setMessage('Account created (demo only, no backend yet).');
+    RegisterService(username, password).then((result) => {
+      console.log(result);
+    });
   };
 
   return (

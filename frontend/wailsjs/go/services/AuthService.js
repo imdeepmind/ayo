@@ -5,3 +5,7 @@
 export function Login(arg1, arg2) {
   return window['go']['services']['AuthService']['Login'](arg1, arg2);
 }
+
+export function Register(arg1, arg2) {
+  return window['go']['services']['AuthService']['Register'](arg1, arg2);
+}

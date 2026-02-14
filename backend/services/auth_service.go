@@ -1,6 +1,11 @@
 package services
 
-import "errors"
+import (
+	"errors"
+
+	"ayo/backend/model"
+	"ayo/backend/repository"
+)
 
 type Session struct {
 	UserId   string
@@ -8,11 +13,23 @@ type Session struct {
 }
 
 type AuthService struct {
-	session *Session
+	session        *Session
+	authRepository *repository.AuthRepository
 }
 
-func NewAuthService() *AuthService {
-	return &AuthService{}
+func NewAuthService(authRepository *repository.AuthRepository) *AuthService {
+	return &AuthService{
+		authRepository: authRepository,
+	}
+}
+
+func (a *AuthService) Register(username string, password string) (*model.User, error) {
+	user, err := a.authRepository.CreateUser(username, password)
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
 }
 
 // Login is a dummy login method
