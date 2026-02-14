@@ -1,4 +1,6 @@
-import { FormEvent, useState } from 'react';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import PageSection from '@/components/bits/Section';
@@ -7,22 +9,30 @@ import TextInput from '@/components/bits/Input';
 import Button from '@/components/bits/Button';
 import { useAuth } from '@/context/AuthContext';
 import { SaveRecoveryKey } from '../../wailsjs/go/fileops/Service';
+import { registerSchema, type RegisterFormData } from '@/lib/validations';
 
 export default function Register() {
   const navigate = useNavigate();
-  const { register } = useAuth();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const { register: registerUser } = useAuth();
   const [recoveryKey, setRecoveryKey] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    setIsLoading(true);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+    getValues,
+  } = useForm<RegisterFormData>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+      username: '',
+      password: '',
+    },
+  });
 
+  const onSubmit = async (data: RegisterFormData) => {
     try {
-      const user = await register({ Username: username, Password: password });
+      const user = await registerUser({ Username: data.username, Password: data.password });
       if (user) {
         setRecoveryKey(user.RecoveryKey);
         toast.success('Account created successfully! Please download your recovery key.');
@@ -32,8 +42,6 @@ export default function Register() {
     } catch (err) {
       console.error('Registration error:', err);
       toast.error(String(err) || 'An unexpected error occurred. Please try again.');
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -42,6 +50,7 @@ export default function Register() {
 
     setIsSaving(true);
     try {
+      const username = getValues('username');
       await SaveRecoveryKey(username, recoveryKey);
       toast.success('Recovery key saved successfully! Redirecting to login...');
       setTimeout(() => {
@@ -94,30 +103,28 @@ export default function Register() {
             </Button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <TextInput
               id="reg-username"
-              name="username"
               label="Username"
               type="text"
               autoComplete="off"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
               placeholder="Choose a username"
+              error={errors.username?.message}
+              {...register('username')}
             />
 
             <TextInput
               id="reg-password"
-              name="password"
               label="Password"
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
               placeholder="Choose a strong password"
+              error={errors.password?.message}
+              {...register('password')}
             />
 
-            <Button type="submit" fullWidth className="mt-2" disabled={isLoading}>
-              {isLoading ? 'Creating account...' : 'Create account'}
+            <Button type="submit" fullWidth className="mt-2" disabled={isSubmitting}>
+              {isSubmitting ? 'Creating account...' : 'Create account'}
             </Button>
           </form>
         )}

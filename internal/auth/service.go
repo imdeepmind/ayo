@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"regexp"
 
 	"ayo/internal/errors"
 
@@ -23,10 +24,30 @@ type Service struct {
 	validate *validator.Validate
 }
 
+func validatePasswordStrength(fl validator.FieldLevel) bool {
+	password := fl.Field().String()
+
+	// Check for at least one uppercase letter
+	hasUpper := regexp.MustCompile(`[A-Z]`).MatchString(password)
+	// Check for at least one lowercase letter
+	hasLower := regexp.MustCompile(`[a-z]`).MatchString(password)
+	// Check for at least one digit
+	hasDigit := regexp.MustCompile(`[0-9]`).MatchString(password)
+	// Check for at least one special character
+	hasSymbol := regexp.MustCompile(`[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]`).MatchString(password)
+
+	return hasUpper && hasLower && hasDigit && hasSymbol
+}
+
 func NewService(repo Repository) *Service {
+	validate := validator.New()
+
+	// Register custom password strength validator
+	validate.RegisterValidation("password_strength", validatePasswordStrength)
+
 	return &Service{
 		repo:     repo,
-		validate: validator.New(),
+		validate: validate,
 	}
 }
 
@@ -73,6 +94,7 @@ func (s *Service) Register(input RegisterInput) (*User, error) {
 }
 
 func (s *Service) Login(input LoginInput) (bool, error) {
+	fmt.Println("This is something that should run")
 	if err := s.validate.Struct(input); err != nil {
 		return false, errors.ErrInvalidInput
 	}

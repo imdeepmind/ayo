@@ -56,7 +56,7 @@ export default function Header() {
                 onClick={() => logout()}
                 className={() => [navLinkBase, 'text-slate-600 dark:text-slate-300'].join(' ')}
               >
-                Log out
+                Logout
               </NavLink>
             </>
           ) : (

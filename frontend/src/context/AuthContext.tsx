@@ -25,11 +25,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   const refreshSession = async () => {
+    // Check if Wails bindings are ready with a few retries
+    const win = window as any;
+    let retries = 0;
+    while ((!win.go || !win.go.auth) && retries < 10) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      retries++;
+    }
+
+    if (!win.go || !win.go.auth) {
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const sess = await GetSession();
-      // Wails might return null or an empty object/struct for nil pointer?
-      // Assuming it returns null if *Session is nil in Go.
-      // If it returns a zero-value struct, we might need to check UserId !== 0.
       if (sess && sess.UserId !== 0) {
         setSession(sess);
       } else {
@@ -58,17 +68,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = async (input: auth.RegisterInput) => {
     try {
       const user = await RegisterService(input);
-      if (user) {
-        // Automatically login after register?
-        // For now, let's just return true and let the component handle it (e.g. redirect to login or auto-login)
-        // Check if the backend auto-logins. The Service.Register just returns *User, so it probably doesn't set the session.
-        // We'll trust the caller to handle the flow, or we can auto-login here.
-        // The prompt said "logged it user cannot access login,register...".
-        // Usually, register -> login -> home.
-        // Let's just return true/false based on user creation.
-        return user;
-      }
-      return null;
+
+      return user ?? null;
     } catch (error) {
       console.error('Registration failed:', error);
       throw error;

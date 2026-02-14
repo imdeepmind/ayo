@@ -1,4 +1,5 @@
-import { FormEvent, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import PageSection from '@/components/bits/Section';
@@ -6,20 +7,27 @@ import AuthCard from '@/components/items/AuthCard';
 import TextInput from '@/components/bits/Input';
 import Button from '@/components/bits/Button';
 import { useAuth } from '@/context/AuthContext';
+import { loginSchema, type LoginFormData } from '@/lib/validations';
 
 export default function Login() {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    setIsLoading(true);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      username: '',
+      password: '',
+    },
+  });
 
+  const onSubmit = async (data: LoginFormData) => {
     try {
-      const result = await login({ Username: username, Password: password });
+      const result = await login({ Username: data.username, Password: data.password });
 
       if (result) {
         toast.success('Login successful!');
@@ -30,8 +38,6 @@ export default function Login() {
     } catch (err) {
       console.error('Login error:', err);
       toast.error(String(err) || 'An unexpected error occurred. Please try again.');
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -60,30 +66,28 @@ export default function Login() {
           </div>
         }
       >
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <TextInput
             id="username"
-            name="username"
             label="Username"
             type="text"
             autoComplete="off"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
             placeholder="Enter your username"
+            error={errors.username?.message}
+            {...register('username')}
           />
 
           <TextInput
             id="password"
-            name="password"
             label="Password"
             type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
             placeholder="Enter your password"
+            error={errors.password?.message}
+            {...register('password')}
           />
 
-          <Button type="submit" fullWidth className="mt-2" disabled={isLoading}>
-            {isLoading ? 'Signing in...' : 'Sign in'}
+          <Button type="submit" fullWidth className="mt-2" disabled={isSubmitting}>
+            {isSubmitting ? 'Signing in...' : 'Sign in'}
           </Button>
         </form>
       </AuthCard>
