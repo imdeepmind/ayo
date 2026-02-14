@@ -8,10 +8,7 @@ type TextInputProps = InputHTMLAttributes<HTMLInputElement> & {
 export default function TextInput({ label, id, className = '', ...rest }: TextInputProps) {
   return (
     <div className="space-y-1">
-      <label
-        htmlFor={id}
-        className="block text-sm font-medium text-slate-700 dark:text-slate-200"
-      >
+      <label htmlFor={id} className="block text-sm font-medium text-slate-700 dark:text-slate-200">
         {label}
       </label>
       <input
@@ -22,4 +19,3 @@ export default function TextInput({ label, id, className = '', ...rest }: TextIn
     </div>
   );
 }
-

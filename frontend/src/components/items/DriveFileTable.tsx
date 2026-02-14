@@ -60,9 +60,7 @@ export default function DriveFileTable({ files, onFileClick }: DriveFileTablePro
                 </div>
                 <span className="text-xs text-slate-400">{formatSize(file.sizeBytes)}</span>
               </div>
-              <div className="mb-1 truncate text-xs font-medium text-slate-100">
-                {file.name}
-              </div>
+              <div className="mb-1 truncate text-xs font-medium text-slate-100">{file.name}</div>
               <div className="flex items-center justify-between text-[11px] text-slate-400">
                 <span className="truncate">{file.type}</span>
                 <span>{formatDate(file.modifiedAt)}</span>
@@ -74,4 +72,3 @@ export default function DriveFileTable({ files, onFileClick }: DriveFileTablePro
     </div>
   );
 }
-

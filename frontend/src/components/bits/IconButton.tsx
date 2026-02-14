@@ -10,12 +10,8 @@ const baseClasses =
 
 export default function IconButton({ className = '', children, ...rest }: IconButtonProps) {
   return (
-    <button
-      {...rest}
-      className={`${baseClasses} h-8 w-8 text-sm ${className}`.trim()}
-    >
+    <button {...rest} className={`${baseClasses} h-8 w-8 text-sm ${className}`.trim()}>
       {children}
     </button>
   );
 }
-

@@ -24,19 +24,41 @@ export default function Header() {
 
         <nav className="flex items-center gap-1">
           {session ? (
-            <NavLink
-              to="/"
-              className={({ isActive }) =>
-                [
-                  navLinkBase,
-                  isActive
-                    ? 'text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-slate-800'
-                    : 'text-slate-600 dark:text-slate-300',
-                ].join(' ')
-              }
-            >
-              Home
-            </NavLink>
+            <>
+              <NavLink
+                to="/"
+                className={({ isActive }) =>
+                  [
+                    navLinkBase,
+                    isActive
+                      ? 'text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-slate-800'
+                      : 'text-slate-600 dark:text-slate-300',
+                  ].join(' ')
+                }
+              >
+                Home
+              </NavLink>
+              <NavLink
+                to="/about"
+                className={({ isActive }) =>
+                  [
+                    navLinkBase,
+                    isActive
+                      ? 'text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-slate-800'
+                      : 'text-slate-600 dark:text-slate-300',
+                  ].join(' ')
+                }
+              >
+                About
+              </NavLink>
+              <NavLink
+                to="/"
+                onClick={() => logout()}
+                className={() => [navLinkBase, 'text-slate-600 dark:text-slate-300'].join(' ')}
+              >
+                Log out
+              </NavLink>
+            </>
           ) : (
             <NavLink
               to="/auth/login"
@@ -55,33 +77,14 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={toggleTheme}
-            className="h-8 px-3 text-xs"
-          >
+          <Button type="button" variant="ghost" onClick={toggleTheme} className="h-8 px-3 text-xs">
             <span aria-hidden="true" className="mr-1">
               {theme === 'dark' ? '🌙' : '☀️'}
             </span>
-            <span className="hidden sm:inline">
-              {theme === 'dark' ? 'Dark' : 'Light'} mode
-            </span>
+            <span className="hidden sm:inline">{theme === 'dark' ? 'Dark' : 'Light'} mode</span>
           </Button>
-
-          {session && (
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => logout()}
-              className="h-8 px-3 text-xs text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:border-red-900/50 dark:hover:bg-red-950/30"
-            >
-              Log out
-            </Button>
-          )}
         </div>
       </div>
     </header>
   );
 }
-

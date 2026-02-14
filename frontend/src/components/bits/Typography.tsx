@@ -36,4 +36,3 @@ export function SectionLabel({ children, className = '', ...rest }: Props) {
     </h2>
   );
 }
-

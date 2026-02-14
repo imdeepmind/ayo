@@ -5,7 +5,12 @@ type SearchInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange' |
   onChange: (value: string) => void;
 };
 
-export default function SearchInput({ value, onChange, className = '', ...rest }: SearchInputProps) {
+export default function SearchInput({
+  value,
+  onChange,
+  className = '',
+  ...rest
+}: SearchInputProps) {
   return (
     <div className={`relative ${className}`.trim()}>
       <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-slate-400">
@@ -35,4 +40,3 @@ export default function SearchInput({ value, onChange, className = '', ...rest }
     </div>
   );
 }
-

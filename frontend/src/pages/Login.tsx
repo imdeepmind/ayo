@@ -27,9 +27,9 @@ export default function Login() {
       } else {
         setError('Invalid username or password. Try admin / password.');
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Login error:', err);
-      setError(err || 'An unexpected error occurred. Please try again.');
+      setError(String(err) || 'An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -39,11 +39,7 @@ export default function Login() {
     <PageSection>
       <AuthCard
         title="Login"
-        description={
-          <>
-            Please provide your username and password to login to your ayo drive.
-          </>
-        }
+        description={<>Please provide your username and password to login to your ayo drive.</>}
         footer={
           <div className="flex flex-col items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-300 sm:flex-row">
             <div className="flex gap-2">
@@ -100,4 +96,3 @@ export default function Login() {
     </PageSection>
   );
 }
-

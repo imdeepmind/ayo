@@ -6,8 +6,8 @@ import Reset from '@/pages/Reset';
 import Header from '@/components/items/Header';
 import { ThemeProvider } from '@/theme/ThemeProvider';
 import { AuthProvider } from '@/context/AuthContext';
-import ProtectedRoute from '@/components/ProtectedRoute';
-import PublicRoute from '@/components/PublicRoute';
+import ProtectedRoute from '@/components/items/ProtectedRoute';
+import PublicRoute from '@/components/items/PublicRoute';
 
 function App() {
   return (

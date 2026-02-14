@@ -1,10 +1,4 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  ReactNode,
-} from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import {
   GetSession,
   Login as LoginService,
@@ -85,9 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider
-      value={{ session, isLoading, login, register, logout, refreshSession }}
-    >
+    <AuthContext.Provider value={{ session, isLoading, login, register, logout, refreshSession }}>
       {children}
     </AuthContext.Provider>
   );

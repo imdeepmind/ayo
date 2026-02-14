@@ -63,4 +63,3 @@ export const files: FileItem[] = [
 export function calculateTotalUsedBytes(items: FileItem[]): number {
   return items.reduce((total, item) => total + item.sizeBytes, 0);
 }
-

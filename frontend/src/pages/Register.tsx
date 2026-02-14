@@ -31,9 +31,9 @@ export default function Register() {
       } else {
         setError('Failed to create account. Please try again.');
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Registration error:', err);
-      setError(err || 'An unexpected error occurred. Please try again.');
+      setError(String(err) || 'An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -88,4 +88,3 @@ export default function Register() {
     </PageSection>
   );
 }
-
