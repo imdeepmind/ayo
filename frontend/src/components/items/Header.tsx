@@ -39,7 +39,7 @@ export default function Header() {
                 Home
               </NavLink>
               <NavLink
-                to="/about"
+                to="/settings"
                 className={({ isActive }) =>
                   [
                     navLinkBase,
@@ -49,7 +49,7 @@ export default function Header() {
                   ].join(' ')
                 }
               >
-                About
+                Settings
               </NavLink>
               <NavLink
                 to="/"
@@ -74,6 +74,20 @@ export default function Header() {
               Login
             </NavLink>
           )}
+
+          <NavLink
+            to="/about"
+            className={({ isActive }) =>
+              [
+                navLinkBase,
+                isActive
+                  ? 'text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-slate-800'
+                  : 'text-slate-600 dark:text-slate-300',
+              ].join(' ')
+            }
+          >
+            About
+          </NavLink>
         </nav>
 
         <div className="flex items-center gap-2">
