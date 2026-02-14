@@ -11,7 +11,7 @@ interface AuthContextType {
   session: auth.Session | null;
   isLoading: boolean;
   login: (input: auth.LoginInput) => Promise<boolean>;
-  register: (input: auth.RegisterInput) => Promise<boolean>;
+  register: (input: auth.RegisterInput) => Promise<auth.User | null>;
   logout: () => Promise<void>;
   refreshSession: () => Promise<void>;
 }
@@ -64,9 +64,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // The prompt said "logged it user cannot access login,register...".
         // Usually, register -> login -> home.
         // Let's just return true/false based on user creation.
-        return true;
+        return user;
       }
-      return false;
+      return null;
     } catch (error) {
       console.error('Registration failed:', error);
       throw error;

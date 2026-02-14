@@ -2,6 +2,7 @@ package main
 
 import (
 	"ayo/internal/auth"
+	"ayo/internal/fileops"
 	"ayo/internal/platform/database"
 	"context"
 	"fmt"
@@ -48,6 +49,9 @@ func main() {
 	authRepository := auth.NewRepository(db)
 	authService := auth.NewService(authRepository)
 
+	// Initialize File Operations Service
+	fileOpsService := fileops.NewService()
+
 	// Create application with options
 	err = wails.Run(&options.App{
 		Title:  "ayo",
@@ -57,8 +61,11 @@ func main() {
 			Assets: assets,
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
-		OnStartup:        app.startup,
-		DisableResize:    false,
+		OnStartup: func(ctx context.Context) {
+			app.startup(ctx)
+			fileOpsService.Startup(ctx)
+		},
+		DisableResize: false,
 		Mac: &mac.Options{
 			TitleBar: &mac.TitleBar{
 				TitlebarAppearsTransparent: false,
@@ -80,6 +87,7 @@ func main() {
 		Bind: []interface{}{
 			app,
 			authService,
+			fileOpsService,
 		},
 	})
 
