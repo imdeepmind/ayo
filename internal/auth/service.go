@@ -94,7 +94,6 @@ func (s *Service) Register(input RegisterInput) (*User, error) {
 }
 
 func (s *Service) Login(input LoginInput) (bool, error) {
-	fmt.Println("This is something that should run")
 	if err := s.validate.Struct(input); err != nil {
 		return false, errors.ErrInvalidInput
 	}
