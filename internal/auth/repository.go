@@ -8,7 +8,6 @@ import (
 	"strings"
 )
 
-// Repository defines the interface for student data access.
 type Repository interface {
 	CreateUser(ctx context.Context, username string, passwordHash string, recoveryKey string) (*User, error)
 	GetUserByUsername(ctx context.Context, username string) (*User, error)
