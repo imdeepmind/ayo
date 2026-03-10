@@ -141,8 +141,6 @@ func (s *Service) ResetPassword(input ResetPasswordInput) error {
 		return errors.ErrUserNotFound
 	}
 
-	fmt.Println("Hash Key: ", user.RecoveryKey, "Input Key: ", input.RecoveryKey)
-
 	if err := bcrypt.CompareHashAndPassword([]byte(user.RecoveryKey), []byte(input.RecoveryKey)); err != nil {
 		return errors.ErrInvalidRecoveryKey
 	}
