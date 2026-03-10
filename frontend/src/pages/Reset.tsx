@@ -137,6 +137,15 @@ export default function Reset() {
               {...register('newPassword')}
             />
 
+            <TextInput
+              id="reset-confirm-password"
+              label="Confirm password"
+              type="password"
+              placeholder="Confirm your new password"
+              error={errors.confirmPassword?.message}
+              {...register('confirmPassword')}
+            />
+
             <Button type="submit" fullWidth className="mt-2" isLoading={isSubmitting}>
               Submit reset request
             </Button>

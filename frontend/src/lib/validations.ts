@@ -34,21 +34,33 @@ export const loginSchema = z.object({
 });
 
 // Register form schema
-export const registerSchema = z.object({
-  username: usernameSchema,
-  password: passwordSchema,
-});
+export const registerSchema = z
+  .object({
+    username: usernameSchema,
+    password: passwordSchema,
+    confirmPassword: z.string().min(1, 'Please confirm your password'),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
 
 // Reset password form schema
-export const resetPasswordSchema = z.object({
-  username: usernameSchema,
-  recoveryKey: z
-    .string({
-      message: 'Recovery key must be a string',
-    })
-    .min(1, 'Recovery key is required'),
-  newPassword: passwordSchema,
-});
+export const resetPasswordSchema = z
+  .object({
+    username: usernameSchema,
+    recoveryKey: z
+      .string({
+        message: 'Recovery key must be a string',
+      })
+      .min(1, 'Recovery key is required'),
+    newPassword: passwordSchema,
+    confirmPassword: z.string().min(1, 'Please confirm your password'),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
 
 export type LoginFormData = z.infer<typeof loginSchema>;
 export type RegisterFormData = z.infer<typeof registerSchema>;

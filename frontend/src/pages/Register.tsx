@@ -123,6 +123,15 @@ export default function Register() {
               {...register('password')}
             />
 
+            <TextInput
+              id="reg-confirm-password"
+              label="Confirm Password"
+              type="password"
+              placeholder="Confirm your password"
+              error={errors.confirmPassword?.message}
+              {...register('confirmPassword')}
+            />
+
             <Button type="submit" fullWidth className="mt-2" disabled={isSubmitting}>
               {isSubmitting ? 'Creating account...' : 'Create account'}
             </Button>
