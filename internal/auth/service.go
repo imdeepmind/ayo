@@ -43,7 +43,7 @@ func NewService(repo Repository) *Service {
 	validate := validator.New()
 
 	// Register custom password strength validator
-	validate.RegisterValidation("password_strength", validatePasswordStrength)
+	_ = validate.RegisterValidation("password_strength", validatePasswordStrength)
 
 	return &Service{
 		repo:     repo,

@@ -24,9 +24,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<auth.Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const refreshSession = async () => {
+  const refreshSession = async (): Promise<void> => {
     // Check if Wails bindings are ready with a few retries
-    const win = window as any;
+    const win = window as unknown as { go: { auth: { GetSession: () => Promise<auth.Session | null> } } };
     let retries = 0;
     while ((!win.go || !win.go.auth) && retries < 10) {
       await new Promise((resolve) => setTimeout(resolve, 100));
