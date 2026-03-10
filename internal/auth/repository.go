@@ -12,6 +12,7 @@ type Repository interface {
 	CreateUser(ctx context.Context, username string, passwordHash string, recoveryKey string) (*User, error)
 	GetUserByUsername(ctx context.Context, username string) (*User, error)
 	UpdateUserPassword(ctx context.Context, id int64, passwordHash string) error
+	UpdateUserRecoveryKey(ctx context.Context, id int64, recoveryKeyHash string) error
 }
 
 type repository struct {
@@ -84,6 +85,15 @@ func (r *repository) UpdateUserPassword(ctx context.Context, id int64, passwordH
 	_, err := r.db.ExecContext(ctx, query, passwordHash, id)
 	if err != nil {
 		return fmt.Errorf("failed to update user password: %w", err)
+	}
+	return nil
+}
+
+func (r *repository) UpdateUserRecoveryKey(ctx context.Context, id int64, recoveryKeyHash string) error {
+	query := `UPDATE users SET recovery_key = ? WHERE id = ?`
+	_, err := r.db.ExecContext(ctx, query, recoveryKeyHash, id)
+	if err != nil {
+		return fmt.Errorf("failed to update user recovery key: %w", err)
 	}
 	return nil
 }

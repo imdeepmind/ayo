@@ -14,7 +14,7 @@ interface AuthContextType {
   login: (input: auth.LoginInput) => Promise<boolean>;
   register: (input: auth.RegisterInput) => Promise<auth.User | null>;
   logout: () => Promise<void>;
-  resetPassword: (input: auth.ResetPasswordInput) => Promise<void>;
+  resetPassword: (input: auth.ResetPasswordInput) => Promise<auth.User | null>;
   refreshSession: () => Promise<void>;
 }
 
@@ -85,7 +85,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const resetPassword = async (input: auth.ResetPasswordInput) => {
     try {
-      await ResetPasswordService(input);
+      const user = await ResetPasswordService(input);
+      return user ?? null;
     } catch (error) {
       console.error('Password reset failed:', error);
       throw error;
