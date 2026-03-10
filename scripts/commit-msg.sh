@@ -11,6 +11,12 @@ COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
 # Message: at least one character
 REGEX="^(feat|chore|ci|bug)\([a-z-]+\): AYO-[0-9]+: .+"
 
+# Skip validation for merge commits
+if [[ $COMMIT_MSG =~ ^Merge[[:space:]] ]]; then
+    echo "Merge commit detected. Skipping validation."
+    exit 0
+fi
+
 if [[ ! $COMMIT_MSG =~ $REGEX ]]; then
     echo "Error: Commit message does not follow the convention!"
     echo "Expected format: type(scope): AYO-<NUMBER>: message"
