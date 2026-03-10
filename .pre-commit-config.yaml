@@ -1,0 +1,20 @@
+repos:
+  - repo: local
+    hooks:
+      - id: commit-msg-lint
+        name: Commit Message Lint
+        entry: scripts/commit-msg.sh
+        language: script
+        stages: [commit-msg]
+      - id: go-lint
+        name: Go Lint
+        entry: golangci-lint run
+        language: system
+        types: [go]
+        pass_filenames: false
+      - id: frontend-lint
+        name: Frontend Lint
+        entry: npm --prefix frontend run lint
+        language: system
+        files: ^frontend/
+        pass_filenames: false
