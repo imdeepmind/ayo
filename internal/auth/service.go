@@ -127,28 +127,49 @@ func (s *Service) GetSession() *Session {
 	return s.session
 }
 
-func (s *Service) ResetPassword(input ResetPasswordInput) error {
+func (s *Service) ResetPassword(input ResetPasswordInput) (*User, error) {
 	if err := s.validate.Struct(input); err != nil {
-		return errors.ErrInvalidInput
+		return nil, errors.ErrInvalidInput
 	}
 
 	user, err := s.repo.GetUserByUsername(context.Background(), input.Username)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if user == nil {
-		return errors.ErrUserNotFound
+		return nil, errors.ErrUserNotFound
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.RecoveryKey), []byte(input.RecoveryKey)); err != nil {
-		return errors.ErrInvalidRecoveryKey
+		return nil, errors.ErrInvalidRecoveryKey
+	}
+
+	newRecoveryKey, err := GenerateRecoveryKey()
+	if err != nil {
+		return nil, errors.ErrInternalServer
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.NewPassword), bcrypt.DefaultCost)
 	if err != nil {
-		return errors.ErrInternalServer
+		return nil, errors.ErrInternalServer
 	}
 
-	return s.repo.UpdateUserPassword(context.Background(), user.ID, string(hashedPassword))
+	hashedRecoveryKey, err := bcrypt.GenerateFromPassword([]byte(newRecoveryKey), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, errors.ErrInternalServer
+	}
+
+	err = s.repo.UpdateUserPassword(context.Background(), user.ID, string(hashedPassword))
+	if err != nil {
+		return nil, err
+	}
+
+	err = s.repo.UpdateUserRecoveryKey(context.Background(), user.ID, string(hashedRecoveryKey))
+	if err != nil {
+		return nil, err
+	}
+
+	user.RecoveryKey = newRecoveryKey
+	return user, nil
 }
