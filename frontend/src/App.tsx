@@ -4,6 +4,7 @@ import Home from '@/pages/Home';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
 import Reset from '@/pages/Reset';
+import NotFound from '@/pages/NotFound';
 import Header from '@/components/items/Header';
 import { ThemeProvider } from '@/theme/ThemeProvider';
 import { AuthProvider } from '@/context/AuthContext';
@@ -27,6 +28,7 @@ function App() {
                   <Route path="/auth/register" element={<Register />} />
                   <Route path="/auth/reset" element={<Reset />} />
                 </Route>
+                <Route path="*" element={<NotFound />} />
               </Routes>
             </main>
           </div>
