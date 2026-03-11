@@ -20,7 +20,10 @@ type repository struct {
 }
 
 func NewRepository(db *sql.DB) Repository {
-	_ = initializeTable(db)
+	err := initializeTable(db)
+	if err != nil {
+		panic(err)
+	}
 	return &repository{db: db}
 }
 
