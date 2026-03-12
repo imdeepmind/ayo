@@ -65,9 +65,7 @@ export const resetPasswordSchema = z
 // Account action schema (change password, delete account, delete data)
 export const accountActionSchema = z
   .object({
-    password: z
-      .string({ message: 'Password must be a string' })
-      .min(1, 'Password is required'),
+    password: z.string({ message: 'Password must be a string' }).min(1, 'Password is required'),
     recoveryKey: z
       .string({ message: 'Recovery key must be a string' })
       .min(1, 'Recovery key is required'),
