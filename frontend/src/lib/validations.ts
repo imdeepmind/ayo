@@ -62,6 +62,84 @@ export const resetPasswordSchema = z
     path: ['confirmPassword'],
   });
 
+// Account action schema (change password, delete account, delete data)
+export const accountActionSchema = z
+  .object({
+    password: z
+      .string({ message: 'Password must be a string' })
+      .min(1, 'Password is required'),
+    recoveryKey: z
+      .string({ message: 'Recovery key must be a string' })
+      .min(1, 'Recovery key is required'),
+    newPassword: z.string().optional(),
+    confirmNewPassword: z.string().optional(),
+  })
+  .refine(
+    (data) => {
+      // If newPassword is provided, it must meet strength requirements
+      if (data.newPassword && data.newPassword.length > 0) {
+        return data.newPassword.length >= 8;
+      }
+      return true;
+    },
+    { message: 'New password must be at least 8 characters', path: ['newPassword'] }
+  )
+  .refine(
+    (data) => {
+      if (data.newPassword && data.newPassword.length > 0) {
+        return /[A-Z]/.test(data.newPassword);
+      }
+      return true;
+    },
+    {
+      message: 'New password must contain at least one uppercase letter',
+      path: ['newPassword'],
+    }
+  )
+  .refine(
+    (data) => {
+      if (data.newPassword && data.newPassword.length > 0) {
+        return /[a-z]/.test(data.newPassword);
+      }
+      return true;
+    },
+    {
+      message: 'New password must contain at least one lowercase letter',
+      path: ['newPassword'],
+    }
+  )
+  .refine(
+    (data) => {
+      if (data.newPassword && data.newPassword.length > 0) {
+        return /[0-9]/.test(data.newPassword);
+      }
+      return true;
+    },
+    { message: 'New password must contain at least one number', path: ['newPassword'] }
+  )
+  .refine(
+    (data) => {
+      if (data.newPassword && data.newPassword.length > 0) {
+        return /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(data.newPassword);
+      }
+      return true;
+    },
+    {
+      message: 'New password must contain at least one special character',
+      path: ['newPassword'],
+    }
+  )
+  .refine(
+    (data) => {
+      if (data.newPassword && data.newPassword.length > 0) {
+        return data.newPassword === data.confirmNewPassword;
+      }
+      return true;
+    },
+    { message: 'Passwords do not match', path: ['confirmNewPassword'] }
+  );
+
 export type LoginFormData = z.infer<typeof loginSchema>;
 export type RegisterFormData = z.infer<typeof registerSchema>;
 export type ResetPasswordFormData = z.infer<typeof resetPasswordSchema>;
+export type AccountActionFormData = z.infer<typeof accountActionSchema>;
