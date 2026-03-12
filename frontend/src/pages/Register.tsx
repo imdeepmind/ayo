@@ -53,9 +53,7 @@ export default function Register() {
       const username = getValues('username');
       await SaveRecoveryKey(username, recoveryKey);
       toast.success('Recovery key saved successfully! Redirecting to login...');
-      setTimeout(() => {
-        navigate('/auth/login');
-      }, 500);
+      navigate('/auth/login');
     } catch (err) {
       console.error('Failed to save recovery key:', err);
       toast.error('Failed to save recovery key. Please try again.');
