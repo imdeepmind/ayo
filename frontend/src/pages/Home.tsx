@@ -25,14 +25,14 @@ export default function Home() {
     return files.filter((file) => {
       const nameMatch = file.name.toLowerCase().includes(query);
       const typeMatch = file.type.toLowerCase().includes(query);
-      const tagMatch = file.tags?.some(tag => tag.toLowerCase().includes(query));
+      const tagMatch = file.tags?.some((tag) => tag.toLowerCase().includes(query));
       return nameMatch || typeMatch || tagMatch;
     });
   }, [searchQuery, files]);
 
   const totalUsedBytes = useMemo(() => calculateTotalUsedBytes(files), [files]);
 
-  // -- Handlers -- 
+  // -- Handlers --
 
   const handleSelectionChange = (id: string, isSelected: boolean) => {
     const next = new Set(selectedFileIds);
@@ -46,7 +46,7 @@ export default function Home() {
 
   const handleSelectAllChange = (isSelected: boolean) => {
     if (isSelected) {
-      setSelectedFileIds(new Set(filteredFiles.map(f => f.id)));
+      setSelectedFileIds(new Set(filteredFiles.map((f) => f.id)));
     } else {
       setSelectedFileIds(new Set());
     }
@@ -66,7 +66,7 @@ export default function Home() {
   };
 
   const handleDelete = (file: FileItem) => {
-    setFiles(prev => prev.filter(f => f.id !== file.id));
+    setFiles((prev) => prev.filter((f) => f.id !== file.id));
     toast.success(`Deleted: ${file.name}`);
     if (selectedFileIds.has(file.id)) {
       handleSelectionChange(file.id, false);
@@ -74,7 +74,7 @@ export default function Home() {
   };
 
   const saveEdit = (id: string, newName: string, newTags: string[]) => {
-    setFiles(prev => prev.map(f => f.id === id ? { ...f, name: newName, tags: newTags } : f));
+    setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, name: newName, tags: newTags } : f)));
     toast.success('File updated successfully');
   };
 
@@ -86,7 +86,7 @@ export default function Home() {
   };
 
   const handleBulkDelete = () => {
-    setFiles(prev => prev.filter(f => !selectedFileIds.has(f.id)));
+    setFiles((prev) => prev.filter((f) => !selectedFileIds.has(f.id)));
     toast.success(`Deleted ${selectedFileIds.size} files`);
     clearSelection();
   };
@@ -105,10 +105,12 @@ export default function Home() {
 
           <div className="relative w-full">
             {/* Bulk Action Bar */}
-            <div className={`
+            <div
+              className={`
               fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 rounded-full border border-sky-200 bg-white/90 px-5 py-3 shadow-xl backdrop-blur-md transition-all duration-300 dark:border-sky-800 dark:bg-slate-900/90
               ${selectedFileIds.size > 0 ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-8 opacity-0 scale-95 pointer-events-none'}
-            `}>
+            `}
+            >
               <span className="mr-2 text-sm font-medium text-sky-800 dark:text-sky-300">
                 {selectedFileIds.size} selected
               </span>

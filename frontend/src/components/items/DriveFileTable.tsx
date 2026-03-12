@@ -1,5 +1,17 @@
 import { useState } from 'react';
-import { Download, Trash2, Edit2, File as FileIcon, Image, Film, Headphones, Box, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import {
+  Download,
+  Trash2,
+  Edit2,
+  File as FileIcon,
+  Image,
+  Film,
+  Headphones,
+  Box,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+} from 'lucide-react';
 import type { FileItem } from '@/mock-data/files';
 
 type SortField = 'name' | 'size' | 'date';
@@ -39,7 +51,7 @@ export default function DriveFileTable({
   onSelectAllChange,
   onEdit,
   onDownload,
-  onDelete
+  onDelete,
 }: DriveFileTableProps) {
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -75,19 +87,29 @@ export default function DriveFileTable({
   const someSelected = selectedFileIds.size > 0 && !allSelected;
 
   const renderSortIcon = (field: SortField) => {
-    if (sortField !== field) return <ArrowUpDown className="h-3 w-3 inline ml-1 opacity-40 group-hover:opacity-100 transition" />;
-    return sortDirection === 'asc'
-      ? <ArrowUp className="h-3 w-3 inline ml-1 text-sky-500" />
-      : <ArrowDown className="h-3 w-3 inline ml-1 text-sky-500" />;
+    if (sortField !== field)
+      return (
+        <ArrowUpDown className="h-3 w-3 inline ml-1 opacity-40 group-hover:opacity-100 transition" />
+      );
+    return sortDirection === 'asc' ? (
+      <ArrowUp className="h-3 w-3 inline ml-1 text-sky-500" />
+    ) : (
+      <ArrowDown className="h-3 w-3 inline ml-1 text-sky-500" />
+    );
   };
 
   const getFileIcon = (type: string) => {
     switch (type) {
-      case 'image': return <Image className="h-4 w-4 text-emerald-500" />;
-      case 'video': return <Film className="h-4 w-4 text-purple-500" />;
-      case 'audio': return <Headphones className="h-4 w-4 text-amber-500" />;
-      case 'archive': return <Box className="h-4 w-4 text-rose-500" />;
-      default: return <FileIcon className="h-4 w-4 text-sky-500" />;
+      case 'image':
+        return <Image className="h-4 w-4 text-emerald-500" />;
+      case 'video':
+        return <Film className="h-4 w-4 text-purple-500" />;
+      case 'audio':
+        return <Headphones className="h-4 w-4 text-amber-500" />;
+      case 'archive':
+        return <Box className="h-4 w-4 text-rose-500" />;
+      default:
+        return <FileIcon className="h-4 w-4 text-sky-500" />;
     }
   };
 
@@ -106,26 +128,35 @@ export default function DriveFileTable({
                   <input
                     type="checkbox"
                     checked={allSelected}
-                    ref={input => { if (input) input.indeterminate = someSelected }}
+                    ref={(input) => {
+                      if (input) input.indeterminate = someSelected;
+                    }}
                     onChange={(e) => onSelectAllChange(e.target.checked)}
                     className="h-4 w-4 rounded border-slate-300 text-sky-500 focus:ring-sky-500 dark:border-slate-600 dark:bg-slate-700"
                   />
                 </th>
-                <th className="px-4 py-3 font-medium cursor-pointer group select-none whitespace-nowrap" onClick={() => handleSort('name')}>
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer group select-none whitespace-nowrap"
+                  onClick={() => handleSort('name')}
+                >
                   Name {renderSortIcon('name')}
                 </th>
                 <th className="px-4 py-3 font-medium cursor-pointer group select-none hidden md:table-cell w-48">
                   Tags
                 </th>
-                <th className="px-4 py-3 font-medium cursor-pointer group select-none whitespace-nowrap hidden sm:table-cell w-28" onClick={() => handleSort('size')}>
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer group select-none whitespace-nowrap hidden sm:table-cell w-28"
+                  onClick={() => handleSort('size')}
+                >
                   Size {renderSortIcon('size')}
                 </th>
-                <th className="px-4 py-3 font-medium cursor-pointer group select-none whitespace-nowrap hidden lg:table-cell w-36" onClick={() => handleSort('date')}>
+                <th
+                  className="px-4 py-3 font-medium cursor-pointer group select-none whitespace-nowrap hidden lg:table-cell w-36"
+                  onClick={() => handleSort('date')}
+                >
                   Upload Date {renderSortIcon('date')}
                 </th>
-                <th className="px-4 py-3 font-medium text-right w-32">
-                  Actions
-                </th>
+                <th className="px-4 py-3 font-medium text-right w-32">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
@@ -157,8 +188,11 @@ export default function DriveFileTable({
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell">
                     <div className="flex flex-wrap gap-1">
-                      {file.tags?.slice(0, 3).map(tag => (
-                        <span key={tag} className="inline-block rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600">
+                      {file.tags?.slice(0, 3).map((tag) => (
+                        <span
+                          key={tag}
+                          className="inline-block rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600"
+                        >
                           {tag}
                         </span>
                       ))}
