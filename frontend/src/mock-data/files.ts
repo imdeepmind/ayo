@@ -7,6 +7,7 @@ export interface FileItem {
   sizeBytes: number;
   modifiedAt: string; // ISO string for now; can be Date when wired to API
   owner: string;
+  tags: string[];
 }
 
 export const files: FileItem[] = [
@@ -17,6 +18,7 @@ export const files: FileItem[] = [
     sizeBytes: 1_024_000,
     modifiedAt: '2025-12-10T09:30:00.000Z',
     owner: 'You',
+    tags: ['Quarterly', 'Planning'],
   },
   {
     id: '2',
@@ -25,6 +27,7 @@ export const files: FileItem[] = [
     sizeBytes: 4_800_000,
     modifiedAt: '2025-11-03T14:12:00.000Z',
     owner: 'You',
+    tags: ['Team', 'Offsite'],
   },
   {
     id: '3',
@@ -33,6 +36,7 @@ export const files: FileItem[] = [
     sizeBytes: 120_000_000,
     modifiedAt: '2025-10-21T18:45:00.000Z',
     owner: 'Design',
+    tags: ['Marketing', 'Public'],
   },
   {
     id: '4',
@@ -41,6 +45,7 @@ export const files: FileItem[] = [
     sizeBytes: 32_000,
     modifiedAt: '2025-09-15T08:05:00.000Z',
     owner: 'HR',
+    tags: ['HR', 'Internal'],
   },
   {
     id: '5',
@@ -49,6 +54,7 @@ export const files: FileItem[] = [
     sizeBytes: 2_048_000_000,
     modifiedAt: '2025-12-01T02:00:00.000Z',
     owner: 'System',
+    tags: ['Backup', 'System'],
   },
   {
     id: '6',
@@ -57,6 +63,7 @@ export const files: FileItem[] = [
     sizeBytes: 58_000_000,
     modifiedAt: '2025-08-02T16:20:00.000Z',
     owner: 'You',
+    tags: ['Draft'],
   },
 ];
 
