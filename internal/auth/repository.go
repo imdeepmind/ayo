@@ -9,7 +9,7 @@ import (
 )
 
 type Repository interface {
-	CreateUser(ctx context.Context, username string, passwordHash string, recoveryKey string) (*User, error)
+	CreateUser(ctx context.Context, username string, passwordHash string, recoveryKey string, salt []byte, masterKey []byte) (*User, error)
 	GetUserByUsername(ctx context.Context, username string) (*User, error)
 	UpdateUserPassword(ctx context.Context, id int64, passwordHash string) error
 	UpdateUserRecoveryKey(ctx context.Context, id int64, recoveryKeyHash string) error
@@ -32,7 +32,9 @@ func initializeTable(db *sql.DB) error {
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		username VARCHAR(255) NOT NULL UNIQUE,
 		password_hash VARCHAR(255) NOT NULL,
-		recovery_key VARCHAR(255) NOT NULL
+		recovery_key VARCHAR(255) NOT NULL,
+		salt BYTEA NOT NULL,
+		master_key BYTEA NOT NULL
 	)`
 
 	_, err := db.Exec(query)
@@ -42,10 +44,10 @@ func initializeTable(db *sql.DB) error {
 	return nil
 }
 
-func (r *repository) CreateUser(ctx context.Context, username string, passwordHash string, recoveryKey string) (*User, error) {
-	create_user_query := `INSERT INTO users (username, password_hash, recovery_key) VALUES (?, ?, ?)`
+func (r *repository) CreateUser(ctx context.Context, username string, passwordHash string, recoveryKey string, salt []byte, masterKey []byte) (*User, error) {
+	create_user_query := `INSERT INTO users (username, password_hash, recovery_key, salt, master_key) VALUES (?, ?, ?, ?, ?)`
 
-	result, err := r.db.ExecContext(ctx, create_user_query, username, passwordHash, recoveryKey)
+	result, err := r.db.ExecContext(ctx, create_user_query, username, passwordHash, recoveryKey, salt, masterKey)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") || strings.Contains(err.Error(), "Duplicate entry") {
 			return nil, errors.ErrUserAlreadyExists
@@ -69,7 +71,7 @@ func (r *repository) CreateUser(ctx context.Context, username string, passwordHa
 }
 
 func (r *repository) GetUserByUsername(ctx context.Context, username string) (*User, error) {
-	query := `SELECT id, username, password_hash, recovery_key FROM users WHERE username = ?`
+	query := `SELECT id, username, password_hash, recovery_key, salt, master_key FROM users WHERE username = ?`
 	row := r.db.QueryRowContext(ctx, query, username)
 
 	var user User
