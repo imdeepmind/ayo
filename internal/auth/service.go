@@ -9,7 +9,10 @@ import (
 
 	"ayo/internal/errors"
 
+	"io"
+
 	"github.com/go-playground/validator/v10"
+	"golang.org/x/crypto/argon2"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -23,6 +26,14 @@ type Service struct {
 	repo     Repository
 	validate *validator.Validate
 }
+
+const (
+	saltSize = 16
+	keySize  = 32
+	timeCost = 3
+	memory   = 64 * 1024
+	threads  = 4
+)
 
 func validatePasswordStrength(fl validator.FieldLevel) bool {
 	password := fl.Field().String()
@@ -62,6 +73,31 @@ func GenerateRecoveryKey() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
+func GenerateSalt() ([]byte, error) {
+	salt := make([]byte, saltSize)
+
+	_, err := io.ReadFull(rand.Reader, salt)
+	if err != nil {
+		return nil, err
+	}
+
+	return salt, nil
+}
+
+func DeriveKEK(password string, salt []byte) []byte {
+
+	kek := argon2.IDKey(
+		[]byte(password),
+		salt,
+		timeCost,
+		memory,
+		threads,
+		keySize,
+	)
+
+	return kek
+}
+
 func (s *Service) Register(input RegisterInput) (*User, error) {
 	if err := s.validate.Struct(input); err != nil {
 		return nil, errors.ErrInvalidInput
@@ -82,7 +118,13 @@ func (s *Service) Register(input RegisterInput) (*User, error) {
 		return nil, errors.ErrInternalServer
 	}
 
-	user, err := s.repo.CreateUser(context.Background(), input.Username, string(hashedPassword), string(hashedRecoveryKey))
+	// Generate salt
+	salt, err := GenerateSalt()
+	if err != nil {
+		return nil, errors.ErrInternalServer
+	}
+
+	user, err := s.repo.CreateUser(context.Background(), input.Username, string(hashedPassword), string(hashedRecoveryKey), salt, salt)
 	if err != nil {
 		return nil, err
 	}
