@@ -1,4 +1,4 @@
-import { Link, NavLink } from 'react-router-dom';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import Button from '@/components/bits/Button';
 import { useTheme } from '@/theme/ThemeProvider';
 import { useAuth } from '@/context/AuthContext';
@@ -9,6 +9,12 @@ const navLinkBase =
 export default function Header() {
   const { theme, toggleTheme } = useTheme();
   const { session, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/auth/login');
+  };
 
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/80 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/80 w-full mb-4">
@@ -53,7 +59,7 @@ export default function Header() {
               </NavLink>
               <NavLink
                 to="/"
-                onClick={() => logout()}
+                onClick={() => handleLogout()}
                 className={() => [navLinkBase, 'text-slate-600 dark:text-slate-300'].join(' ')}
               >
                 Logout
