@@ -6,5 +6,6 @@ type User struct {
 	PasswordHash string
 	RecoveryKey  string
 	Salt         []byte
+	Nonce        []byte
 	MasterKey    []byte
 }
