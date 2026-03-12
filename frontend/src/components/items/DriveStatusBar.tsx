@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { Settings } from 'lucide-react';
 import IconButton from '@/components/bits/IconButton';
 
 type DriveStatusBarProps = {
@@ -21,7 +22,7 @@ export default function DriveStatusBar({ totalUsedBytes, selectionSummary }: Dri
         <div className="flex items-center gap-3">
           <Link to="/settings" aria-label="Open settings">
             <IconButton aria-label="Open settings">
-              <span aria-hidden="true">⚙️</span>
+              <Settings className="h-4 w-4" />
             </IconButton>
           </Link>
           <span className="whitespace-nowrap">Storage used: {formatSize(totalUsedBytes)}</span>

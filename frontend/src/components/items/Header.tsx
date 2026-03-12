@@ -1,4 +1,5 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Sun, Moon } from 'lucide-react';
 import Button from '@/components/bits/Button';
 import { useTheme } from '@/theme/ThemeProvider';
 import { useAuth } from '@/context/AuthContext';
@@ -98,9 +99,11 @@ export default function Header() {
 
         <div className="flex items-center gap-2">
           <Button type="button" variant="ghost" onClick={toggleTheme} className="h-8 px-3 text-xs">
-            <span aria-hidden="true" className="mr-1">
-              {theme === 'dark' ? '🌙' : '☀️'}
-            </span>
+            {theme === 'dark' ? (
+              <Moon className="mr-1.5 h-4 w-4" />
+            ) : (
+              <Sun className="mr-1.5 h-4 w-4" />
+            )}
             <span className="hidden sm:inline">{theme === 'dark' ? 'Dark' : 'Light'} mode</span>
           </Button>
         </div>
