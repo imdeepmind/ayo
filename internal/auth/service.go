@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
@@ -85,14 +87,49 @@ func generateSalt() ([]byte, error) {
 	return salt, nil
 }
 
-func generateEncryptedMasterKey(kek []byte) []byte {
-	// TODO: Impliment the master key generation
-	return kek
+func generateEncryptedMasterKey(kek []byte) ([]byte, []byte, error) {
+	masterKey := make([]byte, keySize)
+
+	_, err := io.ReadFull(rand.Reader, masterKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	block, err := aes.NewCipher(kek)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	nonce := make([]byte, aead.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, nil, err
+	}
+
+	return aead.Seal(nil, nonce, masterKey, nil), nonce, nil
 }
 
-func decryptMasterKey(kek []byte, encryptedMasterKey []byte) []byte {
-	// TODO: Impliment the master key decryption
-	return encryptedMasterKey
+func decryptMasterKey(kek []byte, encryptedMasterKey []byte, nonce []byte) ([]byte, error) {
+	block, err := aes.NewCipher(kek)
+	if err != nil {
+		return nil, err
+	}
+
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+
+	mk, err := aead.Open(nil, nonce, encryptedMasterKey, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return mk, nil
 }
 
 func DeriveKEK(password string, salt []byte) []byte {
@@ -136,9 +173,13 @@ func (s *Service) Register(input RegisterInput) (*User, error) {
 	}
 
 	kek := DeriveKEK(input.Password, salt)
-	encryptedMasterKey := generateEncryptedMasterKey(kek)
+	encryptedMasterKey, nonce, err := generateEncryptedMasterKey(kek)
 
-	user, err := s.repo.CreateUser(context.Background(), input.Username, string(hashedPassword), string(hashedRecoveryKey), salt, encryptedMasterKey)
+	if err != nil {
+		return nil, errors.ErrInternalServer
+	}
+
+	user, err := s.repo.CreateUser(context.Background(), input.Username, string(hashedPassword), string(hashedRecoveryKey), salt, nonce, encryptedMasterKey)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +208,11 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 
 	kek := DeriveKEK(input.Password, salt)
 
-	masterKey := decryptMasterKey(kek, user.MasterKey)
+	masterKey, err := decryptMasterKey(kek, user.MasterKey, user.Nonce)
+
+	if err != nil {
+		return false, err
+	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {
 		return false, errors.ErrInvalidPassword

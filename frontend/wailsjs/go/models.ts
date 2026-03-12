@@ -47,6 +47,7 @@ export namespace auth {
 	export class Session {
 	    UserId: number;
 	    Username: string;
+	    MasterKey: number[];
 	
 	    static createFrom(source: any = {}) {
 	        return new Session(source);
@@ -56,6 +57,7 @@ export namespace auth {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.UserId = source["UserId"];
 	        this.Username = source["Username"];
+	        this.MasterKey = source["MasterKey"];
 	    }
 	}
 	export class User {
@@ -63,6 +65,9 @@ export namespace auth {
 	    Username: string;
 	    PasswordHash: string;
 	    RecoveryKey: string;
+	    Salt: number[];
+	    Nonce: number[];
+	    MasterKey: number[];
 	
 	    static createFrom(source: any = {}) {
 	        return new User(source);
@@ -74,6 +79,9 @@ export namespace auth {
 	        this.Username = source["Username"];
 	        this.PasswordHash = source["PasswordHash"];
 	        this.RecoveryKey = source["RecoveryKey"];
+	        this.Salt = source["Salt"];
+	        this.Nonce = source["Nonce"];
+	        this.MasterKey = source["MasterKey"];
 	    }
 	}
 
