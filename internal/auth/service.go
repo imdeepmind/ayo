@@ -181,7 +181,7 @@ func (s *Service) Register(input RegisterInput) (*User, error) {
 
 	user, err := s.repo.CreateUser(context.Background(), input.Username, string(hashedPassword), string(hashedRecoveryKey), salt, nonce, encryptedMasterKey)
 	if err != nil {
-		return nil, err
+		return nil, errors.ErrInternalServer
 	}
 
 	// we want to return the original recovery key to the user so user can store it
@@ -197,11 +197,15 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 
 	user, err := s.repo.GetUserByUsername(context.Background(), input.Username)
 	if err != nil {
-		return false, err
+		return false, errors.ErrInternalServer
 	}
 
 	if user == nil {
 		return false, errors.ErrUserNotFound
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {
+		return false, errors.ErrInvalidPassword
 	}
 
 	salt := user.Salt
@@ -211,11 +215,7 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 	masterKey, err := decryptMasterKey(kek, user.MasterKey, user.Nonce)
 
 	if err != nil {
-		return false, err
-	}
-
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {
-		return false, errors.ErrInvalidPassword
+		return false, errors.ErrInternalServer
 	}
 
 	s.session = &Session{
