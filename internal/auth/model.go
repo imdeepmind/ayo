@@ -5,4 +5,6 @@ type User struct {
 	Username     string
 	PasswordHash string
 	RecoveryKey  string
+	Salt         []byte
+	MasterKey    []byte
 }

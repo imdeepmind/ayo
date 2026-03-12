@@ -17,8 +17,9 @@ import (
 )
 
 type Session struct {
-	UserId   int64
-	Username string
+	UserId    int64
+	Username  string
+	MasterKey []byte
 }
 
 type Service struct {
@@ -62,7 +63,7 @@ func NewService(repo Repository) *Service {
 	}
 }
 
-func GenerateRecoveryKey() (string, error) {
+func generateRecoveryKey() (string, error) {
 	const size = 32 // 256 bits
 
 	b := make([]byte, size)
@@ -73,7 +74,7 @@ func GenerateRecoveryKey() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-func GenerateSalt() ([]byte, error) {
+func generateSalt() ([]byte, error) {
 	salt := make([]byte, saltSize)
 
 	_, err := io.ReadFull(rand.Reader, salt)
@@ -82,6 +83,16 @@ func GenerateSalt() ([]byte, error) {
 	}
 
 	return salt, nil
+}
+
+func generateEncryptedMasterKey(kek []byte) []byte {
+	// TODO: Impliment the master key generation
+	return kek
+}
+
+func decryptMasterKey(kek []byte, encryptedMasterKey []byte) []byte {
+	// TODO: Impliment the master key decryption
+	return encryptedMasterKey
 }
 
 func DeriveKEK(password string, salt []byte) []byte {
@@ -103,7 +114,7 @@ func (s *Service) Register(input RegisterInput) (*User, error) {
 		return nil, errors.ErrInvalidInput
 	}
 
-	recoveryKey, err := GenerateRecoveryKey()
+	recoveryKey, err := generateRecoveryKey()
 	if err != nil {
 		return nil, errors.ErrInternalServer
 	}
@@ -119,12 +130,15 @@ func (s *Service) Register(input RegisterInput) (*User, error) {
 	}
 
 	// Generate salt
-	salt, err := GenerateSalt()
+	salt, err := generateSalt()
 	if err != nil {
 		return nil, errors.ErrInternalServer
 	}
 
-	user, err := s.repo.CreateUser(context.Background(), input.Username, string(hashedPassword), string(hashedRecoveryKey), salt, salt)
+	kek := DeriveKEK(input.Password, salt)
+	encryptedMasterKey := generateEncryptedMasterKey(kek)
+
+	user, err := s.repo.CreateUser(context.Background(), input.Username, string(hashedPassword), string(hashedRecoveryKey), salt, encryptedMasterKey)
 	if err != nil {
 		return nil, err
 	}
@@ -149,13 +163,20 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 		return false, errors.ErrUserNotFound
 	}
 
+	salt := user.Salt
+
+	kek := DeriveKEK(input.Password, salt)
+
+	masterKey := decryptMasterKey(kek, user.MasterKey)
+
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {
 		return false, errors.ErrInvalidPassword
 	}
 
 	s.session = &Session{
-		UserId:   user.ID,
-		Username: user.Username,
+		UserId:    user.ID,
+		Username:  user.Username,
+		MasterKey: masterKey,
 	}
 
 	return true, nil
@@ -187,7 +208,7 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*User, error) {
 		return nil, errors.ErrInvalidRecoveryKey
 	}
 
-	newRecoveryKey, err := GenerateRecoveryKey()
+	newRecoveryKey, err := generateRecoveryKey()
 	if err != nil {
 		return nil, errors.ErrInternalServer
 	}
