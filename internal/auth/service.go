@@ -87,14 +87,18 @@ func generateSalt() ([]byte, error) {
 	return salt, nil
 }
 
-func generateEncryptedMasterKey(kek []byte) ([]byte, []byte, error) {
+func generateMasterKey() ([]byte, error) {
 	masterKey := make([]byte, keySize)
 
 	_, err := io.ReadFull(rand.Reader, masterKey)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
+	return masterKey, nil
+}
+
+func encryptMasterKey(kek []byte, masterKey []byte) ([]byte, []byte, error) {
 	block, err := aes.NewCipher(kek)
 	if err != nil {
 		return nil, nil, err
@@ -132,7 +136,7 @@ func decryptMasterKey(kek []byte, encryptedMasterKey []byte, nonce []byte) ([]by
 	return mk, nil
 }
 
-func DeriveKEK(password string, salt []byte) []byte {
+func deriveKEK(password string, salt []byte) []byte {
 
 	kek := argon2.IDKey(
 		[]byte(password),
@@ -166,20 +170,41 @@ func (s *Service) Register(input RegisterInput) (*User, error) {
 		return nil, errors.ErrInternalServer
 	}
 
-	// Generate salt
-	salt, err := generateSalt()
+	// Generate passwordSalt
+	passwordSalt, err := generateSalt()
 	if err != nil {
 		return nil, errors.ErrInternalServer
 	}
 
-	kek := DeriveKEK(input.Password, salt)
-	encryptedMasterKey, nonce, err := generateEncryptedMasterKey(kek)
+	// Generate recoverySalt
+	recoverySalt, err := generateSalt()
+	if err != nil {
+		return nil, errors.ErrInternalServer
+	}
+
+	// generating a master key
+	masterKey, err := generateMasterKey()
+	if err != nil {
+		return nil, errors.ErrInternalServer
+	}
+
+	// encrypt master key with password
+	passwordKek := deriveKEK(input.Password, passwordSalt)
+	passwordEncryptedMasterKey, passwordNonce, err := encryptMasterKey(passwordKek, masterKey)
+	if err != nil {
+		return nil, errors.ErrInternalServer
+	}
+
+	// encrypt master key with recovery key
+	recoveryKek := deriveKEK(recoveryKey, recoverySalt)
+	recoveryEncryptedMasterKey, recoveryNonce, err := encryptMasterKey(recoveryKek, masterKey)
 
 	if err != nil {
 		return nil, errors.ErrInternalServer
 	}
 
-	user, err := s.repo.CreateUser(context.Background(), input.Username, string(hashedPassword), string(hashedRecoveryKey), salt, nonce, encryptedMasterKey)
+	// creating the user
+	user, err := s.repo.CreateUser(context.Background(), input.Username, string(hashedPassword), string(hashedRecoveryKey), passwordSalt, passwordNonce, passwordEncryptedMasterKey, recoverySalt, recoveryNonce, recoveryEncryptedMasterKey)
 	if err != nil {
 		return nil, errors.ErrInternalServer
 	}
@@ -204,20 +229,25 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 		return false, errors.ErrUserNotFound
 	}
 
+	// comparing the password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {
 		return false, errors.ErrInvalidPassword
 	}
 
-	salt := user.Salt
+	// salt for the password
+	salt := user.PasswordSalt
 
-	kek := DeriveKEK(input.Password, salt)
+	// derriving the kek
+	kek := deriveKEK(input.Password, salt)
 
-	masterKey, err := decryptMasterKey(kek, user.MasterKey, user.Nonce)
+	// decrypting the master key
+	masterKey, err := decryptMasterKey(kek, user.PasswordMasterKey, user.PasswordNonce)
 
 	if err != nil {
 		return false, errors.ErrInternalServer
 	}
 
+	// session of the app
 	s.session = &Session{
 		UserId:    user.ID,
 		Username:  user.Username,
@@ -253,27 +283,47 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*User, error) {
 		return nil, errors.ErrInvalidRecoveryKey
 	}
 
+	// generate new recovery key
 	newRecoveryKey, err := generateRecoveryKey()
 	if err != nil {
 		return nil, errors.ErrInternalServer
 	}
 
+	// hash the new password to store
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.NewPassword), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, errors.ErrInternalServer
 	}
 
+	// hash the new recovery key to store
 	hashedRecoveryKey, err := bcrypt.GenerateFromPassword([]byte(newRecoveryKey), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, errors.ErrInternalServer
 	}
 
-	err = s.repo.UpdateUserPassword(context.Background(), user.ID, string(hashedPassword))
+	// extract the original master key using the provided recovery key
+	recoveryKek := deriveKEK(input.RecoveryKey, user.RecoverySalt)
+	masterKey, err := decryptMasterKey(recoveryKek, user.RecoveryMasterKey, user.RecoveryNonce)
 	if err != nil {
-		return nil, err
+		return nil, errors.ErrInternalServer
 	}
 
-	err = s.repo.UpdateUserRecoveryKey(context.Background(), user.ID, string(hashedRecoveryKey))
+	// generate the new encrypted master key using password
+	passwordKek := deriveKEK(input.NewPassword, user.PasswordSalt)
+	passwordEncryptedMasterKey, passwordNonce, err := encryptMasterKey(passwordKek, masterKey)
+	if err != nil {
+		return nil, errors.ErrInternalServer
+	}
+
+	// generate the new encrypted master key using recovery key
+	recoveryKek = deriveKEK(newRecoveryKey, user.RecoverySalt)
+	recoveryEncryptedMasterKey, recoveryNonce, err := encryptMasterKey(recoveryKek, masterKey)
+	if err != nil {
+		return nil, errors.ErrInternalServer
+	}
+
+	// update the password and recovery key
+	err = s.repo.UpdateUserPassword(context.Background(), user.ID, string(hashedPassword), string(hashedRecoveryKey), passwordEncryptedMasterKey, passwordNonce, recoveryEncryptedMasterKey, recoveryNonce)
 	if err != nil {
 		return nil, err
 	}
