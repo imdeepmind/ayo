@@ -1,6 +1,9 @@
 package main
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
 	"fmt"
 	"io"
 	"os"
@@ -103,11 +106,37 @@ func encryptAndUploadChunk(shardChannel <-chan FileShard, wg *sync.WaitGroup) {
 
 		file_path := fmt.Sprintf("%schunk_%d.bin", OutputFolder, val.counter)
 
-		err := os.WriteFile(file_path, val.shard, 0644)
+		encryptedData, err := encryptData([]byte("test_key123456789123456789123456"), val.shard)
+		if err != nil {
+			fmt.Println(err)
+			panic("Failed to encrypt the shard")
+		}
+
+		err = os.WriteFile(file_path, encryptedData, 0644)
 		if err != nil {
 			panic("Failed to write the shard")
 		}
 
 		fmt.Printf("Saved the chunk %d\n", val.counter)
 	}
+}
+
+func encryptData(key []byte, plaintext []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+
+	nonce := make([]byte, aead.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, err
+	}
+
+	// Prepend nonce to ciphertext
+	return aead.Seal(nonce, nonce, plaintext, nil), nil
 }
