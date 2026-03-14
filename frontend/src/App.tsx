@@ -6,6 +6,7 @@ import Register from '@/pages/Register';
 import Reset from '@/pages/Reset';
 import NotFound from '@/pages/NotFound';
 import Settings from '@/pages/Settings';
+import Upload from '@/pages/Upload';
 import Header from '@/components/items/Header';
 import { ThemeProvider } from '@/theme/ThemeProvider';
 import { AuthProvider } from '@/context/AuthContext';
@@ -24,6 +25,7 @@ function App() {
                 <Route element={<ProtectedRoute />}>
                   <Route path="/" element={<Home />} />
                   <Route path="/settings" element={<Settings />} />
+                  <Route path="/upload" element={<Upload />} />
                 </Route>
                 <Route element={<PublicRoute />}>
                   <Route path="/auth/login" element={<Login />} />
