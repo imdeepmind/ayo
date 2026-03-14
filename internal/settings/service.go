@@ -2,9 +2,11 @@ package settings
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 
 	"ayo/internal/auth"
+	"ayo/internal/utils"
 
 	"github.com/zalando/go-keyring"
 )
@@ -40,8 +42,19 @@ func (s *Service) GetSettings() (*Settings, error) {
 		return nil, err
 	}
 
+	// decrypt the data before unmarshalling
+	decodedData, err := base64.StdEncoding.DecodeString(data)
+	if err != nil {
+		return nil, err
+	}
+
+	decryptedData, err := utils.DecryptData(session.MasterKey, decodedData)
+	if err != nil {
+		return nil, err
+	}
+
 	var parsedSettings Settings
-	if err := json.Unmarshal([]byte(data), &parsedSettings); err != nil {
+	if err := json.Unmarshal(decryptedData, &parsedSettings); err != nil {
 		return nil, err
 	}
 	return &parsedSettings, nil
@@ -59,5 +72,13 @@ func (s *Service) UpdateSettings(settings Settings) error {
 		return err
 	}
 
-	return keyring.Set("ayo", session.Username, string(data))
+	// encrypt the data before storing it in the keyring
+	encryptedData, err := utils.EncryptData(session.MasterKey, data)
+	if err != nil {
+		return err
+	}
+
+	encodedData := base64.StdEncoding.EncodeToString(encryptedData)
+
+	return keyring.Set("ayo", session.Username, encodedData)
 }

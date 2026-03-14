@@ -2,19 +2,12 @@ package auth
 
 import (
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"encoding/base64"
-	"fmt"
 	"regexp"
 
 	"ayo/internal/errors"
-
-	"io"
+	"ayo/internal/utils"
 
 	"github.com/go-playground/validator/v10"
-	"golang.org/x/crypto/argon2"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -29,14 +22,6 @@ type Service struct {
 	repo     Repository
 	validate *validator.Validate
 }
-
-const (
-	saltSize = 16
-	keySize  = 32
-	timeCost = 3
-	memory   = 64 * 1024
-	threads  = 4
-)
 
 func validatePasswordStrength(fl validator.FieldLevel) bool {
 	password := fl.Field().String()
@@ -65,97 +50,12 @@ func NewService(repo Repository) *Service {
 	}
 }
 
-func generateRecoveryKey() (string, error) {
-	const size = 32 // 256 bits
-
-	b := make([]byte, size)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("failed to generate random bytes: %w", err)
-	}
-
-	return base64.RawURLEncoding.EncodeToString(b), nil
-}
-
-func generateSalt() ([]byte, error) {
-	salt := make([]byte, saltSize)
-
-	_, err := io.ReadFull(rand.Reader, salt)
-	if err != nil {
-		return nil, err
-	}
-
-	return salt, nil
-}
-
-func generateMasterKey() ([]byte, error) {
-	masterKey := make([]byte, keySize)
-
-	_, err := io.ReadFull(rand.Reader, masterKey)
-	if err != nil {
-		return nil, err
-	}
-
-	return masterKey, nil
-}
-
-func encryptMasterKey(kek []byte, masterKey []byte) ([]byte, []byte, error) {
-	block, err := aes.NewCipher(kek)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	aead, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	nonce := make([]byte, aead.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return nil, nil, err
-	}
-
-	return aead.Seal(nil, nonce, masterKey, nil), nonce, nil
-}
-
-func decryptMasterKey(kek []byte, encryptedMasterKey []byte, nonce []byte) ([]byte, error) {
-	block, err := aes.NewCipher(kek)
-	if err != nil {
-		return nil, err
-	}
-
-	aead, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-
-	mk, err := aead.Open(nil, nonce, encryptedMasterKey, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return mk, nil
-}
-
-func deriveKEK(password string, salt []byte) []byte {
-
-	kek := argon2.IDKey(
-		[]byte(password),
-		salt,
-		timeCost,
-		memory,
-		threads,
-		keySize,
-	)
-
-	return kek
-}
-
 func (s *Service) Register(input RegisterInput) (*User, error) {
 	if err := s.validate.Struct(input); err != nil {
 		return nil, errors.ErrInvalidInput
 	}
 
-	recoveryKey, err := generateRecoveryKey()
+	recoveryKey, err := utils.GenerateRecoveryKey()
 	if err != nil {
 		return nil, errors.ErrInternalServer
 	}
@@ -171,33 +71,33 @@ func (s *Service) Register(input RegisterInput) (*User, error) {
 	}
 
 	// Generate passwordSalt
-	passwordSalt, err := generateSalt()
+	passwordSalt, err := utils.GenerateSalt()
 	if err != nil {
 		return nil, errors.ErrInternalServer
 	}
 
 	// Generate recoverySalt
-	recoverySalt, err := generateSalt()
+	recoverySalt, err := utils.GenerateSalt()
 	if err != nil {
 		return nil, errors.ErrInternalServer
 	}
 
 	// generating a master key
-	masterKey, err := generateMasterKey()
+	masterKey, err := utils.GenerateMasterKey()
 	if err != nil {
 		return nil, errors.ErrInternalServer
 	}
 
 	// encrypt master key with password
-	passwordKek := deriveKEK(input.Password, passwordSalt)
-	passwordEncryptedMasterKey, passwordNonce, err := encryptMasterKey(passwordKek, masterKey)
+	passwordKek := utils.DeriveKEK(input.Password, passwordSalt)
+	passwordEncryptedMasterKey, passwordNonce, err := utils.EncryptMasterKey(passwordKek, masterKey)
 	if err != nil {
 		return nil, errors.ErrInternalServer
 	}
 
 	// encrypt master key with recovery key
-	recoveryKek := deriveKEK(recoveryKey, recoverySalt)
-	recoveryEncryptedMasterKey, recoveryNonce, err := encryptMasterKey(recoveryKek, masterKey)
+	recoveryKek := utils.DeriveKEK(recoveryKey, recoverySalt)
+	recoveryEncryptedMasterKey, recoveryNonce, err := utils.EncryptMasterKey(recoveryKek, masterKey)
 
 	if err != nil {
 		return nil, errors.ErrInternalServer
@@ -238,10 +138,10 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 	salt := user.PasswordSalt
 
 	// derriving the kek
-	kek := deriveKEK(input.Password, salt)
+	kek := utils.DeriveKEK(input.Password, salt)
 
 	// decrypting the master key
-	masterKey, err := decryptMasterKey(kek, user.PasswordMasterKey, user.PasswordNonce)
+	masterKey, err := utils.DecryptMasterKey(kek, user.PasswordMasterKey, user.PasswordNonce)
 
 	if err != nil {
 		return false, errors.ErrInternalServer
@@ -276,7 +176,7 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*User, error) {
 	}
 
 	// generate new recovery key
-	newRecoveryKey, err := generateRecoveryKey()
+	newRecoveryKey, err := utils.GenerateRecoveryKey()
 	if err != nil {
 		return nil, errors.ErrInternalServer
 	}
@@ -294,22 +194,22 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*User, error) {
 	}
 
 	// extract the original master key using the provided recovery key
-	recoveryKek := deriveKEK(input.RecoveryKey, user.RecoverySalt)
-	masterKey, err := decryptMasterKey(recoveryKek, user.RecoveryMasterKey, user.RecoveryNonce)
+	recoveryKek := utils.DeriveKEK(input.RecoveryKey, user.RecoverySalt)
+	masterKey, err := utils.DecryptMasterKey(recoveryKek, user.RecoveryMasterKey, user.RecoveryNonce)
 	if err != nil {
 		return nil, errors.ErrInternalServer
 	}
 
 	// generate the new encrypted master key using password
-	passwordKek := deriveKEK(input.NewPassword, user.PasswordSalt)
-	passwordEncryptedMasterKey, passwordNonce, err := encryptMasterKey(passwordKek, masterKey)
+	passwordKek := utils.DeriveKEK(input.NewPassword, user.PasswordSalt)
+	passwordEncryptedMasterKey, passwordNonce, err := utils.EncryptMasterKey(passwordKek, masterKey)
 	if err != nil {
 		return nil, errors.ErrInternalServer
 	}
 
 	// generate the new encrypted master key using recovery key
-	recoveryKek = deriveKEK(newRecoveryKey, user.RecoverySalt)
-	recoveryEncryptedMasterKey, recoveryNonce, err := encryptMasterKey(recoveryKek, masterKey)
+	recoveryKek = utils.DeriveKEK(newRecoveryKey, user.RecoverySalt)
+	recoveryEncryptedMasterKey, recoveryNonce, err := utils.EncryptMasterKey(recoveryKek, masterKey)
 	if err != nil {
 		return nil, errors.ErrInternalServer
 	}
