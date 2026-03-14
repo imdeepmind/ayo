@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Download, Trash2 } from 'lucide-react';
@@ -9,6 +10,7 @@ import EditFileModal from '@/components/items/EditFileModal';
 import Button from '@/components/bits/Button';
 
 export default function Home() {
+  const navigate = useNavigate();
   const [files, setFiles] = useState<FileItem[]>(initialFiles);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -99,7 +101,7 @@ export default function Home() {
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             onUploadClick={() => {
-              toast.success('Upload dialog opened (Dummy)');
+              navigate('/upload');
             }}
           />
 
