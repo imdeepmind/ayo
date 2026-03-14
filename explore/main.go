@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync"
 
 	"github.com/klauspost/reedsolomon"
 )
@@ -16,7 +17,15 @@ const (
 	ParityShards = 3
 )
 
+type FileShard struct {
+	shard   []byte
+	counter int
+}
+
 func main() {
+	var wg sync.WaitGroup
+	var shardChannel = make(chan FileShard)
+
 	// reading the file
 	file, err := os.Open(ImageFileName)
 	if err != nil {
@@ -66,14 +75,39 @@ func main() {
 		panic(fmt.Sprintf("Failed to encode the file: %v", err))
 	}
 
-	for i, shard := range shards {
-		shard_path := fmt.Sprintf("%sshard_%d.bin", OutputFolder, i)
+	wg.Add(1)
+	go encryptAndUploadChunk(shardChannel, &wg)
 
-		err := os.WriteFile(shard_path, shard, 0644)
-		if err != nil {
-			panic("Failed to write the shard")
+	for i, shard := range shards {
+		shardChannel <- FileShard{
+			shard:   shard,
+			counter: i,
 		}
 	}
 
+	close(shardChannel)
+
+	wg.Wait()
+
 	fmt.Println("Job done!!!")
+}
+
+func encryptAndUploadChunk(shardChannel <-chan FileShard, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	for {
+		val, ok := <-shardChannel
+		if !ok {
+			break
+		}
+
+		file_path := fmt.Sprintf("%schunk_%d.bin", OutputFolder, val.counter)
+
+		err := os.WriteFile(file_path, val.shard, 0644)
+		if err != nil {
+			panic("Failed to write the shard")
+		}
+
+		fmt.Printf("Saved the chunk %d\n", val.counter)
+	}
 }
