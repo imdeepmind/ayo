@@ -93,3 +93,26 @@ export namespace auth {
 
 }
 
+export namespace settings {
+	
+	export class Settings {
+	    StorageMode: string;
+	    CloudKeys: any[];
+	    ErasureCoding: boolean;
+	    ErasureCodingConfig: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Settings(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.StorageMode = source["StorageMode"];
+	        this.CloudKeys = source["CloudKeys"];
+	        this.ErasureCoding = source["ErasureCoding"];
+	        this.ErasureCodingConfig = source["ErasureCodingConfig"];
+	    }
+	}
+
+}
+

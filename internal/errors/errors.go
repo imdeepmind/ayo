@@ -30,4 +30,8 @@ var (
 	ErrInvalidRecoveryKey = errors.New(
 		"the recovery key you entered is incorrect. Please check it and try again",
 	)
+
+	ErrUnauthorized = errors.New(
+		"you must be logged in to access this resource",
+	)
 )

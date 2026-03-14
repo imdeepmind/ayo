@@ -257,14 +257,6 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 	return true, nil
 }
 
-func (s *Service) Logout() {
-	s.session = nil
-}
-
-func (s *Service) GetSession() *Session {
-	return s.session
-}
-
 func (s *Service) ResetPassword(input ResetPasswordInput) (*User, error) {
 	if err := s.validate.Struct(input); err != nil {
 		return nil, errors.ErrInvalidInput
@@ -330,4 +322,19 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*User, error) {
 
 	user.RecoveryKey = newRecoveryKey
 	return user, nil
+}
+
+func (s *Service) Logout() {
+	s.session = nil
+}
+
+func (s *Service) GetSession() *Session {
+	return s.session
+}
+
+func (s *Service) RequireSession() (*Session, error) {
+	if s.session == nil {
+		return nil, errors.ErrUnauthorized
+	}
+	return s.session, nil
 }
