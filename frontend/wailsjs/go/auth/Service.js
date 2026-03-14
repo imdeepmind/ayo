@@ -18,6 +18,10 @@ export function Register(arg1) {
   return window['go']['auth']['Service']['Register'](arg1);
 }
 
+export function RequireSession() {
+  return window['go']['auth']['Service']['RequireSession']();
+}
+
 export function ResetPassword(arg1) {
   return window['go']['auth']['Service']['ResetPassword'](arg1);
 }

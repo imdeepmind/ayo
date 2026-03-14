@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { AlertTriangle, ChevronDown } from 'lucide-react';
 import TextInput from '@/components/bits/Input';
@@ -7,6 +7,8 @@ import Toggle from '@/components/bits/Toggle';
 import ErasureCodingSection, {
   type ErasureCodingConfig,
 } from '@/components/items/ErasureCodingSection';
+import { GetSettings, UpdateSettings } from '../../../wailsjs/go/settings/Service';
+import { settings } from '../../../wailsjs/go/models';
 
 // ---------- Types ----------
 
@@ -265,6 +267,64 @@ export default function StorageSettings() {
   const [ayoErasureEnabled, setAyoErasureEnabled] = useState(false);
   const [ayoErasureConfig, setAyoErasureConfig] = useState<ErasureCodingConfig>('2+2');
 
+  useEffect(() => {
+    GetSettings()
+      .then((srvSettings) => {
+        if (!srvSettings || !srvSettings.StorageMode) return;
+        if (srvSettings.StorageMode === 'ayo') {
+          setActiveTab('ayo');
+          setAyoEnabled(true);
+          setCustomEnabled(false);
+          setAyoErasureEnabled(srvSettings.ErasureCoding);
+          setAyoErasureConfig((srvSettings.ErasureCodingConfig as ErasureCodingConfig) || '2+2');
+        } else if (srvSettings.StorageMode === 'local') {
+          setActiveTab('custom');
+          setCustomEnabled(true);
+          setAyoEnabled(false);
+          setCustomErasureEnabled(srvSettings.ErasureCoding);
+          setCustomErasureConfig((srvSettings.ErasureCodingConfig as ErasureCodingConfig) || '2+2');
+
+          // Parse cloud keys
+          if (srvSettings.CloudKeys && srvSettings.CloudKeys.length > 0) {
+            const loadedProviders = srvSettings.CloudKeys.map((k: Record<string, string>) => {
+              const providerType = k.Provider as ProviderType;
+              let fields: StorageProvider['fields'] = emptyFields(providerType);
+              if (providerType === 'aws') {
+                fields = {
+                  accessKeyId: k.AccessKeyID || '',
+                  secretAccessKey: k.SecretAccessKey || '',
+                  region: k.Region || '',
+                  bucketName: k.Bucket || '',
+                };
+              } else if (providerType === 'azure') {
+                fields = {
+                  storageAccountName: k.AccountName || '',
+                  storageAccountKey: k.AccountKey || '',
+                  containerName: k.ContainerName || '',
+                };
+              } else if (providerType === 'gcp') {
+                fields = {
+                  serviceAccountJson: k.ServiceAccountJSON || '',
+                  bucketName: k.Bucket || '',
+                };
+              }
+              return {
+                id: generateId(),
+                type: providerType,
+                fields,
+                collapsed: true,
+              };
+            });
+            setProviders(loadedProviders);
+          }
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load settings:', err);
+        toast.error('Failed to load settings');
+      });
+  }, []);
+
   // -- Provider CRUD --
 
   const addProvider = (type: ProviderType) => {
@@ -369,7 +429,7 @@ export default function StorageSettings() {
     return valid;
   }, [providers]);
 
-  const handleSaveCustom = () => {
+  const handleSaveCustom = async () => {
     if (!validateProviders()) {
       toast.error('Please fix the validation errors before saving.');
       // Expand any providers with errors
@@ -378,11 +438,66 @@ export default function StorageSettings() {
       );
       return;
     }
-    toast.success('Storage settings saved! (UI only — no backend)');
+
+    const cloudKeys = providers.map((p) => {
+      if (p.type === 'aws') {
+        const fields = p.fields as AWSFields;
+        return {
+          Provider: 'aws',
+          AccessKeyID: fields.accessKeyId,
+          SecretAccessKey: fields.secretAccessKey,
+          Region: fields.region,
+          Bucket: fields.bucketName,
+        };
+      } else if (p.type === 'azure') {
+        const fields = p.fields as AzureFields;
+        return {
+          Provider: 'azure',
+          AccountName: fields.storageAccountName,
+          AccountKey: fields.storageAccountKey,
+          ContainerName: fields.containerName,
+        };
+      } else {
+        const fields = p.fields as GCPFields;
+        return {
+          Provider: 'gcp',
+          ServiceAccountJSON: fields.serviceAccountJson,
+          Bucket: fields.bucketName,
+        };
+      }
+    });
+
+    const newSettings = new settings.Settings({
+      StorageMode: 'local',
+      CloudKeys: cloudKeys,
+      ErasureCoding: customErasureEnabled,
+      ErasureCodingConfig: customErasureConfig,
+    });
+
+    try {
+      await UpdateSettings(newSettings);
+      toast.success('Storage settings saved successfully');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to save settings: ' + String(err));
+    }
   };
 
-  const handleSaveAyo = () => {
-    toast.success('Ayo storage settings saved! (UI only — no backend)');
+  const handleSaveAyo = async () => {
+    const newSettings = new settings.Settings({
+      StorageMode: 'ayo',
+      CloudKeys: [],
+      ErasureCoding: ayoErasureEnabled,
+      ErasureCodingConfig: ayoErasureConfig,
+    });
+
+    try {
+      await UpdateSettings(newSettings);
+      toast.success('Ayo storage settings saved successfully');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to save Ayo settings: ' + String(err));
+    }
   };
 
   // -- Tab classes --

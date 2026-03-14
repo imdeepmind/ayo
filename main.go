@@ -4,6 +4,7 @@ import (
 	"ayo/internal/auth"
 	"ayo/internal/fileops"
 	"ayo/internal/platform/database"
+	"ayo/internal/settings"
 	"context"
 	"fmt"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
+
 )
 
 // App struct
@@ -52,6 +54,9 @@ func main() {
 	// Initialize File Operations Service
 	fileOpsService := fileops.NewService()
 
+	// Initialize Settings Service
+	settingsService := settings.NewService(authService)
+
 	// Create application with options
 	err = wails.Run(&options.App{
 		Title:  "ayo",
@@ -64,6 +69,7 @@ func main() {
 		OnStartup: func(ctx context.Context) {
 			app.startup(ctx)
 			fileOpsService.Startup(ctx)
+			settingsService.Startup(ctx)
 		},
 		DisableResize: false,
 		Mac: &mac.Options{
@@ -88,6 +94,7 @@ func main() {
 			app,
 			authService,
 			fileOpsService,
+			settingsService,
 		},
 	})
 

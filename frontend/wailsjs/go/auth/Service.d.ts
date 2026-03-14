@@ -10,4 +10,6 @@ export function Logout():Promise<void>;
 
 export function Register(arg1:auth.RegisterInput):Promise<auth.User>;
 
+export function RequireSession():Promise<auth.Session>;
+
 export function ResetPassword(arg1:auth.ResetPasswordInput):Promise<auth.User>;
