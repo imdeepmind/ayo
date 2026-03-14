@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"sync"
 
 	"github.com/klauspost/reedsolomon"
@@ -14,7 +15,8 @@ import (
 
 const (
 	ImageFileName = "./data/input/image.JPG"
-	OutputFolder  = "./data/chunks/"
+	ChunkFolder   = "./data/chunks/"
+	OutputFolder  = "./data/output/"
 
 	DataShards   = 6
 	ParityShards = 3
@@ -26,6 +28,11 @@ type FileShard struct {
 }
 
 func main() {
+	chunkFile()
+	reconstruct()
+}
+
+func chunkFile() {
 	var wg sync.WaitGroup
 	var shardChannel = make(chan FileShard)
 
@@ -95,6 +102,62 @@ func main() {
 	fmt.Println("Job done!!!")
 }
 
+func reconstruct() {
+	var shards = make([][]byte, DataShards+ParityShards)
+
+	for i := 0; i < DataShards+ParityShards; i++ {
+		file_path := fmt.Sprintf("%schunk_%d.bin", ChunkFolder, i)
+		shard, err := os.ReadFile(file_path)
+
+		if err != nil {
+			panic("Failed to read chunks")
+		}
+
+		shard, err = decryptData([]byte("test_key123456789123456789123456"), shard)
+		if err != nil {
+			panic("Failed to decrypt the shard")
+		}
+
+		shards[i] = shard
+	}
+
+	// create encoder
+	enc, err := reedsolomon.New(DataShards, ParityShards)
+	if err != nil {
+		panic("Failed to create the encoder")
+	}
+
+	err = enc.Reconstruct(shards)
+	if err != nil {
+		panic("Failed to reconstruct the file")
+	}
+
+	ok, err := enc.Verify(shards)
+
+	if err != nil {
+		panic("Failed to verify")
+	}
+
+	if !ok {
+		panic("Shard verification failed")
+	}
+
+	out, err := os.Create(path.Join(OutputFolder, "image.JPG"))
+	if err != nil {
+		panic("Failed to create the output file")
+	}
+
+	defer out.Close()
+
+	for i := 0; i < DataShards; i++ {
+		_, err := out.Write(shards[i])
+
+		if err != nil {
+			panic("Failed to save chunk")
+		}
+	}
+}
+
 func encryptAndUploadChunk(shardChannel <-chan FileShard, wg *sync.WaitGroup) {
 	defer wg.Done()
 
@@ -104,7 +167,7 @@ func encryptAndUploadChunk(shardChannel <-chan FileShard, wg *sync.WaitGroup) {
 			break
 		}
 
-		file_path := fmt.Sprintf("%schunk_%d.bin", OutputFolder, val.counter)
+		file_path := fmt.Sprintf("%schunk_%d.bin", ChunkFolder, val.counter)
 
 		encryptedData, err := encryptData([]byte("test_key123456789123456789123456"), val.shard)
 		if err != nil {
@@ -139,4 +202,24 @@ func encryptData(key []byte, plaintext []byte) ([]byte, error) {
 
 	// Prepend nonce to ciphertext
 	return aead.Seal(nonce, nonce, plaintext, nil), nil
+}
+
+func decryptData(key []byte, ciphertext []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+
+	nonceSize := aead.NonceSize()
+	if len(ciphertext) < nonceSize {
+		return nil, fmt.Errorf("ciphertext too short")
+	}
+
+	nonce, encryptedData := ciphertext[:nonceSize], ciphertext[nonceSize:]
+	return aead.Open(nil, nonce, encryptedData, nil)
 }
