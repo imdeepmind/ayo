@@ -110,12 +110,15 @@ func reconstruct() {
 		shard, err := os.ReadFile(file_path)
 
 		if err != nil {
-			panic("Failed to read chunks")
+			shards[i] = nil
+			continue
 		}
 
-		shard, err = decryptData([]byte("test_key123456789123456789123456"), shard)
-		if err != nil {
-			panic("Failed to decrypt the shard")
+		if shard != nil {
+			shard, err = decryptData([]byte("test_key123456789123456789123456"), shard)
+			if err != nil {
+				panic("Failed to decrypt the shard")
+			}
 		}
 
 		shards[i] = shard
