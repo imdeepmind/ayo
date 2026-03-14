@@ -502,9 +502,10 @@ export default function StorageSettings() {
 
   // -- Tab classes --
   const tabClass = (id: TabId) =>
-    `px-4 py-2.5 text-sm font-medium transition-colors border-b-2 ${activeTab === id
-      ? 'border-sky-500 text-sky-600 dark:text-sky-400'
-      : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
+    `px-4 py-2.5 text-sm font-medium transition-colors border-b-2 ${
+      activeTab === id
+        ? 'border-sky-500 text-sky-600 dark:text-sky-400'
+        : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
     }`;
 
   return (
