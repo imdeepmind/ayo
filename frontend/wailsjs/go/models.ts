@@ -28,6 +28,68 @@ export namespace auth {
 	        this.Password = source["Password"];
 	    }
 	}
+	export class User {
+	    ID: number;
+	    Username: string;
+	    PasswordHash: string;
+	    RecoveryKey: string;
+	    PasswordSalt: number[];
+	    PasswordNonce: number[];
+	    PasswordMasterKey: number[];
+	    RecoverySalt: number[];
+	    RecoveryNonce: number[];
+	    RecoveryMasterKey: number[];
+	
+	    static createFrom(source: any = {}) {
+	        return new User(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Username = source["Username"];
+	        this.PasswordHash = source["PasswordHash"];
+	        this.RecoveryKey = source["RecoveryKey"];
+	        this.PasswordSalt = source["PasswordSalt"];
+	        this.PasswordNonce = source["PasswordNonce"];
+	        this.PasswordMasterKey = source["PasswordMasterKey"];
+	        this.RecoverySalt = source["RecoverySalt"];
+	        this.RecoveryNonce = source["RecoveryNonce"];
+	        this.RecoveryMasterKey = source["RecoveryMasterKey"];
+	    }
+	}
+	export class RegisterResult {
+	    User?: User;
+	    RecoveryKey: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RegisterResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.User = this.convertValues(source["User"], User);
+	        this.RecoveryKey = source["RecoveryKey"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class ResetPasswordInput {
 	    Username: string;
 	    NewPassword: string;
@@ -58,36 +120,6 @@ export namespace auth {
 	        this.UserId = source["UserId"];
 	        this.Username = source["Username"];
 	        this.MasterKey = source["MasterKey"];
-	    }
-	}
-	export class User {
-	    ID: number;
-	    Username: string;
-	    PasswordHash: string;
-	    RecoveryKey: string;
-	    PasswordSalt: number[];
-	    PasswordNonce: number[];
-	    PasswordMasterKey: number[];
-	    RecoverySalt: number[];
-	    RecoveryNonce: number[];
-	    RecoveryMasterKey: number[];
-	
-	    static createFrom(source: any = {}) {
-	        return new User(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.ID = source["ID"];
-	        this.Username = source["Username"];
-	        this.PasswordHash = source["PasswordHash"];
-	        this.RecoveryKey = source["RecoveryKey"];
-	        this.PasswordSalt = source["PasswordSalt"];
-	        this.PasswordNonce = source["PasswordNonce"];
-	        this.PasswordMasterKey = source["PasswordMasterKey"];
-	        this.RecoverySalt = source["RecoverySalt"];
-	        this.RecoveryNonce = source["RecoveryNonce"];
-	        this.RecoveryMasterKey = source["RecoveryMasterKey"];
 	    }
 	}
 

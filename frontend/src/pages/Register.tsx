@@ -32,9 +32,9 @@ export default function Register() {
 
   const onSubmit = async (data: RegisterFormData) => {
     try {
-      const user = await registerUser({ Username: data.username, Password: data.password });
-      if (user) {
-        setRecoveryKey(user.RecoveryKey);
+      const result = await registerUser({ Username: data.username, Password: data.password });
+      if (result) {
+        setRecoveryKey(result.RecoveryKey);
         toast.success('Account created successfully! Please download your recovery key.');
       } else {
         toast.error('Failed to create account. Please try again.');

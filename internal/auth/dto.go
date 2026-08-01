@@ -15,3 +15,11 @@ type ResetPasswordInput struct {
 	NewPassword string `validate:"required,min=8,password_strength"`
 	RecoveryKey string `validate:"required"`
 }
+
+// RegisterResult carries the created user and the plaintext recovery key that
+// must be shown to the user once. The recovery key is never stored in the User
+// entity itself.
+type RegisterResult struct {
+	User        *User
+	RecoveryKey string
+}

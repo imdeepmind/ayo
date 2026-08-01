@@ -12,14 +12,19 @@ import (
 	"github.com/zalando/go-keyring"
 )
 
-type Service struct {
-	ctx         context.Context
-	authService *auth.Service
+// SessionProvider is the subset of auth.Service that settings depends on.
+type SessionProvider interface {
+	RequireSession() (*auth.Session, error)
 }
 
-func NewService(authService *auth.Service) *Service {
+type Service struct {
+	ctx             context.Context
+	sessionProvider SessionProvider
+}
+
+func NewService(sessionProvider SessionProvider) *Service {
 	return &Service{
-		authService: authService,
+		sessionProvider: sessionProvider,
 	}
 }
 
@@ -30,7 +35,7 @@ func (s *Service) Startup(ctx context.Context) {
 
 // service method to get current state of settings
 func (s *Service) GetSettings() (*Settings, error) {
-	session, err := s.authService.RequireSession()
+	session, err := s.sessionProvider.RequireSession()
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +68,7 @@ func (s *Service) GetSettings() (*Settings, error) {
 
 // service method to update current state of settings
 func (s *Service) UpdateSettings(settings Settings) error {
-	session, err := s.authService.RequireSession()
+	session, err := s.sessionProvider.RequireSession()
 	if err != nil {
 		return err
 	}

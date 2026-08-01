@@ -12,9 +12,9 @@ interface AuthContextType {
   session: auth.Session | null;
   isLoading: boolean;
   login: (input: auth.LoginInput) => Promise<boolean>;
-  register: (input: auth.RegisterInput) => Promise<auth.User | null>;
+  register: (input: auth.RegisterInput) => Promise<auth.RegisterResult | null>;
   logout: () => Promise<void>;
-  resetPassword: (input: auth.ResetPasswordInput) => Promise<auth.User | null>;
+  resetPassword: (input: auth.ResetPasswordInput) => Promise<auth.RegisterResult | null>;
   refreshSession: () => Promise<void>;
 }
 
@@ -69,9 +69,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = async (input: auth.RegisterInput) => {
     try {
-      const user = await RegisterService(input);
+      const result = await RegisterService(input);
 
-      return user ?? null;
+      return result ?? null;
     } catch (error) {
       console.error('Registration failed:', error);
       throw error;
@@ -85,8 +85,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const resetPassword = async (input: auth.ResetPasswordInput) => {
     try {
-      const user = await ResetPasswordService(input);
-      return user ?? null;
+      const result = await ResetPasswordService(input);
+      return result ?? null;
     } catch (error) {
       console.error('Password reset failed:', error);
       throw error;
