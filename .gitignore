@@ -6,3 +6,5 @@ build/
 data/
 ayo.db
 ayo
+
+.DS_Store
