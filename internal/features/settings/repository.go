@@ -1,9 +1,9 @@
 package settings
 
 import (
-	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 
 	"ayo/internal/platform/keyring"
 )
@@ -12,9 +12,9 @@ import (
 // base64-encoded, encrypted JSON stored in the OS keyring.
 type Repository interface {
 	// Load returns the stored blob, or nil when nothing has been saved yet.
-	Load(ctx context.Context, username string) ([]byte, error)
+	Load(username string) ([]byte, error)
 	// Save replaces the stored blob for the given user.
-	Save(ctx context.Context, username string, data []byte) error
+	Save(username string, data []byte) error
 }
 
 type repository struct{}
@@ -23,19 +23,26 @@ func NewRepository() Repository {
 	return &repository{}
 }
 
-func (r *repository) Load(ctx context.Context, username string) ([]byte, error) {
+func (r *repository) Load(username string) ([]byte, error) {
 	encoded, err := keyring.Get("ayo", username)
 	if err != nil {
 		if errors.Is(err, keyring.ErrNotFound) {
 			return nil, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("load settings from keyring: %w", err)
 	}
 
-	return base64.StdEncoding.DecodeString(encoded)
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("decode settings blob: %w", err)
+	}
+	return decoded, nil
 }
 
-func (r *repository) Save(ctx context.Context, username string, data []byte) error {
+func (r *repository) Save(username string, data []byte) error {
 	encoded := base64.StdEncoding.EncodeToString(data)
-	return keyring.Set("ayo", username, encoded)
+	if err := keyring.Set("ayo", username, encoded); err != nil {
+		return fmt.Errorf("save settings to keyring: %w", err)
+	}
+	return nil
 }

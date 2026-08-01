@@ -10,7 +10,10 @@
 //     underlying cause for logging while keeping the message vague.
 package errors
 
-import "errors"
+import (
+	"errors"
+	"log/slog"
+)
 
 // Sentinel errors are compared with == (or errors.Is). They are all phrased as
 // complete user-facing messages since the frontend surfaces them directly.
@@ -79,4 +82,20 @@ func (e *InternalServerError) Error() string {
 // Unwrap exposes the underlying cause for diagnostics.
 func (e *InternalServerError) Unwrap() error {
 	return e.cause
+}
+
+// AsInternalServerError returns a vague *InternalServerError for the user while
+// logging the underlying cause for diagnostics. If err is already an
+// InternalServerError it is returned unchanged so the original cause is never
+// double-wrapped.
+//
+// Callers should handle expected sentinels (Err*) themselves before calling
+// this; it is only for unexpected/internal failures.
+func AsInternalServerError(operation string, err error) error {
+	var ise *InternalServerError
+	if errors.As(err, &ise) {
+		return err
+	}
+	slog.Error(operation, "error", err)
+	return NewInternalServerError(operation, err)
 }

@@ -145,6 +145,24 @@ export namespace settings {
 	        this.ErasureCodingConfig = source["ErasureCodingConfig"];
 	    }
 	}
+	export class UpdateSettingsInput {
+	    StorageMode: string;
+	    CloudKeys: any[];
+	    ErasureCoding: boolean;
+	    ErasureCodingConfig: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpdateSettingsInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.StorageMode = source["StorageMode"];
+	        this.CloudKeys = source["CloudKeys"];
+	        this.ErasureCoding = source["ErasureCoding"];
+	        this.ErasureCodingConfig = source["ErasureCodingConfig"];
+	    }
+	}
 
 }
 

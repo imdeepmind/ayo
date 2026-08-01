@@ -1,11 +1,13 @@
 package settings
 
 import (
-	"context"
 	"encoding/json"
 
 	"ayo/internal/features/auth"
 	"ayo/internal/shared/crypto"
+	"ayo/internal/shared/errors"
+
+	"github.com/go-playground/validator/v10"
 )
 
 // SessionProvider is the subset of auth.Service that settings depends on.
@@ -14,21 +16,17 @@ type SessionProvider interface {
 }
 
 type Service struct {
-	ctx             context.Context
 	sessionProvider SessionProvider
 	repo            Repository
+	validate        *validator.Validate
 }
 
 func NewService(sessionProvider SessionProvider, repo Repository) *Service {
 	return &Service{
 		sessionProvider: sessionProvider,
 		repo:            repo,
+		validate:        validator.New(),
 	}
-}
-
-// Startup is called by Wails on application startup
-func (s *Service) Startup(ctx context.Context) {
-	s.ctx = ctx
 }
 
 // GetSettings loads, decrypts and returns the current settings for the signed-in
@@ -39,9 +37,9 @@ func (s *Service) GetSettings() (*Settings, error) {
 		return nil, err
 	}
 
-	data, err := s.repo.Load(context.Background(), session.Username)
+	data, err := s.repo.Load(session.Username)
 	if err != nil {
-		return nil, err
+		return nil, errors.AsInternalServerError("get settings: load", err)
 	}
 
 	if len(data) == 0 {
@@ -50,32 +48,40 @@ func (s *Service) GetSettings() (*Settings, error) {
 
 	decryptedData, err := crypto.DecryptData(session.MasterKey, data)
 	if err != nil {
-		return nil, err
+		return nil, errors.AsInternalServerError("get settings: decrypt", err)
 	}
 
 	var parsedSettings Settings
 	if err := json.Unmarshal(decryptedData, &parsedSettings); err != nil {
-		return nil, err
+		return nil, errors.AsInternalServerError("get settings: unmarshal", err)
 	}
 	return &parsedSettings, nil
 }
 
-// UpdateSettings encrypts and persists the given settings for the signed-in user.
-func (s *Service) UpdateSettings(settings Settings) error {
+// UpdateSettings validates, encrypts and persists the given settings for the
+// signed-in user.
+func (s *Service) UpdateSettings(input UpdateSettingsInput) error {
+	if err := s.validate.Struct(input); err != nil {
+		return errors.ErrInvalidInput
+	}
+
 	session, err := s.sessionProvider.RequireSession()
 	if err != nil {
 		return err
 	}
 
-	data, err := json.Marshal(settings)
+	data, err := json.Marshal(input)
 	if err != nil {
-		return err
+		return errors.AsInternalServerError("update settings: marshal", err)
 	}
 
 	encryptedData, err := crypto.EncryptData(session.MasterKey, data)
 	if err != nil {
-		return err
+		return errors.AsInternalServerError("update settings: encrypt", err)
 	}
 
-	return s.repo.Save(context.Background(), session.Username, encryptedData)
+	if err := s.repo.Save(session.Username, encryptedData); err != nil {
+		return errors.AsInternalServerError("update settings: save", err)
+	}
+	return nil
 }

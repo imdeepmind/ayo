@@ -8,7 +8,7 @@ The Go backend is tiered under `internal/`:
 
 - `internal/features/` — business logic, one package per feature:
   - `auth/` — Register/Login/ResetPassword/Logout + in-memory session (`MasterKey`). bcrypt + Argon2 + AES-GCM. Layered as `dto.go` / `model.go` / `repository.go` / `service.go`.
-  - `settings/` — per-user settings stored in the OS keyring (`zalando/go-keyring`), encrypted with the session master key. Keyring persistence is in `repository.go`; cloud-key types in `cloud.go`.
+  - `settings/` — per-user settings stored in the OS keyring (`zalando/go-keyring`), encrypted with the session master key. Keyring persistence is in `repository.go`; cloud-key types in `cloud.go`; validated Wails-bound input in `dto.go`.
   - `recovery/` — save-file dialog for downloading the recovery key (shown after register/reset).
   - `queue/` — dead code: not wired into `main.go`, and its SQL is MySQL-flavored (`AUTO_INCREMENT`, `JSON` type, `ON UPDATE CURRENT_TIMESTAMP`) and will not run on SQLite. Don't build on it.
 - `internal/platform/` — infrastructure (never imported by features' business logic directly beyond what the feature's own repository wraps):

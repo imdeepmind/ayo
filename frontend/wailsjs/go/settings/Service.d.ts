@@ -7,4 +7,4 @@ export function GetSettings():Promise<settings.Settings>;
 
 export function Startup(arg1:context.Context):Promise<void>;
 
-export function UpdateSettings(arg1:settings.Settings):Promise<void>;
+export function UpdateSettings(arg1:settings.UpdateSettingsInput):Promise<void>;

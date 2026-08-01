@@ -82,9 +82,8 @@ func main() {
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
 		OnStartup: func(ctx context.Context) {
 			app.startup(ctx)
-			// Services that need the Wails context receive it here.
+			// Only services that need the Wails context receive it here.
 			recoveryService.Startup(ctx)
-			settingsService.Startup(ctx)
 		},
 		DisableResize: false,
 		Mac: &mac.Options{

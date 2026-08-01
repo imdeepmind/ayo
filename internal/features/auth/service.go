@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	stderrors "errors"
-	"log/slog"
 	"regexp"
 
 	"ayo/internal/shared/crypto"
@@ -73,18 +72,6 @@ func NewService(repo Repository) *Service {
 	}
 }
 
-// internalError logs the underlying cause for diagnostics while keeping the
-// user-facing response vague. If the error is already an InternalServerError it
-// is returned as-is so the original cause is never double-wrapped.
-func internalError(operation string, err error) error {
-	var ise *errors.InternalServerError
-	if stderrors.As(err, &ise) {
-		return err
-	}
-	slog.Error(operation, "error", err)
-	return errors.NewInternalServerError(operation, err)
-}
-
 // Register creates a new account and its master key. The key is wrapped twice -
 // once with a KEK derived from the password and once with a KEK derived from a
 // freshly generated recovery key - so that a forgotten password can be reset
@@ -97,49 +84,49 @@ func (s *Service) Register(input RegisterInput) (*RegisterResult, error) {
 
 	recoveryKey, err := crypto.GenerateRecoveryKey()
 	if err != nil {
-		return nil, internalError("register: generate recovery key", err)
+		return nil, errors.AsInternalServerError("register: generate recovery key", err)
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, internalError("register: hash password", err)
+		return nil, errors.AsInternalServerError("register: hash password", err)
 	}
 
 	hashedRecoveryKey, err := bcrypt.GenerateFromPassword([]byte(recoveryKey), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, internalError("register: hash recovery key", err)
+		return nil, errors.AsInternalServerError("register: hash recovery key", err)
 	}
 
 	// Generate passwordSalt
 	passwordSalt, err := crypto.GenerateSalt()
 	if err != nil {
-		return nil, internalError("register: generate password salt", err)
+		return nil, errors.AsInternalServerError("register: generate password salt", err)
 	}
 
 	// Generate recoverySalt
 	recoverySalt, err := crypto.GenerateSalt()
 	if err != nil {
-		return nil, internalError("register: generate recovery salt", err)
+		return nil, errors.AsInternalServerError("register: generate recovery salt", err)
 	}
 
 	// generating a master key
 	masterKey, err := crypto.GenerateMasterKey()
 	if err != nil {
-		return nil, internalError("register: generate master key", err)
+		return nil, errors.AsInternalServerError("register: generate master key", err)
 	}
 
 	// encrypt master key with password
 	passwordKek := crypto.DeriveKEK(input.Password, passwordSalt)
 	passwordEncryptedMasterKey, passwordNonce, err := crypto.EncryptMasterKey(passwordKek, masterKey)
 	if err != nil {
-		return nil, internalError("register: encrypt master key with password", err)
+		return nil, errors.AsInternalServerError("register: encrypt master key with password", err)
 	}
 
 	// encrypt master key with recovery key
 	recoveryKek := crypto.DeriveKEK(recoveryKey, recoverySalt)
 	recoveryEncryptedMasterKey, recoveryNonce, err := crypto.EncryptMasterKey(recoveryKek, masterKey)
 	if err != nil {
-		return nil, internalError("register: encrypt master key with recovery key", err)
+		return nil, errors.AsInternalServerError("register: encrypt master key with recovery key", err)
 	}
 
 	// creating the user
@@ -159,7 +146,7 @@ func (s *Service) Register(input RegisterInput) (*RegisterResult, error) {
 		if stderrors.Is(err, errors.ErrUserAlreadyExists) {
 			return nil, err
 		}
-		return nil, internalError("register: create user", err)
+		return nil, errors.AsInternalServerError("register: create user", err)
 	}
 
 	// return the original recovery key to the user so they can store it
@@ -179,7 +166,7 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 		if stderrors.Is(err, errors.ErrUserNotFound) {
 			return false, errors.ErrUserNotFound
 		}
-		return false, internalError("login: get user", err)
+		return false, errors.AsInternalServerError("login: get user", err)
 	}
 
 	// comparing the password
@@ -196,7 +183,7 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 	// decrypting the master key
 	masterKey, err := crypto.DecryptMasterKey(kek, user.PasswordMasterKey, user.PasswordNonce)
 	if err != nil {
-		return false, internalError("login: decrypt master key", err)
+		return false, errors.AsInternalServerError("login: decrypt master key", err)
 	}
 
 	// session of the app
@@ -224,7 +211,7 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*RegisterResult, erro
 		if stderrors.Is(err, errors.ErrUserNotFound) {
 			return nil, errors.ErrUserNotFound
 		}
-		return nil, internalError("reset password: get user", err)
+		return nil, errors.AsInternalServerError("reset password: get user", err)
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.RecoveryKey), []byte(input.RecoveryKey)); err != nil {
@@ -234,40 +221,40 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*RegisterResult, erro
 	// generate new recovery key
 	newRecoveryKey, err := crypto.GenerateRecoveryKey()
 	if err != nil {
-		return nil, internalError("reset password: generate recovery key", err)
+		return nil, errors.AsInternalServerError("reset password: generate recovery key", err)
 	}
 
 	// hash the new password to store
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.NewPassword), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, internalError("reset password: hash password", err)
+		return nil, errors.AsInternalServerError("reset password: hash password", err)
 	}
 
 	// hash the new recovery key to store
 	hashedRecoveryKey, err := bcrypt.GenerateFromPassword([]byte(newRecoveryKey), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, internalError("reset password: hash recovery key", err)
+		return nil, errors.AsInternalServerError("reset password: hash recovery key", err)
 	}
 
 	// extract the original master key using the provided recovery key
 	recoveryKek := crypto.DeriveKEK(input.RecoveryKey, user.RecoverySalt)
 	masterKey, err := crypto.DecryptMasterKey(recoveryKek, user.RecoveryMasterKey, user.RecoveryNonce)
 	if err != nil {
-		return nil, internalError("reset password: decrypt master key", err)
+		return nil, errors.AsInternalServerError("reset password: decrypt master key", err)
 	}
 
 	// generate the new encrypted master key using password
 	passwordKek := crypto.DeriveKEK(input.NewPassword, user.PasswordSalt)
 	passwordEncryptedMasterKey, passwordNonce, err := crypto.EncryptMasterKey(passwordKek, masterKey)
 	if err != nil {
-		return nil, internalError("reset password: encrypt master key with password", err)
+		return nil, errors.AsInternalServerError("reset password: encrypt master key with password", err)
 	}
 
 	// generate the new encrypted master key using recovery key
 	recoveryKek = crypto.DeriveKEK(newRecoveryKey, user.RecoverySalt)
 	recoveryEncryptedMasterKey, recoveryNonce, err := crypto.EncryptMasterKey(recoveryKek, masterKey)
 	if err != nil {
-		return nil, internalError("reset password: encrypt master key with recovery key", err)
+		return nil, errors.AsInternalServerError("reset password: encrypt master key with recovery key", err)
 	}
 
 	// update the password and recovery key
@@ -282,7 +269,7 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*RegisterResult, erro
 		recoveryNonce,
 	)
 	if err != nil {
-		return nil, internalError("reset password: update user", err)
+		return nil, errors.AsInternalServerError("reset password: update user", err)
 	}
 
 	return &RegisterResult{User: user, RecoveryKey: newRecoveryKey}, nil

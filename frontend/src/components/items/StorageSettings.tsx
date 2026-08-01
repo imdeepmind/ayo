@@ -467,7 +467,7 @@ export default function StorageSettings() {
       }
     });
 
-    const newSettings = new settings.Settings({
+    const newSettings = new settings.UpdateSettingsInput({
       StorageMode: 'local',
       CloudKeys: cloudKeys,
       ErasureCoding: customErasureEnabled,
@@ -484,7 +484,7 @@ export default function StorageSettings() {
   };
 
   const handleSaveAyo = async () => {
-    const newSettings = new settings.Settings({
+    const newSettings = new settings.UpdateSettingsInput({
       StorageMode: 'ayo',
       CloudKeys: [],
       ErasureCoding: ayoErasureEnabled,

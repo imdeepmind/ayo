@@ -2,7 +2,6 @@ package settings
 
 import (
 	"encoding/json"
-	"fmt"
 )
 
 type StorageMode string
@@ -30,6 +29,7 @@ type Settings struct {
 	ErasureCodingConfig ErasureCodingMode
 }
 
+// UnmarshalJSON reconstructs the polymorphic CloudKeys slice from raw JSON.
 func (s *Settings) UnmarshalJSON(data []byte) error {
 	type Alias Settings
 	aux := &struct {
@@ -43,39 +43,10 @@ func (s *Settings) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	s.CloudKeys = nil // Clear existing
-
-	for _, rawKey := range aux.CloudKeys {
-		var base struct {
-			Provider Provider `json:"Provider"`
-		}
-		if err := json.Unmarshal(rawKey, &base); err != nil {
-			return fmt.Errorf("failed to parse provider type: %w", err)
-		}
-
-		switch base.Provider {
-		case AWS:
-			var key AWSKey
-			if err := json.Unmarshal(rawKey, &key); err != nil {
-				return err
-			}
-			s.CloudKeys = append(s.CloudKeys, key)
-		case Azure:
-			var key AzureKey
-			if err := json.Unmarshal(rawKey, &key); err != nil {
-				return err
-			}
-			s.CloudKeys = append(s.CloudKeys, key)
-		case GCP:
-			var key GCPKey
-			if err := json.Unmarshal(rawKey, &key); err != nil {
-				return err
-			}
-			s.CloudKeys = append(s.CloudKeys, key)
-		default:
-			return fmt.Errorf("unknown provider type: %s", base.Provider)
-		}
+	keys, err := decodeCloudKeys(aux.CloudKeys)
+	if err != nil {
+		return err
 	}
-
+	s.CloudKeys = keys
 	return nil
 }
