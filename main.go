@@ -15,7 +15,8 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 )
 
-// App struct
+// App is the root Wails-bound struct. It provides a minimal bridge between the
+// webview frontend and the Go runtime (e.g. the application context).
 type App struct {
 	ctx context.Context
 }
@@ -40,34 +41,44 @@ func main() {
 	// Create an instance of the app structure
 	app := NewApp()
 
-	// Internal Services
-	// Use local data directory for development simplicity
+	// Open the SQLite database (data/ayo.db). For development simplicity the
+	// path is relative to the current working directory; data/ is gitignored.
 	db, err := database.NewDatabase("data/ayo.db")
 	if err != nil {
 		panic(err)
 	}
 
-	// Initialize Auth Module
+	// Wire up the internal services. The auth service is the keystone: it owns
+	// the in-memory session and master key, and is injected into the settings
+	// service (which needs the session to gate access and the master key to
+	// encrypt/decrypt stored settings).
 	authRepository := auth.NewRepository(db)
 	authService := auth.NewService(authRepository)
 
-	// Initialize File Operations Service
+	// File operations service: native save dialogs (used for recovery keys).
 	fileOpsService := fileops.NewService()
 
-	// Initialize Settings Service
+	// Settings service: stores per-user settings in the OS keyring, encrypted
+	// with the session master key.
 	settingsService := settings.NewService(authService)
 
-	// Create application with options
+	// Create application with options. Anything passed to Bind is exposed to
+	// the frontend as generated JavaScript bindings under
+	// frontend/wailsjs/go/, so changing a bound method requires a
+	// wails dev / wails build to regenerate them.
 	err = wails.Run(&options.App{
 		Title:  "ayo",
 		Width:  1024,
 		Height: 768,
 		AssetServer: &assetserver.Options{
+			// The compiled frontend (frontend/dist) is embedded into the binary
+			// via assets.go.
 			Assets: assets,
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
 		OnStartup: func(ctx context.Context) {
 			app.startup(ctx)
+			// Services that need the Wails context receive it here.
 			fileOpsService.Startup(ctx)
 			settingsService.Startup(ctx)
 		},
@@ -90,6 +101,7 @@ func main() {
 				Icon:    nil,
 			},
 		},
+		// Every service listed here is callable from the React frontend.
 		Bind: []interface{}{
 			app,
 			authService,

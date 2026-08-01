@@ -13,18 +13,37 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// Session holds the in-memory state of the currently signed-in user. It is the
+// desktop-app equivalent of an auth cookie: it only exists for the lifetime of
+// the running process and is lost on app restart (the frontend re-checks it on
+// startup via GetSession).
+//
+// MasterKey is the decrypted key that encrypts all of the user's data. It is
+// kept alongside the session so services like settings can encrypt/decrypt
+// without re-deriving it from the password.
 type Session struct {
 	UserId    int64
 	Username  string
 	MasterKey []byte
 }
 
+// Service implements the auth business logic and is the single source of truth
+// for the current session. It is bound to the frontend via Wails, so every
+// exported method is callable from JavaScript.
+//
+// Methods return user-facing sentinel errors from ayo/internal/errors rather
+// than wrapped fmt errors. Internal causes are logged via slog and replaced
+// with the vague ErrInternalServer so that no implementation detail ever leaks
+// to the UI.
 type Service struct {
 	session  *Session
 	repo     Repository
 	validate *validator.Validate
 }
 
+// validatePasswordStrength enforces that a password contains at least one
+// uppercase letter, one lowercase letter, one digit and one symbol. It is
+// registered as the "password_strength" validator rule.
 func validatePasswordStrength(fl validator.FieldLevel) bool {
 	password := fl.Field().String()
 
@@ -40,6 +59,8 @@ func validatePasswordStrength(fl validator.FieldLevel) bool {
 	return hasUpper && hasLower && hasDigit && hasSymbol
 }
 
+// NewService wires a repository and a validator with the custom password
+// strength rule into a ready-to-use auth Service.
 func NewService(repo Repository) *Service {
 	validate := validator.New()
 
@@ -59,6 +80,11 @@ func internalError(operation string, err error) error {
 	return errors.ErrInternalServer
 }
 
+// Register creates a new account and its master key. The key is wrapped twice -
+// once with a KEK derived from the password and once with a KEK derived from a
+// freshly generated recovery key - so that a forgotten password can be reset
+// later without losing any encrypted data. The plaintext recovery key is
+// returned (and must be shown to the user) exactly once.
 func (s *Service) Register(input RegisterInput) (*RegisterResult, error) {
 	if err := s.validate.Struct(input); err != nil {
 		return nil, errors.ErrInvalidInput
@@ -135,6 +161,9 @@ func (s *Service) Register(input RegisterInput) (*RegisterResult, error) {
 	return &RegisterResult{User: user, RecoveryKey: recoveryKey}, nil
 }
 
+// Login verifies the password, unwraps the master key with the password-derived
+// KEK, and stores the resulting session in memory. A session is not persisted,
+// so the user must log in again after every app restart.
 func (s *Service) Login(input LoginInput) (bool, error) {
 	if err := s.validate.Struct(input); err != nil {
 		return false, errors.ErrInvalidInput
@@ -175,6 +204,11 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 	return true, nil
 }
 
+// ResetPassword lets a user who forgot their password regain access by proving
+// ownership of the recovery key. The existing master key is unwrapped with the
+// recovery-key-derived KEK (so no data is lost), then re-wrapped with the new
+// password and a brand-new recovery key. The new recovery key is returned and
+// must be shown to the user exactly once.
 func (s *Service) ResetPassword(input ResetPasswordInput) (*RegisterResult, error) {
 	if err := s.validate.Struct(input); err != nil {
 		return nil, errors.ErrInvalidInput
@@ -249,14 +283,19 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*RegisterResult, erro
 	return &RegisterResult{User: user, RecoveryKey: newRecoveryKey}, nil
 }
 
+// Logout clears the in-memory session, ending the current user's access.
 func (s *Service) Logout() {
 	s.session = nil
 }
 
+// GetSession returns the current in-memory session, or nil when signed out.
 func (s *Service) GetSession() *Session {
 	return s.session
 }
 
+// RequireSession returns the current session or ErrUnauthorized. It is the
+// de-facto auth guard used by other services (e.g. settings) to gate access to
+// signed-in-only operations.
 func (s *Service) RequireSession() (*Session, error) {
 	if s.session == nil {
 		return nil, errors.ErrUnauthorized

@@ -9,6 +9,9 @@ import (
 	"ayo/internal/errors"
 )
 
+// Repository abstracts persistence for the auth module. Keeping it behind an
+// interface makes the service testable with a fake implementation instead of a
+// real SQLite database.
 type Repository interface {
 	CreateUser(
 		ctx context.Context,
@@ -39,6 +42,8 @@ type repository struct {
 	db *sql.DB
 }
 
+// NewRepository opens the users table (creating it if needed) and returns a
+// ready-to-use repository.
 func NewRepository(db *sql.DB) Repository {
 	err := initializeTable(db)
 	if err != nil {
@@ -47,6 +52,9 @@ func NewRepository(db *sql.DB) Repository {
 	return &repository{db: db}
 }
 
+// initializeTable idempotently ensures the users table exists. It stores only
+// hashes and encrypted material - never plaintext credentials. Column types use
+// BYTEA notation but SQLite is untyped, so []byte values are stored as blobs.
 func initializeTable(db *sql.DB) error {
 	query := `CREATE TABLE IF NOT EXISTS users (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -70,6 +78,8 @@ func initializeTable(db *sql.DB) error {
 	return nil
 }
 
+// CreateUser inserts a new account row and returns the created User populated
+// with its assigned ID. A duplicate username surfaces as ErrUserAlreadyExists.
 func (r *repository) CreateUser(
 	ctx context.Context,
 	username string,
@@ -115,6 +125,8 @@ func (r *repository) CreateUser(
 	return user, nil
 }
 
+// GetUserByUsername fetches a user by exact username match. It returns
+// ErrUserNotFound when no such account exists.
 func (r *repository) GetUserByUsername(ctx context.Context, username string) (*User, error) {
 	query := `SELECT id, username, password_hash, recovery_key, password_salt, ` +
 		`password_master_key, password_nonce, recovery_salt, recovery_master_key, ` +
@@ -136,6 +148,8 @@ func (r *repository) GetUserByUsername(ctx context.Context, username string) (*U
 	return &user, nil
 }
 
+// UpdateUserPassword replaces the password/recovery-key hashes and re-wraps the
+// master key with the newly derived KEKs. Used by the reset-password flow.
 func (r *repository) UpdateUserPassword(
 	ctx context.Context,
 	id int64,
