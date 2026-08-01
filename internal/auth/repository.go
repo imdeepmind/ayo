@@ -1,17 +1,38 @@
 package auth
 
 import (
-	"ayo/internal/errors"
 	"context"
 	"database/sql"
 	"fmt"
 	"strings"
+
+	"ayo/internal/errors"
 )
 
 type Repository interface {
-	CreateUser(ctx context.Context, username string, passwordHash string, recoveryKey string, passwordSalt []byte, passwordNonce []byte, passwordMasterKey []byte, recoverySalt []byte, recoveryNonce []byte, recoveryMasterKey []byte) (*User, error)
+	CreateUser(
+		ctx context.Context,
+		username string,
+		passwordHash string,
+		recoveryKey string,
+		passwordSalt []byte,
+		passwordNonce []byte,
+		passwordMasterKey []byte,
+		recoverySalt []byte,
+		recoveryNonce []byte,
+		recoveryMasterKey []byte,
+	) (*User, error)
 	GetUserByUsername(ctx context.Context, username string) (*User, error)
-	UpdateUserPassword(ctx context.Context, id int64, passwordHash string, recoveryKey string, passwordMasterKey []byte, passwordNonce []byte, recoveryMasterKey []byte, recoveryNonce []byte) error
+	UpdateUserPassword(
+		ctx context.Context,
+		id int64,
+		passwordHash string,
+		recoveryKey string,
+		passwordMasterKey []byte,
+		passwordNonce []byte,
+		recoveryMasterKey []byte,
+		recoveryNonce []byte,
+	) error
 }
 
 type repository struct {
@@ -32,7 +53,7 @@ func initializeTable(db *sql.DB) error {
 		username VARCHAR(255) NOT NULL UNIQUE,
 		password_hash VARCHAR(255) NOT NULL,
 		recovery_key VARCHAR(255) NOT NULL,
-		
+
 		password_salt BYTEA NOT NULL,
 		password_nonce BYTEA NOT NULL,
 		password_master_key BYTEA NOT NULL,
@@ -49,10 +70,29 @@ func initializeTable(db *sql.DB) error {
 	return nil
 }
 
-func (r *repository) CreateUser(ctx context.Context, username string, passwordHash string, recoveryKey string, passwordSalt []byte, passwordNonce []byte, passwordMasterKey []byte, recoverySalt []byte, recoveryNonce []byte, recoveryMasterKey []byte) (*User, error) {
-	create_user_query := `INSERT INTO users (username, password_hash, recovery_key, password_salt, password_nonce, password_master_key, recovery_salt, recovery_nonce, recovery_master_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+func (r *repository) CreateUser(
+	ctx context.Context,
+	username string,
+	passwordHash string,
+	recoveryKey string,
+	passwordSalt []byte,
+	passwordNonce []byte,
+	passwordMasterKey []byte,
+	recoverySalt []byte,
+	recoveryNonce []byte,
+	recoveryMasterKey []byte,
+) (*User, error) {
+	query := `INSERT INTO users (username, password_hash, recovery_key, password_salt, ` +
+		`password_nonce, password_master_key, recovery_salt, recovery_nonce, ` +
+		`recovery_master_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
-	result, err := r.db.ExecContext(ctx, create_user_query, username, passwordHash, recoveryKey, passwordSalt, passwordNonce, passwordMasterKey, recoverySalt, recoveryNonce, recoveryMasterKey)
+	result, err := r.db.ExecContext(
+		ctx,
+		query,
+		username, passwordHash, recoveryKey, passwordSalt,
+		passwordNonce, passwordMasterKey, recoverySalt, recoveryNonce,
+		recoveryMasterKey,
+	)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") || strings.Contains(err.Error(), "Duplicate entry") {
 			return nil, errors.ErrUserAlreadyExists
@@ -76,23 +116,45 @@ func (r *repository) CreateUser(ctx context.Context, username string, passwordHa
 }
 
 func (r *repository) GetUserByUsername(ctx context.Context, username string) (*User, error) {
-	query := `SELECT id, username, password_hash, recovery_key, password_salt, password_master_key, password_nonce, recovery_salt, recovery_master_key, recovery_nonce FROM users WHERE username = ?`
+	query := `SELECT id, username, password_hash, recovery_key, password_salt, ` +
+		`password_master_key, password_nonce, recovery_salt, recovery_master_key, ` +
+		`recovery_nonce FROM users WHERE username = ?`
 	row := r.db.QueryRowContext(ctx, query, username)
 
 	var user User
-	err := row.Scan(&user.ID, &user.Username, &user.PasswordHash, &user.RecoveryKey, &user.PasswordSalt, &user.PasswordMasterKey, &user.PasswordNonce, &user.RecoverySalt, &user.RecoveryMasterKey, &user.RecoveryNonce)
+	err := row.Scan(
+		&user.ID, &user.Username, &user.PasswordHash, &user.RecoveryKey,
+		&user.PasswordSalt, &user.PasswordMasterKey, &user.PasswordNonce,
+		&user.RecoverySalt, &user.RecoveryMasterKey, &user.RecoveryNonce,
+	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, nil
+			return nil, errors.ErrUserNotFound
 		}
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 	return &user, nil
 }
 
-func (r *repository) UpdateUserPassword(ctx context.Context, id int64, passwordHash string, recoveryKey string, passwordMasterKey []byte, passwordNonce []byte, recoveryMasterKey []byte, recoveryNonce []byte) error {
-	query := `UPDATE users SET password_hash = ?, recovery_key = ?, password_master_key = ?, password_nonce = ?, recovery_master_key = ?, recovery_nonce = ? WHERE id = ?`
-	_, err := r.db.ExecContext(ctx, query, passwordHash, recoveryKey, passwordMasterKey, passwordNonce, recoveryMasterKey, recoveryNonce, id)
+func (r *repository) UpdateUserPassword(
+	ctx context.Context,
+	id int64,
+	passwordHash string,
+	recoveryKey string,
+	passwordMasterKey []byte,
+	passwordNonce []byte,
+	recoveryMasterKey []byte,
+	recoveryNonce []byte,
+) error {
+	query := `UPDATE users SET password_hash = ?, recovery_key = ?, ` +
+		`password_master_key = ?, password_nonce = ?, recovery_master_key = ?, ` +
+		`recovery_nonce = ? WHERE id = ?`
+	_, err := r.db.ExecContext(
+		ctx,
+		query,
+		passwordHash, recoveryKey, passwordMasterKey, passwordNonce,
+		recoveryMasterKey, recoveryNonce, id,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to update user password: %w", err)
 	}

@@ -91,7 +91,6 @@ func DecryptMasterKey(kek []byte, encryptedMasterKey []byte, nonce []byte) ([]by
 }
 
 func DeriveKEK(password string, salt []byte) []byte {
-
 	kek := argon2.IDKey(
 		[]byte(password),
 		salt,

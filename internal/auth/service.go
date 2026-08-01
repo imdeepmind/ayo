@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	stderrors "errors"
 	"regexp"
 
 	"ayo/internal/errors"
@@ -104,7 +105,18 @@ func (s *Service) Register(input RegisterInput) (*User, error) {
 	}
 
 	// creating the user
-	user, err := s.repo.CreateUser(context.Background(), input.Username, string(hashedPassword), string(hashedRecoveryKey), passwordSalt, passwordNonce, passwordEncryptedMasterKey, recoverySalt, recoveryNonce, recoveryEncryptedMasterKey)
+	user, err := s.repo.CreateUser(
+		context.Background(),
+		input.Username,
+		string(hashedPassword),
+		string(hashedRecoveryKey),
+		passwordSalt,
+		passwordNonce,
+		passwordEncryptedMasterKey,
+		recoverySalt,
+		recoveryNonce,
+		recoveryEncryptedMasterKey,
+	)
 	if err != nil {
 		return nil, errors.ErrInternalServer
 	}
@@ -122,11 +134,10 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 
 	user, err := s.repo.GetUserByUsername(context.Background(), input.Username)
 	if err != nil {
+		if stderrors.Is(err, errors.ErrUserNotFound) {
+			return false, errors.ErrUserNotFound
+		}
 		return false, errors.ErrInternalServer
-	}
-
-	if user == nil {
-		return false, errors.ErrUserNotFound
 	}
 
 	// comparing the password
@@ -165,10 +176,6 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*User, error) {
 	user, err := s.repo.GetUserByUsername(context.Background(), input.Username)
 	if err != nil {
 		return nil, err
-	}
-
-	if user == nil {
-		return nil, errors.ErrUserNotFound
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.RecoveryKey), []byte(input.RecoveryKey)); err != nil {
@@ -215,7 +222,16 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*User, error) {
 	}
 
 	// update the password and recovery key
-	err = s.repo.UpdateUserPassword(context.Background(), user.ID, string(hashedPassword), string(hashedRecoveryKey), passwordEncryptedMasterKey, passwordNonce, recoveryEncryptedMasterKey, recoveryNonce)
+	err = s.repo.UpdateUserPassword(
+		context.Background(),
+		user.ID,
+		string(hashedPassword),
+		string(hashedRecoveryKey),
+		passwordEncryptedMasterKey,
+		passwordNonce,
+		recoveryEncryptedMasterKey,
+		recoveryNonce,
+	)
 	if err != nil {
 		return nil, err
 	}

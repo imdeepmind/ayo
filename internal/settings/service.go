@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 
 	"ayo/internal/auth"
 	"ayo/internal/utils"
@@ -36,7 +37,7 @@ func (s *Service) GetSettings() (*Settings, error) {
 
 	data, err := keyring.Get("ayo", session.Username)
 	if err != nil {
-		if err == keyring.ErrNotFound {
+		if errors.Is(err, keyring.ErrNotFound) {
 			return &Settings{}, nil
 		}
 		return nil, err

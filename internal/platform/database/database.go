@@ -16,7 +16,7 @@ func NewDatabase(dbPath string) (*sql.DB, error) {
 	// Ensure parent directory exists
 	dir := filepath.Dir(dbPath)
 	if dir != "." && dir != "/" {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0750); err != nil {
 			return nil, fmt.Errorf("failed to create database directory: %w", err)
 		}
 	}
