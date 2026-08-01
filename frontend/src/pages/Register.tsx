@@ -8,7 +8,7 @@ import AuthCard from '@/components/items/AuthCard';
 import TextInput from '@/components/bits/Input';
 import Button from '@/components/bits/Button';
 import { useAuth } from '@/context/AuthContext';
-import { SaveRecoveryKey } from '../../wailsjs/go/fileops/Service';
+import { SaveRecoveryKey } from '../../wailsjs/go/recovery/Service';
 import { registerSchema, type RegisterFormData } from '@/lib/validations';
 
 export default function Register() {

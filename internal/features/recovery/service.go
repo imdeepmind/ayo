@@ -1,12 +1,16 @@
-package fileops
+package recovery
 
 import (
 	"context"
 	"os"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"ayo/internal/platform/dialog"
 )
 
+// Service handles saving the user's recovery key to a file. It is the
+// frontend-facing counterpart of the recovery-key flow in auth: after
+// registration or a password reset the user downloads the key via
+// SaveRecoveryKey so it can be stored somewhere safe.
 type Service struct {
 	ctx context.Context
 }
@@ -22,20 +26,12 @@ func (s *Service) Startup(ctx context.Context) {
 
 // SaveRecoveryKey opens a save file dialog and saves the recovery key to the selected location
 func (s *Service) SaveRecoveryKey(username, recoveryKey string) error {
-	defaultFilename := "recovery-key-" + username + ".txt"
-
-	// Open save file dialog
-	filePath, err := runtime.SaveFileDialog(s.ctx, runtime.SaveDialogOptions{
-		DefaultFilename: defaultFilename,
-		Title:           "Save Recovery Key",
-		Filters: []runtime.FileFilter{
-			{
-				DisplayName: "Text Files (*.txt)",
-				Pattern:     "*.txt",
-			},
-		},
+	filePath, err := dialog.SaveFile(s.ctx, dialog.Options{
+		DefaultFilename:   "recovery-key-" + username + ".txt",
+		Title:             "Save Recovery Key",
+		FileFilterName:    "Text Files (*.txt)",
+		FileFilterPattern: "*.txt",
 	})
-
 	if err != nil {
 		return err
 	}

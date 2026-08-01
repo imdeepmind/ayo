@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"ayo/internal/errors"
+	"ayo/internal/shared/errors"
 )
 
 // Repository abstracts persistence for the auth module. Keeping it behind an

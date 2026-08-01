@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"ayo/internal/auth"
-	"ayo/internal/fileops"
+	"ayo/internal/features/auth"
+	"ayo/internal/features/recovery"
+	"ayo/internal/features/settings"
 	"ayo/internal/platform/database"
-	"ayo/internal/settings"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -58,12 +58,13 @@ func main() {
 	}
 	authService := auth.NewService(authRepository)
 
-	// File operations service: native save dialogs (used for recovery keys).
-	fileOpsService := fileops.NewService()
+	// Recovery service: native save dialogs for downloading the recovery key.
+	recoveryService := recovery.NewService()
 
 	// Settings service: stores per-user settings in the OS keyring, encrypted
 	// with the session master key.
-	settingsService := settings.NewService(authService)
+	settingsRepository := settings.NewRepository()
+	settingsService := settings.NewService(authService, settingsRepository)
 
 	// Create application with options. Anything passed to Bind is exposed to
 	// the frontend as generated JavaScript bindings under
@@ -82,7 +83,7 @@ func main() {
 		OnStartup: func(ctx context.Context) {
 			app.startup(ctx)
 			// Services that need the Wails context receive it here.
-			fileOpsService.Startup(ctx)
+			recoveryService.Startup(ctx)
 			settingsService.Startup(ctx)
 		},
 		DisableResize: false,
@@ -108,7 +109,7 @@ func main() {
 		Bind: []interface{}{
 			app,
 			authService,
-			fileOpsService,
+			recoveryService,
 			settingsService,
 		},
 	})

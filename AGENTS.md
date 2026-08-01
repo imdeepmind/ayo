@@ -4,14 +4,22 @@ Wails v2 desktop app (`ayo`): Go 1.24 backend + React 18 / TypeScript / Vite 3 /
 
 ## Architecture
 
-- `main.go` — entrypoint. Wires `auth`, `settings`, `fileops` services and binds them to the frontend via `wails.Run`.
+The Go backend is tiered under `internal/`:
+
+- `internal/features/` — business logic, one package per feature:
+  - `auth/` — Register/Login/ResetPassword/Logout + in-memory session (`MasterKey`). bcrypt + Argon2 + AES-GCM. Layered as `dto.go` / `model.go` / `repository.go` / `service.go`.
+  - `settings/` — per-user settings stored in the OS keyring (`zalando/go-keyring`), encrypted with the session master key. Keyring persistence is in `repository.go`; cloud-key types in `cloud.go`.
+  - `recovery/` — save-file dialog for downloading the recovery key (shown after register/reset).
+  - `queue/` — dead code: not wired into `main.go`, and its SQL is MySQL-flavored (`AUTO_INCREMENT`, `JSON` type, `ON UPDATE CURRENT_TIMESTAMP`) and will not run on SQLite. Don't build on it.
+- `internal/platform/` — infrastructure (never imported by features' business logic directly beyond what the feature's own repository wraps):
+  - `database/` — SQLite via `modernc.org/sqlite` (pure Go, no cgo). Tables are created idempotently with `CREATE TABLE IF NOT EXISTS` inside each repository's `initializeTable`; there is **no migration tool**.
+  - `keyring/` — thin wrapper over `zalando/go-keyring`.
+  - `dialog/` — native Wails save-file dialog wrapper.
+- `internal/shared/` — cross-cutting code:
+  - `errors/` — sentinel errors with user-facing messages; return these (not wrapped fmt errors) so the frontend can display them. Also the `InternalServerError` type.
+  - `crypto/` — Argon2 KEK derivation + AES-256-GCM encrypt/decrypt primitives.
+- `main.go` — entrypoint. Wires `auth`, `settings`, `recovery` services and binds them to the frontend via `wails.Run`.
 - `assets.go` — `//go:embed all:frontend/dist`; the compiled frontend is embedded into the Go binary.
-- `internal/auth` — Register/Login/ResetPassword/Logout + in-memory session (`MasterKey`). bcrypt + Argon2 + AES-GCM.
-- `internal/settings` — per-user settings stored in the OS keyring (`zalando/go-keyring`), encrypted with the session master key.
-- `internal/fileops` — save-file dialog for recovery keys.
-- `internal/platform/database` — SQLite via `modernc.org/sqlite` (pure Go, no cgo). Tables are created idempotently with `CREATE TABLE IF NOT EXISTS` inside each repository's `initializeTable`; there is **no migration tool**.
-- `internal/errors` — sentinel errors with user-facing messages; return these (not wrapped fmt errors) so the frontend can display them.
-- `internal/queue` — dead code: not wired into `main.go`, and its SQL is MySQL-flavored (`AUTO_INCREMENT`, `JSON` type, `ON UPDATE CURRENT_TIMESTAMP`) and will not run on SQLite. Don't build on it.
 - `frontend/` — React SPA. Calls Go through generated bindings (below). `@/` aliases `frontend/src`.
 - `data/` — gitignored runtime data (`ayo.db`, `chunks/`, `input/`, `output/`). DB is hardcoded to `data/ayo.db` in `main.go`.
 - `explore/` — stray experiment dir, not part of the build.
@@ -34,5 +42,5 @@ Wails v2 desktop app (`ayo`): Go 1.24 backend + React 18 / TypeScript / Vite 3 /
 ## Conventions
 
 - Auth validation uses `go-playground/validator` with a custom `password_strength` rule: passwords must contain upper + lower + digit + symbol.
-- SQLite queries use `?` placeholders (see `internal/auth/repository.go`).
+- SQLite queries use `?` placeholders (see `internal/features/auth/repository.go`).
 - Frontend: TypeScript, ESLint, Prettier; commit formatted/linted code (`format` + `lint` pass in CI).

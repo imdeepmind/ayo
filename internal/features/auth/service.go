@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"regexp"
 
-	"ayo/internal/errors"
-	"ayo/internal/utils"
+	"ayo/internal/shared/crypto"
+	"ayo/internal/shared/errors"
 
 	"github.com/go-playground/validator/v10"
 	"golang.org/x/crypto/bcrypt"
@@ -31,7 +31,7 @@ type Session struct {
 // for the current session. It is bound to the frontend via Wails, so every
 // exported method is callable from JavaScript.
 //
-// Methods return user-facing sentinel errors from ayo/internal/errors rather
+// Methods return user-facing sentinel errors from ayo/internal/shared/errors rather
 // than wrapped fmt errors. Internal causes are logged via slog and replaced
 // with the vague *errors.InternalServerError so that no implementation detail
 // ever leaks to the UI.
@@ -95,7 +95,7 @@ func (s *Service) Register(input RegisterInput) (*RegisterResult, error) {
 		return nil, errors.ErrInvalidInput
 	}
 
-	recoveryKey, err := utils.GenerateRecoveryKey()
+	recoveryKey, err := crypto.GenerateRecoveryKey()
 	if err != nil {
 		return nil, internalError("register: generate recovery key", err)
 	}
@@ -111,33 +111,33 @@ func (s *Service) Register(input RegisterInput) (*RegisterResult, error) {
 	}
 
 	// Generate passwordSalt
-	passwordSalt, err := utils.GenerateSalt()
+	passwordSalt, err := crypto.GenerateSalt()
 	if err != nil {
 		return nil, internalError("register: generate password salt", err)
 	}
 
 	// Generate recoverySalt
-	recoverySalt, err := utils.GenerateSalt()
+	recoverySalt, err := crypto.GenerateSalt()
 	if err != nil {
 		return nil, internalError("register: generate recovery salt", err)
 	}
 
 	// generating a master key
-	masterKey, err := utils.GenerateMasterKey()
+	masterKey, err := crypto.GenerateMasterKey()
 	if err != nil {
 		return nil, internalError("register: generate master key", err)
 	}
 
 	// encrypt master key with password
-	passwordKek := utils.DeriveKEK(input.Password, passwordSalt)
-	passwordEncryptedMasterKey, passwordNonce, err := utils.EncryptMasterKey(passwordKek, masterKey)
+	passwordKek := crypto.DeriveKEK(input.Password, passwordSalt)
+	passwordEncryptedMasterKey, passwordNonce, err := crypto.EncryptMasterKey(passwordKek, masterKey)
 	if err != nil {
 		return nil, internalError("register: encrypt master key with password", err)
 	}
 
 	// encrypt master key with recovery key
-	recoveryKek := utils.DeriveKEK(recoveryKey, recoverySalt)
-	recoveryEncryptedMasterKey, recoveryNonce, err := utils.EncryptMasterKey(recoveryKek, masterKey)
+	recoveryKek := crypto.DeriveKEK(recoveryKey, recoverySalt)
+	recoveryEncryptedMasterKey, recoveryNonce, err := crypto.EncryptMasterKey(recoveryKek, masterKey)
 	if err != nil {
 		return nil, internalError("register: encrypt master key with recovery key", err)
 	}
@@ -191,10 +191,10 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 	salt := user.PasswordSalt
 
 	// derriving the kek
-	kek := utils.DeriveKEK(input.Password, salt)
+	kek := crypto.DeriveKEK(input.Password, salt)
 
 	// decrypting the master key
-	masterKey, err := utils.DecryptMasterKey(kek, user.PasswordMasterKey, user.PasswordNonce)
+	masterKey, err := crypto.DecryptMasterKey(kek, user.PasswordMasterKey, user.PasswordNonce)
 	if err != nil {
 		return false, internalError("login: decrypt master key", err)
 	}
@@ -232,7 +232,7 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*RegisterResult, erro
 	}
 
 	// generate new recovery key
-	newRecoveryKey, err := utils.GenerateRecoveryKey()
+	newRecoveryKey, err := crypto.GenerateRecoveryKey()
 	if err != nil {
 		return nil, internalError("reset password: generate recovery key", err)
 	}
@@ -250,22 +250,22 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*RegisterResult, erro
 	}
 
 	// extract the original master key using the provided recovery key
-	recoveryKek := utils.DeriveKEK(input.RecoveryKey, user.RecoverySalt)
-	masterKey, err := utils.DecryptMasterKey(recoveryKek, user.RecoveryMasterKey, user.RecoveryNonce)
+	recoveryKek := crypto.DeriveKEK(input.RecoveryKey, user.RecoverySalt)
+	masterKey, err := crypto.DecryptMasterKey(recoveryKek, user.RecoveryMasterKey, user.RecoveryNonce)
 	if err != nil {
 		return nil, internalError("reset password: decrypt master key", err)
 	}
 
 	// generate the new encrypted master key using password
-	passwordKek := utils.DeriveKEK(input.NewPassword, user.PasswordSalt)
-	passwordEncryptedMasterKey, passwordNonce, err := utils.EncryptMasterKey(passwordKek, masterKey)
+	passwordKek := crypto.DeriveKEK(input.NewPassword, user.PasswordSalt)
+	passwordEncryptedMasterKey, passwordNonce, err := crypto.EncryptMasterKey(passwordKek, masterKey)
 	if err != nil {
 		return nil, internalError("reset password: encrypt master key with password", err)
 	}
 
 	// generate the new encrypted master key using recovery key
-	recoveryKek = utils.DeriveKEK(newRecoveryKey, user.RecoverySalt)
-	recoveryEncryptedMasterKey, recoveryNonce, err := utils.EncryptMasterKey(recoveryKek, masterKey)
+	recoveryKek = crypto.DeriveKEK(newRecoveryKey, user.RecoverySalt)
+	recoveryEncryptedMasterKey, recoveryNonce, err := crypto.EncryptMasterKey(recoveryKek, masterKey)
 	if err != nil {
 		return nil, internalError("reset password: encrypt master key with recovery key", err)
 	}
