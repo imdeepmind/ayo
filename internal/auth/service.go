@@ -33,8 +33,8 @@ type Session struct {
 //
 // Methods return user-facing sentinel errors from ayo/internal/errors rather
 // than wrapped fmt errors. Internal causes are logged via slog and replaced
-// with the vague ErrInternalServer so that no implementation detail ever leaks
-// to the UI.
+// with the vague *errors.InternalServerError so that no implementation detail
+// ever leaks to the UI.
 type Service struct {
 	session  *Session
 	repo     Repository
@@ -74,10 +74,15 @@ func NewService(repo Repository) *Service {
 }
 
 // internalError logs the underlying cause for diagnostics while keeping the
-// user-facing response vague.
+// user-facing response vague. If the error is already an InternalServerError it
+// is returned as-is so the original cause is never double-wrapped.
 func internalError(operation string, err error) error {
+	var ise *errors.InternalServerError
+	if stderrors.As(err, &ise) {
+		return err
+	}
 	slog.Error(operation, "error", err)
-	return errors.ErrInternalServer
+	return errors.NewInternalServerError(operation, err)
 }
 
 // Register creates a new account and its master key. The key is wrapped twice -

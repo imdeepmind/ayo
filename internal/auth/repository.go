@@ -44,12 +44,11 @@ type repository struct {
 
 // NewRepository opens the users table (creating it if needed) and returns a
 // ready-to-use repository.
-func NewRepository(db *sql.DB) Repository {
-	err := initializeTable(db)
-	if err != nil {
-		panic(err)
+func NewRepository(db *sql.DB) (Repository, error) {
+	if err := initializeTable(db); err != nil {
+		return nil, errors.NewInternalServerError("initialize users table", err)
 	}
-	return &repository{db: db}
+	return &repository{db: db}, nil
 }
 
 // initializeTable idempotently ensures the users table exists. It stores only

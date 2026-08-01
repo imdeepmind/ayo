@@ -52,7 +52,10 @@ func main() {
 	// the in-memory session and master key, and is injected into the settings
 	// service (which needs the session to gate access and the master key to
 	// encrypt/decrypt stored settings).
-	authRepository := auth.NewRepository(db)
+	authRepository, err := auth.NewRepository(db)
+	if err != nil {
+		panic(err)
+	}
 	authService := auth.NewService(authRepository)
 
 	// File operations service: native save dialogs (used for recovery keys).
