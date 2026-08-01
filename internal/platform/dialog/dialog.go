@@ -1,3 +1,10 @@
+// Package dialog wraps Wails' native desktop dialogs behind a small,
+// platform-independent API.
+//
+// It belongs to the platform tier: it hides the Wails runtime dependency so
+// feature packages (e.g. recovery) can prompt the user for file paths without
+// importing the runtime themselves. Add open-dir / open-file wrappers here as
+// features need them.
 package dialog
 
 import (
@@ -8,14 +15,22 @@ import (
 
 // Options configures a native save-file dialog.
 type Options struct {
-	DefaultFilename   string
-	Title             string
+	// DefaultFilename is the pre-filled name in the dialog (e.g. "report.txt").
+	DefaultFilename string
+	// Title is the dialog window title.
+	Title string
+	// FileFilterName and FileFilterPattern define a single file-type filter.
+	// When both are empty, no filter is applied and all files are shown.
 	FileFilterName    string
-	FileFilterPattern string
+	FileFilterPattern string // glob pattern, e.g. "*.txt"
 }
 
-// SaveFile opens the native save-file dialog and returns the selected path, or
-// an empty string when the user cancels.
+// SaveFile opens the native save-file dialog and returns the selected path.
+//
+// An empty string is returned (with a nil error) when the user cancels the
+// dialog, so callers should check for "" before using the result. The dialog
+// requires the Wails application context, which is typically the one stored by
+// the feature service at Startup.
 func SaveFile(ctx context.Context, opts Options) (string, error) {
 	var filters []runtime.FileFilter
 	if opts.FileFilterName != "" {
