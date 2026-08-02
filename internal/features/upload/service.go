@@ -35,6 +35,20 @@ type QueueService interface {
 	UpdateStatusAndProgress(id int64, status string, progress int) error
 }
 
+// UploadRepository is the subset of upload.Repository the processor uses to
+// persist stored files and their shards after processing succeeds.
+type UploadRepository interface {
+	CreateUpload(
+		ctx context.Context,
+		jobID int64,
+		file string,
+		customName string,
+		size int64,
+		tags []string,
+	) (*Upload, error)
+	CreateChunks(ctx context.Context, fileID int64, chunks []ChunkInput) error
+}
+
 // Service handles the upload flow. It is bound to the frontend via Wails.
 //
 // On macOS the webview cannot expose absolute file paths for HTML file inputs,
@@ -46,17 +60,19 @@ type Service struct {
 	sessionProvider  SessionProvider
 	settingsProvider SettingsProvider
 	queueService     QueueService
+	uploadRepository UploadRepository
 	processor        *Processor
 	validate         *validator.Validate
 }
 
 func NewService(sessionProvider SessionProvider, settingsProvider SettingsProvider,
-	queueService QueueService) *Service {
+	queueService QueueService, uploadRepository UploadRepository) *Service {
 	return &Service{
 		sessionProvider:  sessionProvider,
 		settingsProvider: settingsProvider,
 		queueService:     queueService,
-		processor:        NewProcessor(sessionProvider, settingsProvider, queueService),
+		uploadRepository: uploadRepository,
+		processor:        NewProcessor(sessionProvider, settingsProvider, queueService, uploadRepository),
 		validate:         validator.New(),
 	}
 }

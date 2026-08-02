@@ -32,11 +32,12 @@ func NewDatabase(dbPath string) (*sql.DB, error) {
 
 	// DSN pragmas are applied to every new connection by the driver. WAL mode
 	// lets readers run concurrently with a single writer (the upload processor
-	// updates job status in the background while the frontend polls), and the
-	// busy timeout makes writers wait for the lock instead of failing
-	// immediately with SQLITE_BUSY.
+	// updates job status in the background while the frontend polls), the busy
+	// timeout makes writers wait for the lock instead of failing immediately
+	// with SQLITE_BUSY, and foreign_keys enforcement backs the chunks → uploads
+	// relationship.
 	dsn := "file:" + filepath.ToSlash(dbPath) +
-		"?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)"
+		"?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)"
 
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {

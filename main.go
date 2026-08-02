@@ -76,9 +76,14 @@ func main() {
 	queueService := queue.NewService(queueRepository)
 
 	// Upload service: native file selection + enqueues one job per uploaded
-	// file into the queue. The processor encrypts each file and splits it into
-	// Reed-Solomon shards using the erasure-coding settings.
-	uploadService := upload.NewService(authService, settingsService, queueService)
+	// file into the queue. The processor encrypts each file, splits it into
+	// Reed-Solomon shards using the erasure-coding settings, and persists the
+	// stored-file record and its shards to the uploads/chunks tables.
+	uploadRepository, err := upload.NewRepository(db)
+	if err != nil {
+		panic(err)
+	}
+	uploadService := upload.NewService(authService, settingsService, queueService, uploadRepository)
 
 	// Create application with options. Anything passed to Bind is exposed to
 	// the frontend as generated JavaScript bindings under

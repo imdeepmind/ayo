@@ -2,6 +2,7 @@ package upload
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 	"ayo/internal/platform/queue"
 	"ayo/internal/shared/crypto"
 
+	"github.com/google/uuid"
 	"github.com/klauspost/reedsolomon"
 )
 
@@ -42,26 +44,39 @@ const (
 //     written to data/encrypted/<jobID>.enc.
 //  2. The blob is encoded into data + parity shards (the layout comes from the
 //     user's erasure-coding settings) and written to
-//     data/chunks/<jobID>/shard_<n>.bin alongside a manifest.json.
+//     data/chunks/<jobID>/<uuid>.bin alongside a manifest.json.
+//  3. An uploads record and one chunks record per shard are persisted, then the
+//     job is marked completed.
 //
 // The chunk upload stage will be appended to process in a later step.
 type Processor struct {
 	sessionProvider  SessionProvider
 	settingsProvider SettingsProvider
 	queue            QueueService
+	uploadRepository UploadRepository
 	jobs             chan int64
 	wg               sync.WaitGroup
 	resumeOnce       sync.Once
+	// queued holds the job IDs that are currently sitting in the channel or
+	// being processed. It prevents the same job from being scheduled twice
+	// (e.g. when resume() feeds an incomplete job that Submit() is about to
+	// push itself), which would otherwise process it a second time and fail to
+	// persist its upload row on the UNIQUE job_id constraint.
+	queued   map[int64]struct{}
+	queuedMu sync.Mutex
 }
 
-// NewProcessor wires the session provider, settings provider and queue into a
-// ready-to-use Processor. Workers are spawned by Start.
-func NewProcessor(sessionProvider SessionProvider, settingsProvider SettingsProvider, queue QueueService) *Processor {
+// NewProcessor wires the session provider, settings provider, queue and upload
+// repository into a ready-to-use Processor. Workers are spawned by Start.
+func NewProcessor(sessionProvider SessionProvider, settingsProvider SettingsProvider,
+	queue QueueService, uploadRepository UploadRepository) *Processor {
 	return &Processor{
 		sessionProvider:  sessionProvider,
 		settingsProvider: settingsProvider,
 		queue:            queue,
+		uploadRepository: uploadRepository,
 		jobs:             make(chan int64, jobChannelSize),
+		queued:           make(map[int64]struct{}),
 	}
 }
 
@@ -85,11 +100,25 @@ func (p *Processor) Submit(id int64) {
 	p.push(id)
 }
 
-// push enqueues a job ID onto the channel without blocking.
+// push enqueues a job ID onto the channel without blocking. A job that is
+// already scheduled (queued or processing) is not scheduled again. If the
+// channel buffer is full the job stays pending in the database and the
+// reservation is dropped so a later push or the next resume can pick it up.
 func (p *Processor) push(id int64) {
+	p.queuedMu.Lock()
+	if _, ok := p.queued[id]; ok {
+		p.queuedMu.Unlock()
+		return
+	}
+	p.queued[id] = struct{}{}
+	p.queuedMu.Unlock()
+
 	select {
 	case p.jobs <- id:
 	default:
+		p.queuedMu.Lock()
+		delete(p.queued, id)
+		p.queuedMu.Unlock()
 	}
 }
 
@@ -111,11 +140,15 @@ func (p *Processor) resume() {
 	}
 }
 
-// worker processes jobs until the jobs channel is closed.
+// worker processes jobs until the jobs channel is closed. The reservation is
+// released once the job finishes so a job is only ever processed once.
 func (p *Processor) worker() {
 	defer p.wg.Done()
 	for id := range p.jobs {
 		p.process(id)
+		p.queuedMu.Lock()
+		delete(p.queued, id)
+		p.queuedMu.Unlock()
 	}
 }
 
@@ -166,9 +199,30 @@ func (p *Processor) process(id int64) {
 		return
 	}
 
-	if err := p.chunk(id, ciphertext); err != nil {
+	shards, err := p.chunk(id, ciphertext)
+	if err != nil {
 		slog.Error("chunk file", "error", err)
 		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 30)
+		return
+	}
+
+	upload, err := p.uploadRepository.CreateUpload(
+		context.Background(),
+		id,
+		job.File,
+		job.CustomName,
+		job.Size,
+		job.Tags,
+	)
+	if err != nil {
+		slog.Error("persist upload", "error", err)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 90)
+		return
+	}
+
+	if err := p.uploadRepository.CreateChunks(context.Background(), upload.ID, shards); err != nil {
+		slog.Error("persist chunks", "error", err)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 90)
 		return
 	}
 
@@ -176,27 +230,30 @@ func (p *Processor) process(id int64) {
 }
 
 // chunk splits the encrypted file into Reed-Solomon shards written under
-// data/chunks/<jobID>/, using the user's erasure-coding settings. It updates
-// job progress from 30% (after encryption) up to 90% as blocks are encoded.
-func (p *Processor) chunk(id int64, ciphertext []byte) error {
+// data/chunks/<jobID>/, using the user's erasure-coding settings. Each shard
+// file is named with a globally unique UUID. It updates job progress from 30%
+// (after encryption) up to 90% as blocks are encoded, and returns the shard
+// records needed to persist the chunks table.
+func (p *Processor) chunk(id int64, ciphertext []byte) ([]ChunkInput, error) {
 	s, err := p.settingsProvider.GetSettings()
 	if err != nil {
-		return fmt.Errorf("get settings: %w", err)
+		return nil, fmt.Errorf("get settings: %w", err)
 	}
 	cfg := parseShardConfig(s)
 
 	dir := filepath.Join(chunksDir, fmt.Sprintf("job_%d", id))
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("create chunk dir: %w", err)
+		return nil, fmt.Errorf("create chunk dir: %w", err)
 	}
 
 	enc, err := reedsolomon.New(cfg.dataShards, cfg.parityShards, reedsolomon.WithAutoGoroutines(blockShardSize))
 	if err != nil {
-		return fmt.Errorf("create encoder: %w", err)
+		return nil, fmt.Errorf("create encoder: %w", err)
 	}
 
 	writers := make([]io.Writer, 0, cfg.totalShards())
 	files := make([]*os.File, 0, cfg.totalShards())
+	shards := make([]ChunkInput, 0, cfg.totalShards())
 	defer func() {
 		for _, f := range files {
 			_ = f.Close()
@@ -204,12 +261,18 @@ func (p *Processor) chunk(id int64, ciphertext []byte) error {
 	}()
 
 	for i := 0; i < cfg.totalShards(); i++ {
-		f, err := os.OpenFile(filepath.Join(dir, fmt.Sprintf("shard_%d.bin", i)), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+		chunkID := uuid.NewString() + ".bin"
+		f, err := os.OpenFile(filepath.Join(dir, chunkID), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 		if err != nil {
-			return fmt.Errorf("create shard file: %w", err)
+			return nil, fmt.Errorf("create shard file: %w", err)
 		}
 		files = append(files, f)
 		writers = append(writers, f)
+		shards = append(shards, ChunkInput{
+			ShardIndex: i,
+			ChunkID:    chunkID,
+			StorageID:  0,
+		})
 	}
 
 	totalBlocks := (len(ciphertext) + cfg.blockSize - 1) / cfg.blockSize
@@ -222,14 +285,18 @@ func (p *Processor) chunk(id int64, ciphertext []byte) error {
 		return p.queue.UpdateStatusAndProgress(id, queue.StatusProcessing, progress)
 	})
 	if err != nil {
-		return fmt.Errorf("encode blocks: %w", err)
+		return nil, fmt.Errorf("encode blocks: %w", err)
 	}
 
-	return writeShardManifest(filepath.Join(dir, "manifest.json"), shardManifest{
+	if err := writeShardManifest(filepath.Join(dir, "manifest.json"), shardManifest{
 		EncryptedSize: int64(len(ciphertext)),
 		DataShards:    cfg.dataShards,
 		ParityShards:  cfg.parityShards,
 		ShardSize:     blockShardSize,
 		BlockCount:    blockCount,
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("write manifest: %w", err)
+	}
+
+	return shards, nil
 }
