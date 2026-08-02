@@ -73,6 +73,43 @@ func (s *Service) GetAll() ([]*Job, error) {
 	return jobs, nil
 }
 
+// GetIncomplete returns the jobs still awaiting or in progress (pending and
+// processing), oldest first, so a worker can resume work after a restart.
+func (s *Service) GetIncomplete() ([]*Job, error) {
+	jobs, err := s.repo.GetIncomplete(context.Background())
+	if err != nil {
+		return nil, errors.AsInternalServerError("get incomplete jobs", err)
+	}
+	return jobs, nil
+}
+
+// UpdateStatusAndProgress transitions a job to the given status and progress.
+// It returns ErrJobNotFound when no such job exists.
+func (s *Service) UpdateStatusAndProgress(id int64, status string, progress int) error {
+	if err := s.repo.Update(context.Background(), id, status, progress); err != nil {
+		if stderrors.Is(err, errors.ErrJobNotFound) {
+			return err
+		}
+		return errors.AsInternalServerError("update job", err)
+	}
+	return nil
+}
+
+// MarkProcessing sets a job to processing with 0% progress.
+func (s *Service) MarkProcessing(id int64) error {
+	return s.UpdateStatusAndProgress(id, StatusProcessing, 0)
+}
+
+// MarkCompleted sets a job to completed with 100% progress.
+func (s *Service) MarkCompleted(id int64) error {
+	return s.UpdateStatusAndProgress(id, StatusCompleted, 100)
+}
+
+// MarkFailed sets a job to failed while keeping its current progress.
+func (s *Service) MarkFailed(id int64, progress int) error {
+	return s.UpdateStatusAndProgress(id, StatusFailed, progress)
+}
+
 // Delete removes the job with the given ID, or ErrJobNotFound.
 func (s *Service) Delete(id int64) error {
 	if err := s.repo.Delete(context.Background(), id); err != nil {

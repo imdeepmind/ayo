@@ -22,6 +22,12 @@ type Repository interface {
 	Get(ctx context.Context, id int64) (*Job, error)
 	// GetAll returns every job, oldest first.
 	GetAll(ctx context.Context) ([]*Job, error)
+	// Update sets the status and progress of the job with the given ID. It
+	// returns ErrJobNotFound when no such job exists.
+	Update(ctx context.Context, id int64, status string, progress int) error
+	// GetIncomplete returns every job that is still pending or processing,
+	// oldest first, so work can be resumed after an app restart.
+	GetIncomplete(ctx context.Context) ([]*Job, error)
 	// Delete removes the job with the given ID. It returns ErrJobNotFound when
 	// no such job exists.
 	Delete(ctx context.Context, id int64) error
@@ -174,6 +180,54 @@ func decodeTags(data string) []string {
 		return []string{}
 	}
 	return tags
+}
+
+// Update sets the status and progress of a job. It returns ErrJobNotFound when
+// no such job exists.
+func (r *repository) Update(ctx context.Context, id int64, status string, progress int) error {
+	query := `UPDATE queue SET status = ?, progress = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+
+	result, err := r.db.ExecContext(ctx, query, status, progress, id)
+	if err != nil {
+		return fmt.Errorf("failed to update job: %w", err)
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get affected rows: %w", err)
+	}
+	if affected == 0 {
+		return errors.ErrJobNotFound
+	}
+	return nil
+}
+
+// GetIncomplete returns the jobs still awaiting or in progress (pending and
+// processing), oldest first, so a worker can resume work after a restart.
+func (r *repository) GetIncomplete(ctx context.Context) ([]*Job, error) {
+	query := `SELECT id, file, custom_name, path, size, status, progress, tags,
+		created_at, updated_at FROM queue
+		WHERE status IN (?, ?) ORDER BY id ASC`
+
+	rows, err := r.db.QueryContext(ctx, query, StatusPending, StatusProcessing)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list incomplete jobs: %w", err)
+	}
+	defer rows.Close()
+
+	jobs := make([]*Job, 0)
+	for rows.Next() {
+		job, err := scanJob(rows)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan job: %w", err)
+		}
+		jobs = append(jobs, job)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate jobs: %w", err)
+	}
+	return jobs, nil
 }
 
 // Delete removes a job by ID. It returns ErrJobNotFound when no such job

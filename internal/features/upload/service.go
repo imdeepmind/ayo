@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"ayo/internal/features/auth"
+	"ayo/internal/features/settings"
 	"ayo/internal/platform/queue"
 	"ayo/internal/shared/errors"
 
@@ -17,10 +18,21 @@ type SessionProvider interface {
 	RequireSession() (*auth.Session, error)
 }
 
-// QueueService is the subset of queue.Service that upload depends on.
+// SettingsProvider is the subset of settings.Service that upload depends on. It
+// supplies the erasure-coding layout used by the processor when chunking files.
+type SettingsProvider interface {
+	GetSettings() (*settings.Settings, error)
+}
+
+// QueueService is the subset of queue.Service that upload depends on. It covers
+// both enqueueing (Service) and the processor's needs (Get, GetIncomplete,
+// UpdateStatusAndProgress).
 type QueueService interface {
 	Add(input queue.AddInput) (*queue.Job, error)
 	GetAll() ([]*queue.Job, error)
+	Get(id int64) (*queue.Job, error)
+	GetIncomplete() ([]*queue.Job, error)
+	UpdateStatusAndProgress(id int64, status string, progress int) error
 }
 
 // Service handles the upload flow. It is bound to the frontend via Wails.
@@ -30,24 +42,31 @@ type QueueService interface {
 // (runtime.OpenMultipleFilesDialog), and EnqueueFiles turns each selected file
 // into one pending job in the queue.
 type Service struct {
-	ctx             context.Context
-	sessionProvider SessionProvider
-	queueService    QueueService
-	validate        *validator.Validate
+	ctx              context.Context
+	sessionProvider  SessionProvider
+	settingsProvider SettingsProvider
+	queueService     QueueService
+	processor        *Processor
+	validate         *validator.Validate
 }
 
-func NewService(sessionProvider SessionProvider, queueService QueueService) *Service {
+func NewService(sessionProvider SessionProvider, settingsProvider SettingsProvider,
+	queueService QueueService) *Service {
 	return &Service{
-		sessionProvider: sessionProvider,
-		queueService:    queueService,
-		validate:        validator.New(),
+		sessionProvider:  sessionProvider,
+		settingsProvider: settingsProvider,
+		queueService:     queueService,
+		processor:        NewProcessor(sessionProvider, settingsProvider, queueService),
+		validate:         validator.New(),
 	}
 }
 
 // Startup is called by Wails on application startup. It stores the application
-// context so native dialogs can be shown.
+// context so native dialogs can be shown, and starts the background processor
+// that consumes queued jobs.
 func (s *Service) Startup(ctx context.Context) {
 	s.ctx = ctx
+	s.processor.Start()
 }
 
 // PickFiles opens a native dialog for selecting one or more files and returns
@@ -116,6 +135,7 @@ func (s *Service) EnqueueFiles(input EnqueueFilesInput) ([]EnqueuedJob, error) {
 			Progress:   job.Progress,
 			Tags:       job.Tags,
 		})
+		s.processor.Submit(job.ID)
 	}
 	return jobs, nil
 }
