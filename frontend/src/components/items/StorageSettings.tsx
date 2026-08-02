@@ -467,7 +467,7 @@ export default function StorageSettings() {
       }
     });
 
-    const newSettings = new settings.Settings({
+    const newSettings = new settings.UpdateSettingsInput({
       StorageMode: 'local',
       CloudKeys: cloudKeys,
       ErasureCoding: customErasureEnabled,
@@ -484,7 +484,7 @@ export default function StorageSettings() {
   };
 
   const handleSaveAyo = async () => {
-    const newSettings = new settings.Settings({
+    const newSettings = new settings.UpdateSettingsInput({
       StorageMode: 'ayo',
       CloudKeys: [],
       ErasureCoding: ayoErasureEnabled,
@@ -624,6 +624,7 @@ export default function StorageSettings() {
             label="Enable Ayo Provided Storage"
             description="Let Ayo manage your storage infrastructure."
             checked={ayoEnabled}
+            disabled
             onChange={(e) => setAyoEnabled(e.target.checked)}
           />
 

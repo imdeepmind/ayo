@@ -1,0 +1,48 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard
+  enable:
+    - copyloopvar
+    - dupword
+    - errname
+    - errorlint
+    - goconst
+    - gosec
+    - lll
+    - misspell
+    - nilnil
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - whitespace
+  settings:
+    errcheck:
+      check-type-assertions: true
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+    gosec:
+      excludes: [G404]
+    lll:
+      line-length: 120
+      tab-width: 1
+  exclusions:
+    presets:
+      - comments
+      - std-error-handling
+      - common-false-positives
+    rules:
+      - linters: [lll]
+        source: "^//go:generate "
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes: [ayo]

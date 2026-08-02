@@ -8,7 +8,7 @@ import AuthCard from '@/components/items/AuthCard';
 import TextInput from '@/components/bits/Input';
 import Button from '@/components/bits/Button';
 import { useAuth } from '@/context/AuthContext';
-import { SaveRecoveryKey } from '../../wailsjs/go/fileops/Service';
+import { SaveRecoveryKey } from '../../wailsjs/go/recovery/Service';
 import { registerSchema, type RegisterFormData } from '@/lib/validations';
 
 export default function Register() {
@@ -32,9 +32,9 @@ export default function Register() {
 
   const onSubmit = async (data: RegisterFormData) => {
     try {
-      const user = await registerUser({ Username: data.username, Password: data.password });
-      if (user) {
-        setRecoveryKey(user.RecoveryKey);
+      const result = await registerUser({ Username: data.username, Password: data.password });
+      if (result) {
+        setRecoveryKey(result.RecoveryKey);
         toast.success('Account created successfully! Please download your recovery key.');
       } else {
         toast.error('Failed to create account. Please try again.');

@@ -1,14 +1,10 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { Sun, Moon } from 'lucide-react';
-import Button from '@/components/bits/Button';
-import { useTheme } from '@/theme/ThemeProvider';
 import { useAuth } from '@/context/AuthContext';
 
 const navLinkBase =
   'text-sm font-medium px-3 py-1.5 rounded-lg transition-colors hover:text-sky-500';
 
 export default function Header() {
-  const { theme, toggleTheme } = useTheme();
   const { session, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -96,17 +92,6 @@ export default function Header() {
             About
           </NavLink>
         </nav>
-
-        <div className="flex items-center gap-2">
-          <Button type="button" variant="ghost" onClick={toggleTheme} className="h-8 px-3 text-xs">
-            {theme === 'dark' ? (
-              <Moon className="mr-1.5 h-4 w-4" />
-            ) : (
-              <Sun className="mr-1.5 h-4 w-4" />
-            )}
-            <span className="hidden sm:inline">{theme === 'dark' ? 'Dark' : 'Light'} mode</span>
-          </Button>
-        </div>
       </div>
     </header>
   );

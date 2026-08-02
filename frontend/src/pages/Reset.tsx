@@ -8,7 +8,7 @@ import AuthCard from '@/components/items/AuthCard';
 import TextInput from '@/components/bits/Input';
 import Button from '@/components/bits/Button';
 import { useAuth } from '@/context/AuthContext';
-import { SaveRecoveryKey } from '../../wailsjs/go/fileops/Service';
+import { SaveRecoveryKey } from '../../wailsjs/go/recovery/Service';
 import { resetPasswordSchema, type ResetPasswordFormData } from '@/lib/validations';
 
 export default function Reset() {
@@ -33,13 +33,13 @@ export default function Reset() {
 
   const onSubmit = async (data: ResetPasswordFormData) => {
     try {
-      const user = await resetPassword({
+      const result = await resetPassword({
         Username: data.username,
         NewPassword: data.newPassword,
         RecoveryKey: data.recoveryKey,
       });
-      if (user) {
-        setNewRecoveryKey(user.RecoveryKey);
+      if (result) {
+        setNewRecoveryKey(result.RecoveryKey);
         toast.success('Password reset successfully! Please download your new recovery key.');
       } else {
         toast.error('Failed to reset password. Please try again.');
