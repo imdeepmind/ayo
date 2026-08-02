@@ -123,11 +123,12 @@ func (p *Processor) push(id int64) {
 	}
 }
 
-// resume feeds jobs left over from a previous run into the channel so they are
-// processed alongside newly enqueued ones. It runs once, on the first Submit,
-// by which point the caller holds a valid session.
+// resume feeds upload jobs left over from a previous run into the channel so
+// they are processed alongside newly enqueued ones. It runs once, on the first
+// Submit, by which point the caller holds a valid session. Only upload-type
+// jobs are claimed; download/delete jobs belong to other workers.
 func (p *Processor) resume() {
-	incomplete, err := p.queue.GetIncomplete()
+	incomplete, err := p.queue.GetIncompleteByType(queue.TypeUpload)
 	if err != nil {
 		return
 	}

@@ -25,9 +25,10 @@ type Repository interface {
 	// Update sets the status and progress of the job with the given ID. It
 	// returns ErrJobNotFound when no such job exists.
 	Update(ctx context.Context, id int64, status string, progress int) error
-	// GetIncomplete returns every job that is still pending or processing,
-	// oldest first, so work can be resumed after an app restart.
-	GetIncomplete(ctx context.Context) ([]*Job, error)
+	// GetIncompleteByType returns every job of the given type that is still
+	// pending or processing, oldest first, so work can be resumed after an app
+	// restart.
+	GetIncompleteByType(ctx context.Context, jobType string) ([]*Job, error)
 	// Delete removes the job with the given ID. It returns ErrJobNotFound when
 	// no such job exists.
 	Delete(ctx context.Context, id int64) error
@@ -47,11 +48,14 @@ func NewRepository(db *sql.DB) (Repository, error) {
 }
 
 // initializeTable idempotently ensures the queue table exists and has all
-// expected columns. Status and timestamps are stored as TEXT/DATETIME, progress
-// as an INTEGER (0-100), and tags as a JSON-encoded TEXT array.
+// expected columns. Type is the operation kind (upload/download/delete), stored
+// as TEXT and constrained to the enum values; status and timestamps are stored
+// as TEXT/DATETIME, progress as an INTEGER (0-100), and tags as a JSON-encoded
+// TEXT array.
 func initializeTable(db *sql.DB) error {
 	query := `CREATE TABLE IF NOT EXISTS queue (
 		id          INTEGER PRIMARY KEY AUTOINCREMENT,
+		type        TEXT NOT NULL DEFAULT 'upload' CHECK (type IN ('upload', 'download', 'delete')),
 		file        TEXT NOT NULL,
 		custom_name TEXT NOT NULL DEFAULT '',
 		path        TEXT NOT NULL,
@@ -77,12 +81,13 @@ func (r *repository) Add(ctx context.Context, job *Job) (*Job, error) {
 		return nil, fmt.Errorf("failed to encode tags: %w", err)
 	}
 
-	query := `INSERT INTO queue (file, custom_name, path, size, status, progress, tags)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`
+	query := `INSERT INTO queue (type, file, custom_name, path, size, status, progress, tags)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
 
 	result, err := r.db.ExecContext(
 		ctx,
 		query,
+		job.Type,
 		job.File,
 		job.CustomName,
 		job.Path,
@@ -105,7 +110,7 @@ func (r *repository) Add(ctx context.Context, job *Job) (*Job, error) {
 
 // Get fetches a job by ID. It returns ErrJobNotFound when no such job exists.
 func (r *repository) Get(ctx context.Context, id int64) (*Job, error) {
-	query := `SELECT id, file, custom_name, path, size, status, progress, tags,
+	query := `SELECT id, type, file, custom_name, path, size, status, progress, tags,
 		created_at, updated_at FROM queue WHERE id = ?`
 
 	job, err := scanJob(r.db.QueryRowContext(ctx, query, id))
@@ -121,7 +126,7 @@ func (r *repository) Get(ctx context.Context, id int64) (*Job, error) {
 // GetAll returns every job ordered oldest first, which is the natural order
 // for processing.
 func (r *repository) GetAll(ctx context.Context) ([]*Job, error) {
-	query := `SELECT id, file, custom_name, path, size, status, progress, tags,
+	query := `SELECT id, type, file, custom_name, path, size, status, progress, tags,
 		created_at, updated_at FROM queue ORDER BY id ASC`
 
 	rows, err := r.db.QueryContext(ctx, query)
@@ -152,6 +157,7 @@ func scanJob(row interface{ Scan(dest ...any) error }) (*Job, error) {
 	var tags string
 	err := row.Scan(
 		&job.ID,
+		&job.Type,
 		&job.File,
 		&job.CustomName,
 		&job.Path,
@@ -202,14 +208,15 @@ func (r *repository) Update(ctx context.Context, id int64, status string, progre
 	return nil
 }
 
-// GetIncomplete returns the jobs still awaiting or in progress (pending and
-// processing), oldest first, so a worker can resume work after a restart.
-func (r *repository) GetIncomplete(ctx context.Context) ([]*Job, error) {
-	query := `SELECT id, file, custom_name, path, size, status, progress, tags,
+// GetIncompleteByType returns the jobs of the given type still awaiting or in
+// progress (pending and processing), oldest first, so a worker can resume work
+// after a restart.
+func (r *repository) GetIncompleteByType(ctx context.Context, jobType string) ([]*Job, error) {
+	query := `SELECT id, type, file, custom_name, path, size, status, progress, tags,
 		created_at, updated_at FROM queue
-		WHERE status IN (?, ?) ORDER BY id ASC`
+		WHERE type = ? AND status IN (?, ?) ORDER BY id ASC`
 
-	rows, err := r.db.QueryContext(ctx, query, StatusPending, StatusProcessing)
+	rows, err := r.db.QueryContext(ctx, query, jobType, StatusPending, StatusProcessing)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list incomplete jobs: %w", err)
 	}

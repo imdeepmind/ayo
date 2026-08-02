@@ -15,11 +15,22 @@ const (
 	StatusFailed     = "failed"
 )
 
+// Job types are the operation each queue entry represents. They are stored as
+// lowercase strings and enforced by a CHECK constraint on the type column, so
+// the queue can hold a mix of upload/download/delete work.
+const (
+	TypeUpload   = "upload"
+	TypeDownload = "download"
+	TypeDelete   = "delete"
+)
+
 // Job is the persisted representation of one queue entry, mirroring one row of
 // the `queue` table. It is created when a file is queued for processing and is
 // updated in place as the file progresses.
 type Job struct {
 	ID int64
+	// Type is the operation this job represents (upload, download or delete).
+	Type string
 	// File is the original filename as it exists on disk (used to read the
 	// file during processing).
 	File string

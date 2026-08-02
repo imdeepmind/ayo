@@ -29,13 +29,13 @@ type SettingsProvider interface {
 }
 
 // QueueService is the subset of queue.Service that upload depends on. It covers
-// both enqueueing (Service) and the processor's needs (Get, GetIncomplete,
+// both enqueueing (Service) and the processor's needs (Get, GetIncompleteByType,
 // UpdateStatusAndProgress).
 type QueueService interface {
 	Add(input queue.AddInput) (*queue.Job, error)
 	GetAll() ([]*queue.Job, error)
 	Get(id int64) (*queue.Job, error)
-	GetIncomplete() ([]*queue.Job, error)
+	GetIncompleteByType(jobType string) ([]*queue.Job, error)
 	UpdateStatusAndProgress(id int64, status string, progress int) error
 }
 
@@ -138,6 +138,7 @@ func (s *Service) EnqueueFiles(input EnqueueFilesInput) ([]EnqueuedJob, error) {
 			customName = file.Name
 		}
 		job, err := s.queueService.Add(queue.AddInput{
+			Type:       queue.TypeUpload,
 			File:       file.Name,
 			CustomName: customName,
 			Path:       file.Path,

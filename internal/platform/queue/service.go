@@ -21,8 +21,10 @@ func NewService(repo Repository) *Service {
 	return &Service{repo: repo}
 }
 
-// AddInput describes a file to enqueue. File and Path must be present.
+// AddInput describes a file to enqueue. File and Path must be present. Type is
+// the operation kind (upload/download/delete); when empty it defaults to upload.
 type AddInput struct {
+	Type       string
 	File       string
 	CustomName string
 	Path       string
@@ -37,7 +39,15 @@ func (s *Service) Add(input AddInput) (*Job, error) {
 		return nil, errors.ErrInvalidInput
 	}
 
+	if input.Type == "" {
+		input.Type = TypeUpload
+	}
+	if !isValidJobType(input.Type) {
+		return nil, errors.ErrInvalidInput
+	}
+
 	job, err := s.repo.Add(context.Background(), &Job{
+		Type:       input.Type,
 		File:       input.File,
 		CustomName: input.CustomName,
 		Path:       input.Path,
@@ -50,6 +60,17 @@ func (s *Service) Add(input AddInput) (*Job, error) {
 		return nil, errors.AsInternalServerError("add job", err)
 	}
 	return job, nil
+}
+
+// isValidJobType reports whether the given type is one of the supported job
+// types.
+func isValidJobType(jobType string) bool {
+	switch jobType {
+	case TypeUpload, TypeDownload, TypeDelete:
+		return true
+	default:
+		return false
+	}
 }
 
 // Get returns the job with the given ID, or ErrJobNotFound.
@@ -73,10 +94,11 @@ func (s *Service) GetAll() ([]*Job, error) {
 	return jobs, nil
 }
 
-// GetIncomplete returns the jobs still awaiting or in progress (pending and
-// processing), oldest first, so a worker can resume work after a restart.
-func (s *Service) GetIncomplete() ([]*Job, error) {
-	jobs, err := s.repo.GetIncomplete(context.Background())
+// GetIncompleteByType returns the jobs of the given type still awaiting or in
+// progress (pending and processing), oldest first, so a worker can resume work
+// after a restart.
+func (s *Service) GetIncompleteByType(jobType string) ([]*Job, error) {
+	jobs, err := s.repo.GetIncompleteByType(context.Background(), jobType)
 	if err != nil {
 		return nil, errors.AsInternalServerError("get incomplete jobs", err)
 	}
