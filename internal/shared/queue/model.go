@@ -19,12 +19,20 @@ const (
 // the `queue` table. It is created when a file is queued for processing and is
 // updated in place as the file progresses.
 type Job struct {
-	ID       int64
-	File     string
-	Path     string
-	Size     int64
-	Status   string
-	Progress int
+	ID int64
+	// File is the original filename as it exists on disk (used to read the
+	// file during processing).
+	File string
+	// CustomName is the user-facing display name. It may differ from File
+	// when the user renames the file during upload; when empty it falls back
+	// to File.
+	CustomName string
+	Path       string
+	Size       int64
+	Status     string
+	Progress   int
+	// Tags are user-assigned labels for the file, stored as a JSON array.
+	Tags []string
 	// CreatedAt/UpdatedAt are set by the database. CreatedAt is assigned on
 	// insert; UpdatedAt is bumped whenever the row changes.
 	CreatedAt time.Time

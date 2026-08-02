@@ -7,7 +7,9 @@ import (
 	"ayo/internal/features/auth"
 	"ayo/internal/features/recovery"
 	"ayo/internal/features/settings"
+	"ayo/internal/features/upload"
 	"ayo/internal/platform/database"
+	"ayo/internal/shared/queue"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -66,6 +68,17 @@ func main() {
 	settingsRepository := settings.NewRepository()
 	settingsService := settings.NewService(authService, settingsRepository)
 
+	// Queue service: persistent SQLite-backed job queue shared across features.
+	queueRepository, err := queue.NewRepository(db)
+	if err != nil {
+		panic(err)
+	}
+	queueService := queue.NewService(queueRepository)
+
+	// Upload service: native file selection + enqueues one job per uploaded
+	// file into the queue.
+	uploadService := upload.NewService(authService, queueService)
+
 	// Create application with options. Anything passed to Bind is exposed to
 	// the frontend as generated JavaScript bindings under
 	// frontend/wailsjs/go/, so changing a bound method requires a
@@ -84,6 +97,7 @@ func main() {
 			app.startup(ctx)
 			// Only services that need the Wails context receive it here.
 			recoveryService.Startup(ctx)
+			uploadService.Startup(ctx)
 		},
 		DisableResize: false,
 		Mac: &mac.Options{
@@ -110,6 +124,7 @@ func main() {
 			authService,
 			recoveryService,
 			settingsService,
+			uploadService,
 		},
 	})
 

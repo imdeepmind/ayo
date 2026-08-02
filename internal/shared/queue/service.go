@@ -21,19 +21,30 @@ func NewService(repo Repository) *Service {
 	return &Service{repo: repo}
 }
 
+// AddInput describes a file to enqueue. File and Path must be present.
+type AddInput struct {
+	File       string
+	CustomName string
+	Path       string
+	Size       int64
+	Tags       []string
+}
+
 // Add enqueues a file as a single pending job (progress 0) and returns the
 // persisted job, populated with its assigned ID. One call per file.
-func (s *Service) Add(file, path string, size int64) (*Job, error) {
-	if file == "" || path == "" || size < 0 {
+func (s *Service) Add(input AddInput) (*Job, error) {
+	if input.File == "" || input.Path == "" || input.Size < 0 {
 		return nil, errors.ErrInvalidInput
 	}
 
 	job, err := s.repo.Add(context.Background(), &Job{
-		File:     file,
-		Path:     path,
-		Size:     size,
-		Status:   StatusPending,
-		Progress: 0,
+		File:       input.File,
+		CustomName: input.CustomName,
+		Path:       input.Path,
+		Size:       input.Size,
+		Status:     StatusPending,
+		Progress:   0,
+		Tags:       input.Tags,
 	})
 	if err != nil {
 		return nil, errors.AsInternalServerError("add job", err)

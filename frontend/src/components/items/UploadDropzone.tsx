@@ -1,13 +1,12 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { UploadCloud } from 'lucide-react';
 
 type UploadDropzoneProps = {
-  onFilesSelected: (files: File[]) => void;
+  onPick: () => void;
 };
 
-export default function UploadDropzone({ onFilesSelected }: UploadDropzoneProps) {
+export default function UploadDropzone({ onPick }: UploadDropzoneProps) {
   const [isDragging, setIsDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -26,21 +25,12 @@ export default function UploadDropzone({ onFilesSelected }: UploadDropzoneProps)
       e.preventDefault();
       e.stopPropagation();
       setIsDragging(false);
-
-      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        onFilesSelected(Array.from(e.dataTransfer.files));
-      }
+      // The webview cannot expose absolute file paths for dropped files, so
+      // opening the native dialog is the reliable way to pick files.
+      onPick();
     },
-    [onFilesSelected]
+    [onPick]
   );
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      onFilesSelected(Array.from(e.target.files));
-    }
-    // Reset input to allow selecting the same file again if removed
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
 
   return (
     <div
@@ -52,7 +42,7 @@ export default function UploadDropzone({ onFilesSelected }: UploadDropzoneProps)
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      onClick={() => fileInputRef.current?.click()}
+      onClick={onPick}
     >
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 opacity-0 transition-opacity duration-300 group-hover:opacity-100 rounded-2xl pointer-events-none" />
 
@@ -75,13 +65,6 @@ export default function UploadDropzone({ onFilesSelected }: UploadDropzoneProps)
           </p>
         </div>
       </div>
-      <input
-        type="file"
-        multiple
-        className="hidden"
-        ref={fileInputRef}
-        onChange={handleFileSelect}
-      />
     </div>
   );
 }

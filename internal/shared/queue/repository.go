@@ -3,6 +3,8 @@ package queue
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	stderrors "errors"
 	"fmt"
 
 	"ayo/internal/shared/errors"
@@ -38,23 +40,24 @@ func NewRepository(db *sql.DB) (Repository, error) {
 	return &repository{db: db}, nil
 }
 
-// initializeTable idempotently ensures the queue table exists. Status and
-// timestamps are stored as TEXT/DATETIME, and progress as an INTEGER (0-100),
-// matching how the queue is exposed to the frontend.
+// initializeTable idempotently ensures the queue table exists and has all
+// expected columns. Status and timestamps are stored as TEXT/DATETIME, progress
+// as an INTEGER (0-100), and tags as a JSON-encoded TEXT array.
 func initializeTable(db *sql.DB) error {
 	query := `CREATE TABLE IF NOT EXISTS queue (
-		id         INTEGER PRIMARY KEY AUTOINCREMENT,
-		file       TEXT NOT NULL,
-		path       TEXT NOT NULL,
-		size       INTEGER NOT NULL,
-		status     TEXT NOT NULL,
-		progress   INTEGER NOT NULL DEFAULT 0,
-		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		id          INTEGER PRIMARY KEY AUTOINCREMENT,
+		file        TEXT NOT NULL,
+		custom_name TEXT NOT NULL DEFAULT '',
+		path        TEXT NOT NULL,
+		size        INTEGER NOT NULL,
+		status      TEXT NOT NULL,
+		progress    INTEGER NOT NULL DEFAULT 0,
+		tags        TEXT NOT NULL DEFAULT '[]',
+		created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 	)`
 
-	_, err := db.Exec(query)
-	if err != nil {
+	if _, err := db.Exec(query); err != nil {
 		return err
 	}
 	return nil
@@ -63,10 +66,25 @@ func initializeTable(db *sql.DB) error {
 // Add inserts a new job row and returns the job populated with its assigned ID
 // and database-set timestamps.
 func (r *repository) Add(ctx context.Context, job *Job) (*Job, error) {
-	query := `INSERT INTO queue (file, path, size, status, progress)
-		VALUES (?, ?, ?, ?, ?)`
+	tags, err := json.Marshal(job.Tags)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode tags: %w", err)
+	}
 
-	result, err := r.db.ExecContext(ctx, query, job.File, job.Path, job.Size, job.Status, job.Progress)
+	query := `INSERT INTO queue (file, custom_name, path, size, status, progress, tags)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`
+
+	result, err := r.db.ExecContext(
+		ctx,
+		query,
+		job.File,
+		job.CustomName,
+		job.Path,
+		job.Size,
+		job.Status,
+		job.Progress,
+		string(tags),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to add job: %w", err)
 	}
@@ -81,34 +99,24 @@ func (r *repository) Add(ctx context.Context, job *Job) (*Job, error) {
 
 // Get fetches a job by ID. It returns ErrJobNotFound when no such job exists.
 func (r *repository) Get(ctx context.Context, id int64) (*Job, error) {
-	query := `SELECT id, file, path, size, status, progress, created_at, updated_at
-		FROM queue WHERE id = ?`
+	query := `SELECT id, file, custom_name, path, size, status, progress, tags,
+		created_at, updated_at FROM queue WHERE id = ?`
 
-	var job Job
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&job.ID,
-		&job.File,
-		&job.Path,
-		&job.Size,
-		&job.Status,
-		&job.Progress,
-		&job.CreatedAt,
-		&job.UpdatedAt,
-	)
+	job, err := scanJob(r.db.QueryRowContext(ctx, query, id))
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if stderrors.Is(err, sql.ErrNoRows) {
 			return nil, errors.ErrJobNotFound
 		}
 		return nil, fmt.Errorf("failed to get job: %w", err)
 	}
-	return &job, nil
+	return job, nil
 }
 
 // GetAll returns every job ordered oldest first, which is the natural order
 // for processing.
 func (r *repository) GetAll(ctx context.Context) ([]*Job, error) {
-	query := `SELECT id, file, path, size, status, progress, created_at, updated_at
-		FROM queue ORDER BY id ASC`
+	query := `SELECT id, file, custom_name, path, size, status, progress, tags,
+		created_at, updated_at FROM queue ORDER BY id ASC`
 
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
@@ -118,26 +126,54 @@ func (r *repository) GetAll(ctx context.Context) ([]*Job, error) {
 
 	jobs := make([]*Job, 0)
 	for rows.Next() {
-		var job Job
-		if err := rows.Scan(
-			&job.ID,
-			&job.File,
-			&job.Path,
-			&job.Size,
-			&job.Status,
-			&job.Progress,
-			&job.CreatedAt,
-			&job.UpdatedAt,
-		); err != nil {
+		job, err := scanJob(rows)
+		if err != nil {
 			return nil, fmt.Errorf("failed to scan job: %w", err)
 		}
-		jobs = append(jobs, &job)
+		jobs = append(jobs, job)
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("failed to iterate jobs: %w", err)
 	}
 	return jobs, nil
+}
+
+// scanJob reads one queue row into a Job, decoding the JSON tags column. It
+// works with both single rows (sql.Row) and result sets (sql.Rows).
+func scanJob(row interface{ Scan(dest ...any) error }) (*Job, error) {
+	var job Job
+	var tags string
+	err := row.Scan(
+		&job.ID,
+		&job.File,
+		&job.CustomName,
+		&job.Path,
+		&job.Size,
+		&job.Status,
+		&job.Progress,
+		&tags,
+		&job.CreatedAt,
+		&job.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	job.Tags = decodeTags(tags)
+	return &job, nil
+}
+
+// decodeTags parses a JSON-encoded tag list. Malformed or empty values fall
+// back to an empty slice.
+func decodeTags(data string) []string {
+	var tags []string
+	if err := json.Unmarshal([]byte(data), &tags); err != nil {
+		return []string{}
+	}
+	if tags == nil {
+		return []string{}
+	}
+	return tags
 }
 
 // Delete removes a job by ID. It returns ErrJobNotFound when no such job

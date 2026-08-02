@@ -4,39 +4,80 @@ import Button from '@/components/bits/Button';
 import UploadDropzone from '@/components/items/UploadDropzone';
 import UploadFileItem, { type UploadFile } from '@/components/items/UploadFileItem';
 import UploadStickyBar from '@/components/items/UploadStickyBar';
+import { EnqueueFiles, PickFiles } from '../../wailsjs/go/upload/Service';
+import { upload } from '../../wailsjs/go/models';
 
 export default function Upload() {
   const [files, setFiles] = useState<UploadFile[]>([]);
+  const [isPicking, setIsPicking] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
-  const addFiles = (newFiles: File[]) => {
-    const uploadFiles: UploadFile[] = newFiles.map((file) => ({
-      id: crypto.randomUUID(),
-      file,
-      customName: file.name,
-    }));
-    setFiles((prev) => [...prev, ...uploadFiles]);
+  const pickFiles = async () => {
+    if (isPicking) return;
+    setIsPicking(true);
+    try {
+      const picked = await PickFiles();
+      if (picked.length === 0) return;
+      const uploadFiles: UploadFile[] = picked.map((file) => ({
+        id: crypto.randomUUID(),
+        name: file.Name,
+        path: file.Path,
+        size: file.Size,
+        customName: file.Name,
+        tags: [],
+      }));
+      setFiles((prev) => [...prev, ...uploadFiles]);
+    } catch (err) {
+      console.error('Failed to pick files:', err);
+      toast.error('Failed to open file picker. Please try again.');
+    } finally {
+      setIsPicking(false);
+    }
   };
 
   const removeFile = (id: string) => {
     setFiles((prev) => prev.filter((f) => f.id !== id));
   };
 
-  const saveEdit = (id: string, newName: string) => {
+  const saveEdit = (id: string, newName: string, newTags: string[]) => {
     if (!newName.trim()) {
       toast.error('File name cannot be empty');
       return;
     }
-    setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, customName: newName.trim() } : f)));
+    setFiles((prev) =>
+      prev.map((f) => (f.id === id ? { ...f, customName: newName.trim(), tags: newTags } : f))
+    );
   };
 
-  const handleUpload = () => {
+  const handleUpload = async () => {
     if (files.length === 0) {
       toast.error('No files to upload');
       return;
     }
-    // TODO: Implement actual upload logic
-    toast.success(`Started uploading ${files.length} files`);
-    setFiles([]); // Clear queue after upload
+    setIsUploading(true);
+    try {
+      const jobs = await EnqueueFiles(
+        new upload.EnqueueFilesInput({
+          Files: files.map(
+            (f) =>
+              new upload.EnqueueFileInput({
+                Name: f.name,
+                CustomName: f.customName,
+                Path: f.path,
+                Size: f.size,
+                Tags: f.tags,
+              })
+          ),
+        })
+      );
+      toast.success(`Queued ${jobs.length} ${jobs.length === 1 ? 'file' : 'files'} for upload`);
+      setFiles([]); // Clear queue after upload
+    } catch (err) {
+      console.error('Upload error:', err);
+      toast.error(String(err) || 'Failed to queue files. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -44,12 +85,12 @@ export default function Upload() {
       <div className="mb-8">
         <h1 className="mb-2 text-2xl font-bold text-slate-900 dark:text-slate-100">Upload Files</h1>
         <p className="text-slate-600 dark:text-slate-400">
-          Drag and drop files below or click to browse your computer.
+          Drop files below or click to browse your computer.
         </p>
       </div>
 
       {/* Dropzone Component */}
-      <UploadDropzone onFilesSelected={addFiles} />
+      <UploadDropzone onPick={pickFiles} />
 
       {/* File List */}
       {files.length > 0 && (
@@ -81,7 +122,11 @@ export default function Upload() {
       )}
 
       {/* Sticky Bottom Actions Component */}
-      <UploadStickyBar fileCount={files.length} onUpload={handleUpload} />
+      <UploadStickyBar
+        fileCount={files.length}
+        onUpload={handleUpload}
+        disabled={isPicking || isUploading}
+      />
     </div>
   );
 }
