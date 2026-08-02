@@ -26,11 +26,7 @@ export default function ApplicationSettings() {
             onChange={toggleTheme}
           />
           <div className="mt-3 flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
-            {theme === 'dark' ? (
-              <Moon className="h-3.5 w-3.5" />
-            ) : (
-              <Sun className="h-3.5 w-3.5" />
-            )}
+            {theme === 'dark' ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />}
             <span>{theme === 'dark' ? 'Dark theme is active' : 'Light theme is active'}</span>
           </div>
         </div>
