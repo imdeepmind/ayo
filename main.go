@@ -72,7 +72,7 @@ func main() {
 	// wails dev / wails build to regenerate them.
 	err = wails.Run(&options.App{
 		Title:  "ayo",
-		Width:  1024,
+		Width:  1100,
 		Height: 768,
 		AssetServer: &assetserver.Options{
 			// The compiled frontend (frontend/dist) is embedded into the binary
