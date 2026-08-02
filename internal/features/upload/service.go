@@ -20,6 +20,7 @@ type SessionProvider interface {
 // QueueService is the subset of queue.Service that upload depends on.
 type QueueService interface {
 	Add(input queue.AddInput) (*queue.Job, error)
+	GetAll() ([]*queue.Job, error)
 }
 
 // Service handles the upload flow. It is bound to the frontend via Wails.
@@ -110,10 +111,41 @@ func (s *Service) EnqueueFiles(input EnqueueFilesInput) ([]EnqueuedJob, error) {
 			ID:         job.ID,
 			File:       job.File,
 			CustomName: job.CustomName,
+			Size:       job.Size,
 			Status:     job.Status,
 			Progress:   job.Progress,
 			Tags:       job.Tags,
 		})
 	}
 	return jobs, nil
+}
+
+// GetPendingJobs returns the jobs still awaiting or in progress (pending and
+// processing), oldest first, so the frontend can render their upload progress.
+func (s *Service) GetPendingJobs() ([]EnqueuedJob, error) {
+	if _, err := s.sessionProvider.RequireSession(); err != nil {
+		return nil, err
+	}
+
+	jobs, err := s.queueService.GetAll()
+	if err != nil {
+		return nil, err
+	}
+
+	pending := make([]EnqueuedJob, 0, len(jobs))
+	for _, job := range jobs {
+		if job.Status != queue.StatusPending && job.Status != queue.StatusProcessing {
+			continue
+		}
+		pending = append(pending, EnqueuedJob{
+			ID:         job.ID,
+			File:       job.File,
+			CustomName: job.CustomName,
+			Size:       job.Size,
+			Status:     job.Status,
+			Progress:   job.Progress,
+			Tags:       job.Tags,
+		})
+	}
+	return pending, nil
 }

@@ -5,6 +5,8 @@ import {context} from '../models';
 
 export function EnqueueFiles(arg1:upload.EnqueueFilesInput):Promise<Array<upload.EnqueuedJob>>;
 
+export function GetPendingJobs():Promise<Array<upload.EnqueuedJob>>;
+
 export function PickFiles():Promise<Array<upload.PickedFile>>;
 
 export function Startup(arg1:context.Context):Promise<void>;

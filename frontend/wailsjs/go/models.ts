@@ -222,6 +222,7 @@ export namespace upload {
 	    ID: number;
 	    File: string;
 	    CustomName: string;
+	    Size: number;
 	    Status: string;
 	    Progress: number;
 	    Tags: string[];
@@ -235,6 +236,7 @@ export namespace upload {
 	        this.ID = source["ID"];
 	        this.File = source["File"];
 	        this.CustomName = source["CustomName"];
+	        this.Size = source["Size"];
 	        this.Status = source["Status"];
 	        this.Progress = source["Progress"];
 	        this.Tags = source["Tags"];

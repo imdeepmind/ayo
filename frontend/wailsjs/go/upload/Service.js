@@ -6,6 +6,10 @@ export function EnqueueFiles(arg1) {
   return window['go']['upload']['Service']['EnqueueFiles'](arg1);
 }
 
+export function GetPendingJobs() {
+  return window['go']['upload']['Service']['GetPendingJobs']();
+}
+
 export function PickFiles() {
   return window['go']['upload']['Service']['PickFiles']();
 }

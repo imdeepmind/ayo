@@ -16,6 +16,7 @@ type EnqueuedJob struct {
 	ID         int64
 	File       string
 	CustomName string
+	Size       int64
 	Status     string
 	Progress   int
 	Tags       []string
