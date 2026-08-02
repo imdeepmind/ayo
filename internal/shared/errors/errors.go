@@ -53,6 +53,11 @@ var (
 	ErrUnauthorized = errors.New(
 		"you must be logged in to access this resource",
 	)
+
+	// ErrJobNotFound means the requested queue entry does not exist.
+	ErrJobNotFound = errors.New(
+		"the file entry you are looking for no longer exists",
+	)
 )
 
 // InternalServerError is the typed representation of an unexpected failure
