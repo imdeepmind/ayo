@@ -3,9 +3,13 @@
 import {upload} from '../models';
 import {context} from '../models';
 
+export function DeleteStoredFile(arg1:number):Promise<void>;
+
 export function EnqueueFiles(arg1:upload.EnqueueFilesInput):Promise<Array<upload.EnqueuedJob>>;
 
 export function GetPendingJobs():Promise<Array<upload.EnqueuedJob>>;
+
+export function GetStoredFiles():Promise<Array<upload.StoredFile>>;
 
 export function PickFiles():Promise<Array<upload.PickedFile>>;
 

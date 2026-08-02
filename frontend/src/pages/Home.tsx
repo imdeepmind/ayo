@@ -1,17 +1,32 @@
 import { useNavigate } from 'react-router-dom';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Download, Trash2 } from 'lucide-react';
-import { files as initialFiles, calculateTotalUsedBytes, type FileItem } from '@/mock-data/files';
+import { calculateTotalUsedBytes, getFileType, type FileItem } from '@/lib/files';
+import { DeleteStoredFile, GetStoredFiles } from '../../wailsjs/go/upload/Service';
+import { upload } from '../../wailsjs/go/models';
 import DriveToolbar from '@/components/items/DriveToolbar';
 import DriveFileTable from '@/components/items/DriveFileTable';
 import DriveStatusBar from '@/components/items/DriveStatusBar';
 import EditFileModal from '@/components/items/EditFileModal';
 import Button from '@/components/bits/Button';
 
+function toFileItem(stored: upload.StoredFile): FileItem {
+  return {
+    id: String(stored.ID),
+    name: stored.Name,
+    type: getFileType(stored.Name),
+    sizeBytes: stored.Size,
+    modifiedAt: stored.CreatedAt,
+    owner: 'You',
+    tags: stored.Tags,
+  };
+}
+
 export default function Home() {
   const navigate = useNavigate();
-  const [files, setFiles] = useState<FileItem[]>(initialFiles);
+  const [files, setFiles] = useState<FileItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Selection state
@@ -20,6 +35,22 @@ export default function Home() {
   // Editing state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [fileToEdit, setFileToEdit] = useState<FileItem | null>(null);
+
+  const loadFiles = useCallback(async () => {
+    try {
+      const stored = await GetStoredFiles();
+      setFiles(stored.map(toFileItem));
+    } catch (err) {
+      console.error('Failed to load stored files:', err);
+      toast.error('Failed to load files. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadFiles();
+  }, [loadFiles]);
 
   const filteredFiles = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -67,17 +98,32 @@ export default function Home() {
     toast.success(`Started downloading: ${file.name}`);
   };
 
-  const handleDelete = (file: FileItem) => {
-    setFiles((prev) => prev.filter((f) => f.id !== file.id));
-    toast.success(`Deleted: ${file.name}`);
-    if (selectedFileIds.has(file.id)) {
-      handleSelectionChange(file.id, false);
+  const deleteFiles = async (ids: string[]) => {
+    for (const id of ids) {
+      try {
+        await DeleteStoredFile(Number(id));
+      } catch (err) {
+        console.error('Failed to delete file:', err);
+        toast.error('Failed to delete a file. Please try again.');
+        return;
+      }
     }
+    const count = ids.length;
+    toast.success(`Deleted ${count} ${count === 1 ? 'file' : 'files'}`);
+    clearSelection();
+    await loadFiles();
+  };
+
+  const handleDelete = async (file: FileItem) => {
+    if (!window.confirm(`Delete "${file.name}"? This cannot be undone.`)) return;
+    await deleteFiles([file.id]);
   };
 
   const saveEdit = (id: string, newName: string, newTags: string[]) => {
-    setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, name: newName, tags: newTags } : f)));
-    toast.success('File updated successfully');
+    void id;
+    void newName;
+    void newTags;
+    toast('Renaming and editing tags is not available yet.');
   };
 
   // -- Bulk Actions --
@@ -87,10 +133,16 @@ export default function Home() {
     clearSelection();
   };
 
-  const handleBulkDelete = () => {
-    setFiles((prev) => prev.filter((f) => !selectedFileIds.has(f.id)));
-    toast.success(`Deleted ${selectedFileIds.size} files`);
-    clearSelection();
+  const handleBulkDelete = async () => {
+    const count = selectedFileIds.size;
+    if (
+      !window.confirm(
+        `Delete ${count} selected ${count === 1 ? 'file' : 'files'}? This cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    await deleteFiles([...selectedFileIds]);
   };
 
   return (
@@ -144,15 +196,21 @@ export default function Home() {
               </Button>
             </div>
 
-            <DriveFileTable
-              files={filteredFiles}
-              selectedFileIds={selectedFileIds}
-              onSelectionChange={handleSelectionChange}
-              onSelectAllChange={handleSelectAllChange}
-              onEdit={handleEdit}
-              onDownload={handleDownload}
-              onDelete={handleDelete}
-            />
+            {isLoading ? (
+              <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 shadow-sm px-4 py-12 text-center text-sm text-slate-500 dark:text-slate-400">
+                Loading your files...
+              </div>
+            ) : (
+              <DriveFileTable
+                files={filteredFiles}
+                selectedFileIds={selectedFileIds}
+                onSelectionChange={handleSelectionChange}
+                onSelectAllChange={handleSelectAllChange}
+                onEdit={handleEdit}
+                onDownload={handleDownload}
+                onDelete={handleDelete}
+              />
+            )}
           </div>
         </div>
 

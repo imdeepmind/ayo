@@ -1,10 +1,8 @@
 package upload
 
 import (
-	"encoding/json"
 	"errors"
 	"io"
-	"os"
 
 	"ayo/internal/features/settings"
 
@@ -65,10 +63,10 @@ func parseShardConfig(s *settings.Settings) shardConfig {
 	}
 }
 
-// shardManifest is written next to the shards and carries everything needed to
-// reconstruct the encrypted file later (the download step): the exact encrypted
-// size to trim Reed-Solomon padding, the shard layout, and how many blocks were
-// encoded.
+// shardManifest carries everything needed to reconstruct the encrypted file
+// later (the download step): the exact encrypted size to trim Reed-Solomon
+// padding, the shard layout, and how many blocks were encoded. It is persisted
+// on the uploads table, not written next to the shards.
 type shardManifest struct {
 	EncryptedSize int64
 	DataShards    int
@@ -123,13 +121,4 @@ func encodeBlocks(enc reedsolomon.Encoder, cfg shardConfig, src io.Reader,
 			}
 		}
 	}
-}
-
-// writeShardManifest persists the reconstruction metadata as manifest.json.
-func writeShardManifest(path string, m shardManifest) error {
-	data, err := json.MarshalIndent(m, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, data, 0o600)
 }

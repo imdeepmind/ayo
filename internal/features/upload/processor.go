@@ -27,8 +27,9 @@ const (
 	// encryptedDir is where encrypted files are written. It lives under data/
 	// which is gitignored runtime data.
 	encryptedDir = "data/encrypted"
-	// chunksDir is where Reed-Solomon shards and their manifest are written,
-	// one subfolder per job.
+	// chunksDir is where Reed-Solomon shards are written, one subfolder per
+	// job. Their reconstruction metadata lives on the uploads table, not in the
+	// chunk folder.
 	chunksDir = "data/chunks"
 )
 
@@ -44,9 +45,9 @@ const (
 //     written to data/encrypted/<jobID>.enc.
 //  2. The blob is encoded into data + parity shards (the layout comes from the
 //     user's erasure-coding settings) and written to
-//     data/chunks/<jobID>/<uuid>.bin alongside a manifest.json.
-//  3. An uploads record and one chunks record per shard are persisted, then the
-//     job is marked completed.
+//     data/chunks/<jobID>/<uuid>.bin.
+//  3. An uploads record (carrying the reconstruction metadata) and one chunks
+//     record per shard are persisted, then the job is marked completed.
 //
 // The chunk upload stage will be appended to process in a later step.
 type Processor struct {
@@ -199,7 +200,7 @@ func (p *Processor) process(id int64) {
 		return
 	}
 
-	shards, err := p.chunk(id, ciphertext)
+	shards, manifest, err := p.chunk(id, ciphertext)
 	if err != nil {
 		slog.Error("chunk file", "error", err)
 		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 30)
@@ -213,6 +214,7 @@ func (p *Processor) process(id int64) {
 		job.CustomName,
 		job.Size,
 		job.Tags,
+		manifest,
 	)
 	if err != nil {
 		slog.Error("persist upload", "error", err)
@@ -233,22 +235,23 @@ func (p *Processor) process(id int64) {
 // data/chunks/<jobID>/, using the user's erasure-coding settings. Each shard
 // file is named with a globally unique UUID. It updates job progress from 30%
 // (after encryption) up to 90% as blocks are encoded, and returns the shard
-// records needed to persist the chunks table.
-func (p *Processor) chunk(id int64, ciphertext []byte) ([]ChunkInput, error) {
+// records needed to persist the chunks table along with the reconstruction
+// metadata for the uploads table.
+func (p *Processor) chunk(id int64, ciphertext []byte) ([]ChunkInput, shardManifest, error) {
 	s, err := p.settingsProvider.GetSettings()
 	if err != nil {
-		return nil, fmt.Errorf("get settings: %w", err)
+		return nil, shardManifest{}, fmt.Errorf("get settings: %w", err)
 	}
 	cfg := parseShardConfig(s)
 
 	dir := filepath.Join(chunksDir, fmt.Sprintf("job_%d", id))
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return nil, fmt.Errorf("create chunk dir: %w", err)
+		return nil, shardManifest{}, fmt.Errorf("create chunk dir: %w", err)
 	}
 
 	enc, err := reedsolomon.New(cfg.dataShards, cfg.parityShards, reedsolomon.WithAutoGoroutines(blockShardSize))
 	if err != nil {
-		return nil, fmt.Errorf("create encoder: %w", err)
+		return nil, shardManifest{}, fmt.Errorf("create encoder: %w", err)
 	}
 
 	writers := make([]io.Writer, 0, cfg.totalShards())
@@ -264,7 +267,7 @@ func (p *Processor) chunk(id int64, ciphertext []byte) ([]ChunkInput, error) {
 		chunkID := uuid.NewString() + ".bin"
 		f, err := os.OpenFile(filepath.Join(dir, chunkID), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 		if err != nil {
-			return nil, fmt.Errorf("create shard file: %w", err)
+			return nil, shardManifest{}, fmt.Errorf("create shard file: %w", err)
 		}
 		files = append(files, f)
 		writers = append(writers, f)
@@ -285,18 +288,14 @@ func (p *Processor) chunk(id int64, ciphertext []byte) ([]ChunkInput, error) {
 		return p.queue.UpdateStatusAndProgress(id, queue.StatusProcessing, progress)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("encode blocks: %w", err)
+		return nil, shardManifest{}, fmt.Errorf("encode blocks: %w", err)
 	}
 
-	if err := writeShardManifest(filepath.Join(dir, "manifest.json"), shardManifest{
+	return shards, shardManifest{
 		EncryptedSize: int64(len(ciphertext)),
 		DataShards:    cfg.dataShards,
 		ParityShards:  cfg.parityShards,
 		ShardSize:     blockShardSize,
 		BlockCount:    blockCount,
-	}); err != nil {
-		return nil, fmt.Errorf("write manifest: %w", err)
-	}
-
-	return shards, nil
+	}, nil
 }

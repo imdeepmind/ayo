@@ -2,7 +2,11 @@ package upload
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 	"os"
+	"path/filepath"
+	"time"
 
 	"ayo/internal/features/auth"
 	"ayo/internal/features/settings"
@@ -45,6 +49,7 @@ type UploadRepository interface {
 		customName string,
 		size int64,
 		tags []string,
+		manifest shardManifest,
 	) (*Upload, error)
 	CreateChunks(ctx context.Context, fileID int64, chunks []ChunkInput) error
 }
@@ -60,19 +65,19 @@ type Service struct {
 	sessionProvider  SessionProvider
 	settingsProvider SettingsProvider
 	queueService     QueueService
-	uploadRepository UploadRepository
+	repo             Repository
 	processor        *Processor
 	validate         *validator.Validate
 }
 
 func NewService(sessionProvider SessionProvider, settingsProvider SettingsProvider,
-	queueService QueueService, uploadRepository UploadRepository) *Service {
+	queueService QueueService, repo Repository) *Service {
 	return &Service{
 		sessionProvider:  sessionProvider,
 		settingsProvider: settingsProvider,
 		queueService:     queueService,
-		uploadRepository: uploadRepository,
-		processor:        NewProcessor(sessionProvider, settingsProvider, queueService, uploadRepository),
+		repo:             repo,
+		processor:        NewProcessor(sessionProvider, settingsProvider, queueService, repo),
 		validate:         validator.New(),
 	}
 }
@@ -184,4 +189,60 @@ func (s *Service) GetPendingJobs() ([]EnqueuedJob, error) {
 		})
 	}
 	return pending, nil
+}
+
+// GetStoredFiles returns every persisted upload (the drive listing), newest
+// first.
+func (s *Service) GetStoredFiles() ([]StoredFile, error) {
+	if _, err := s.sessionProvider.RequireSession(); err != nil {
+		return nil, err
+	}
+
+	uploads, err := s.repo.GetAll(context.Background())
+	if err != nil {
+		return nil, errors.AsInternalServerError("get stored files: list", err)
+	}
+
+	stored := make([]StoredFile, 0, len(uploads))
+	for _, u := range uploads {
+		name := u.CustomName
+		if name == "" {
+			name = u.File
+		}
+		stored = append(stored, StoredFile{
+			ID:        u.ID,
+			Name:      name,
+			Size:      u.Size,
+			Tags:      u.Tags,
+			CreatedAt: u.CreatedAt.UTC().Format(time.RFC3339),
+		})
+	}
+	return stored, nil
+}
+
+// DeleteStoredFile removes a persisted upload: its uploads row (and chunk rows
+// via the foreign-key cascade), plus the shard folder and encrypted blob on
+// disk. On-disk cleanup is best-effort; the database row is the source of
+// truth, so a leftover file is logged rather than failing the delete.
+func (s *Service) DeleteStoredFile(id int64) error {
+	if _, err := s.sessionProvider.RequireSession(); err != nil {
+		return err
+	}
+
+	upload, err := s.repo.GetUpload(context.Background(), id)
+	if err != nil {
+		return errors.AsInternalServerError("delete stored file: get", err)
+	}
+
+	if err := s.repo.DeleteUpload(context.Background(), id); err != nil {
+		return errors.AsInternalServerError("delete stored file: delete", err)
+	}
+
+	if err := os.RemoveAll(filepath.Join(chunksDir, fmt.Sprintf("job_%d", upload.JobID))); err != nil {
+		slog.Error("delete stored file: remove shards", "error", err)
+	}
+	if err := os.Remove(filepath.Join(encryptedDir, fmt.Sprintf("%d.enc", upload.JobID))); err != nil {
+		slog.Error("delete stored file: remove encrypted blob", "error", err)
+	}
+	return nil
 }

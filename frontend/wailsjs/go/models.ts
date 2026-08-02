@@ -258,6 +258,26 @@ export namespace upload {
 	        this.Size = source["Size"];
 	    }
 	}
+	export class StoredFile {
+	    ID: number;
+	    Name: string;
+	    Size: number;
+	    Tags: string[];
+	    CreatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new StoredFile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Name = source["Name"];
+	        this.Size = source["Size"];
+	        this.Tags = source["Tags"];
+	        this.CreatedAt = source["CreatedAt"];
+	    }
+	}
 
 }
 

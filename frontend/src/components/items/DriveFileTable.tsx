@@ -12,7 +12,7 @@ import {
   ArrowUp,
   ArrowDown,
 } from 'lucide-react';
-import type { FileItem } from '@/mock-data/files';
+import type { FileItem } from '@/lib/files';
 
 type SortField = 'name' | 'size' | 'date';
 type SortDirection = 'asc' | 'desc';
@@ -117,7 +117,7 @@ export default function DriveFileTable({
     <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 shadow-sm overflow-hidden">
       {files.length === 0 ? (
         <div className="px-4 py-12 text-center text-sm text-slate-500 dark:text-slate-400">
-          No files match your criteria.
+          No files yet. Upload your first file to get started.
         </div>
       ) : (
         <div className="overflow-x-auto">
