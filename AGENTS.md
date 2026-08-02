@@ -15,10 +15,11 @@ The Go backend is tiered under `internal/`:
   - `database/` — SQLite via `modernc.org/sqlite` (pure Go, no cgo). Tables are created idempotently with `CREATE TABLE IF NOT EXISTS` inside each repository's `initializeTable`; there is **no migration tool**.
   - `keyring/` — thin wrapper over `zalando/go-keyring`.
   - `dialog/` — native Wails save-file dialog wrapper.
+  - `queue/` — persistent SQLite-backed job queue (one `Job` per queued file, with status + progress). Wired in `main.go` and consumed by the `upload` feature's business logic through a narrow interface; prefer keeping that dependency behind the feature's own repository if possible.
 - `internal/shared/` — cross-cutting code:
   - `errors/` — sentinel errors with user-facing messages; return these (not wrapped fmt errors) so the frontend can display them. Also the `InternalServerError` type.
   - `crypto/` — Argon2 KEK derivation + AES-256-GCM encrypt/decrypt primitives.
-- `main.go` — entrypoint. Wires `auth`, `settings`, `recovery` services and binds them to the frontend via `wails.Run`.
+- `main.go` — entrypoint. Wires `auth`, `settings`, `recovery`, `upload` services and binds them to the frontend via `wails.Run`.
 - `assets.go` — `//go:embed all:frontend/dist`; the compiled frontend is embedded into the Go binary.
 - `frontend/` — React SPA. Calls Go through generated bindings (below). `@/` aliases `frontend/src`.
 - `data/` — gitignored runtime data (`ayo.db`, `chunks/`, `input/`, `output/`). DB is hardcoded to `data/ayo.db` in `main.go`.

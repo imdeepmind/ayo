@@ -5,8 +5,8 @@ import (
 	"os"
 
 	"ayo/internal/features/auth"
+	"ayo/internal/platform/queue"
 	"ayo/internal/shared/errors"
-	"ayo/internal/shared/queue"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/wailsapp/wails/v2/pkg/runtime"

@@ -9,7 +9,7 @@ import (
 	"ayo/internal/features/settings"
 	"ayo/internal/features/upload"
 	"ayo/internal/platform/database"
-	"ayo/internal/shared/queue"
+	"ayo/internal/platform/queue"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"

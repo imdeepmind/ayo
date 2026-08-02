@@ -1,5 +1,5 @@
 // Package queue provides a persistent, SQLite-backed job queue shared across
-// features. It belongs to the shared tier: each uploaded file becomes one Job
+// features. It belongs to the platform tier: each uploaded file becomes one Job
 // that a worker processes later, and the queue is the single source of truth
 // for what has been submitted, is running, or has finished.
 package queue
