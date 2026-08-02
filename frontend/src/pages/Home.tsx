@@ -3,8 +3,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Download, Trash2 } from 'lucide-react';
 import { calculateTotalUsedBytes, getFileType, type FileItem } from '@/lib/files';
-import { DeleteStoredFile, GetStoredFiles } from '../../wailsjs/go/upload/Service';
+import { DeleteStoredFile, EnqueueDownload, GetStoredFiles } from '../../wailsjs/go/upload/Service';
 import { upload } from '../../wailsjs/go/models';
+import { useActiveTransfers } from '@/hooks/useActiveTransfers';
 import DriveToolbar from '@/components/items/DriveToolbar';
 import DriveFileTable from '@/components/items/DriveFileTable';
 import DriveStatusBar from '@/components/items/DriveStatusBar';
@@ -28,6 +29,7 @@ export default function Home() {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const { uploads, downloads, overallProgress, refresh } = useActiveTransfers();
 
   // Selection state
   const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
@@ -94,8 +96,15 @@ export default function Home() {
     setIsEditModalOpen(true);
   };
 
-  const handleDownload = (file: FileItem) => {
-    toast.success(`Started downloading: ${file.name}`);
+  const handleDownload = async (file: FileItem) => {
+    try {
+      const job = await EnqueueDownload(Number(file.id));
+      toast.success(`Downloading ${job.CustomName || job.File}`);
+      refresh();
+    } catch (err) {
+      console.error('Failed to start download:', err);
+      toast.error('Failed to start the download. Please try again.');
+    }
   };
 
   const deleteFiles = async (ids: string[]) => {
@@ -214,7 +223,12 @@ export default function Home() {
           </div>
         </div>
 
-        <DriveStatusBar totalUsedBytes={totalUsedBytes} />
+        <DriveStatusBar
+          totalUsedBytes={totalUsedBytes}
+          activeUploads={uploads.length}
+          activeDownloads={downloads.length}
+          overallProgress={overallProgress}
+        />
       </div>
 
       <EditFileModal

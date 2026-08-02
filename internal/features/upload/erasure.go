@@ -2,7 +2,9 @@ package upload
 
 import (
 	"errors"
+	"fmt"
 	"io"
+	"os"
 
 	"ayo/internal/features/settings"
 
@@ -121,4 +123,70 @@ func encodeBlocks(enc reedsolomon.Encoder, cfg shardConfig, src io.Reader,
 			}
 		}
 	}
+}
+
+// reconstructCiphertext rebuilds the encrypted blob from its shard files using
+// the stored manifest layout (the download counterpart of chunk()). Each shard
+// path maps to a chunk row, ordered by shard index. Missing shards are
+// recovered from parity via Reconstruct when enough remain.
+//
+// Because encoding is block-based (each block appends one shard-size slice to
+// every shard file), the data shards must be re-interleaved block by block:
+// for each block, emit shard 0..D-1's slice for that block, then move to the
+// next block. The result is trimmed to the exact encrypted size to remove the
+// final block's zero-padding.
+func reconstructCiphertext(manifest shardManifest, shardPaths []string) ([]byte, error) {
+	total := manifest.DataShards + manifest.ParityShards
+	if manifest.DataShards <= 0 || total != len(shardPaths) {
+		return nil, fmt.Errorf("invalid layout: expected %d shards, got %d", total, len(shardPaths))
+	}
+
+	shards := make([][]byte, total)
+	present := 0
+	for i, path := range shardPaths {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			// Missing shard; leave nil so Reconstruct can fill it from parity.
+			continue
+		}
+		shards[i] = data
+		present++
+	}
+	if present < manifest.DataShards {
+		return nil, fmt.Errorf("too few shards to reconstruct: %d present, %d needed", present, manifest.DataShards)
+	}
+
+	enc, err := reedsolomon.New(manifest.DataShards, manifest.ParityShards,
+		reedsolomon.WithAutoGoroutines(manifest.ShardSize))
+	if err != nil {
+		return nil, fmt.Errorf("create decoder: %w", err)
+	}
+
+	if present < total {
+		if err := enc.Reconstruct(shards); err != nil {
+			return nil, fmt.Errorf("reconstruct shards: %w", err)
+		}
+	}
+	ok, err := enc.Verify(shards)
+	if err != nil {
+		return nil, fmt.Errorf("verify shards: %w", err)
+	}
+	if !ok {
+		return nil, fmt.Errorf("shard verification failed")
+	}
+
+	out := make([]byte, 0, manifest.BlockCount*manifest.DataShards*manifest.ShardSize)
+	for b := 0; b < manifest.BlockCount; b++ {
+		start := b * manifest.ShardSize
+		for d := 0; d < manifest.DataShards; d++ {
+			if len(shards[d]) < start+manifest.ShardSize {
+				return nil, fmt.Errorf("shard %d too short for block %d: %d", d, b, len(shards[d]))
+			}
+			out = append(out, shards[d][start:start+manifest.ShardSize]...)
+		}
+	}
+	if int64(len(out)) < manifest.EncryptedSize {
+		return nil, fmt.Errorf("reconstructed data shorter than expected: %d < %d", len(out), manifest.EncryptedSize)
+	}
+	return out[:manifest.EncryptedSize], nil
 }

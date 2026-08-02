@@ -1,35 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import toast from 'react-hot-toast';
 import Button from '@/components/bits/Button';
 import UploadDropzone from '@/components/items/UploadDropzone';
 import UploadFileItem, { type UploadFile } from '@/components/items/UploadFileItem';
 import PendingUploadItem from '@/components/items/PendingUploadItem';
 import UploadStickyBar from '@/components/items/UploadStickyBar';
-import { EnqueueFiles, GetPendingJobs, PickFiles } from '../../wailsjs/go/upload/Service';
+import { useActiveTransfers } from '@/hooks/useActiveTransfers';
+import { EnqueueFiles, PickFiles } from '../../wailsjs/go/upload/Service';
 import { upload } from '../../wailsjs/go/models';
-
-const PENDING_REFRESH_MS = 4000;
 
 export default function Upload() {
   const [files, setFiles] = useState<UploadFile[]>([]);
-  const [pendingJobs, setPendingJobs] = useState<upload.EnqueuedJob[]>([]);
   const [isPicking, setIsPicking] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-
-  const loadPendingJobs = async () => {
-    try {
-      const jobs = await GetPendingJobs();
-      setPendingJobs(jobs);
-    } catch (err) {
-      console.error('Failed to load pending uploads:', err);
-    }
-  };
-
-  useEffect(() => {
-    loadPendingJobs();
-    const interval = setInterval(loadPendingJobs, PENDING_REFRESH_MS);
-    return () => clearInterval(interval);
-  }, []);
+  const { transfers, refresh } = useActiveTransfers();
 
   const pickFiles = async () => {
     if (isPicking) return;
@@ -91,7 +75,7 @@ export default function Upload() {
       );
       toast.success(`Queued ${jobs.length} ${jobs.length === 1 ? 'file' : 'files'} for upload`);
       setFiles([]); // Clear queue after upload
-      loadPendingJobs();
+      refresh();
     } catch (err) {
       console.error('Upload error:', err);
       toast.error(String(err) || 'Failed to queue files. Please try again.');
@@ -112,17 +96,17 @@ export default function Upload() {
       {/* Dropzone Component */}
       <UploadDropzone onPick={pickFiles} />
 
-      {/* Pending Uploads */}
-      {pendingJobs.length > 0 && (
+      {/* Active Transfers */}
+      {transfers.length > 0 && (
         <div className="mt-10">
           <div className="mb-4">
             <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">
-              Pending Uploads ({pendingJobs.length})
+              Active Transfers ({transfers.length})
             </h2>
           </div>
 
           <div className="flex flex-col gap-3">
-            {pendingJobs.map((job) => (
+            {transfers.map((job) => (
               <PendingUploadItem key={job.ID} item={job} />
             ))}
           </div>

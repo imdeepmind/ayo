@@ -10,6 +10,7 @@ import (
 
 	"ayo/internal/features/auth"
 	"ayo/internal/features/settings"
+	"ayo/internal/platform/dialog"
 	"ayo/internal/platform/queue"
 	"ayo/internal/shared/errors"
 
@@ -30,17 +31,19 @@ type SettingsProvider interface {
 
 // QueueService is the subset of queue.Service that upload depends on. It covers
 // both enqueueing (Service) and the processor's needs (Get, GetIncompleteByType,
-// UpdateStatusAndProgress).
+// UpdateStatusAndProgress), plus Delete for clearing transient download jobs.
 type QueueService interface {
 	Add(input queue.AddInput) (*queue.Job, error)
 	GetAll() ([]*queue.Job, error)
 	Get(id int64) (*queue.Job, error)
 	GetIncompleteByType(jobType string) ([]*queue.Job, error)
 	UpdateStatusAndProgress(id int64, status string, progress int) error
+	Delete(id int64) error
 }
 
 // UploadRepository is the subset of upload.Repository the processor uses to
-// persist stored files and their shards after processing succeeds.
+// persist stored files and their shards after uploading, and to read them back
+// for downloads.
 type UploadRepository interface {
 	CreateUpload(
 		ctx context.Context,
@@ -52,6 +55,8 @@ type UploadRepository interface {
 		manifest shardManifest,
 	) (*Upload, error)
 	CreateChunks(ctx context.Context, fileID int64, chunks []ChunkInput) error
+	GetUpload(ctx context.Context, id int64) (*Upload, error)
+	GetChunks(ctx context.Context, fileID int64) ([]Chunk, error)
 }
 
 // Service handles the upload flow. It is bound to the frontend via Wails.
@@ -83,11 +88,35 @@ func NewService(sessionProvider SessionProvider, settingsProvider SettingsProvid
 }
 
 // Startup is called by Wails on application startup. It stores the application
-// context so native dialogs can be shown, and starts the background processor
-// that consumes queued jobs.
+// context so native dialogs can be shown, clears stale download staging from a
+// previous run, and starts the background processor that consumes queued jobs.
 func (s *Service) Startup(ctx context.Context) {
 	s.ctx = ctx
+	s.cleanupStaleDownloads()
 	s.processor.Start()
+}
+
+// cleanupStaleDownloads removes leftover staging files and download jobs from a
+// previous run. Downloads are ephemeral: anything still present at startup
+// (completed but never saved, or mid-flight) is discarded, since the staged
+// bytes are not a persisted record and the user can simply download again.
+func (s *Service) cleanupStaleDownloads() {
+	if err := os.RemoveAll(downloadsDir); err != nil {
+		slog.Error("startup: clear downloads staging", "error", err)
+	}
+	if err := os.MkdirAll(downloadsDir, 0o700); err != nil {
+		slog.Error("startup: create downloads staging", "error", err)
+	}
+
+	jobs, err := s.queueService.GetAll()
+	if err != nil {
+		return
+	}
+	for _, job := range jobs {
+		if job.Type == queue.TypeDownload {
+			_ = s.queueService.Delete(job.ID)
+		}
+	}
 }
 
 // PickFiles opens a native dialog for selecting one or more files and returns
@@ -150,6 +179,7 @@ func (s *Service) EnqueueFiles(input EnqueueFilesInput) ([]EnqueuedJob, error) {
 		}
 		jobs = append(jobs, EnqueuedJob{
 			ID:         job.ID,
+			Type:       job.Type,
 			File:       job.File,
 			CustomName: job.CustomName,
 			Size:       job.Size,
@@ -162,9 +192,11 @@ func (s *Service) EnqueueFiles(input EnqueueFilesInput) ([]EnqueuedJob, error) {
 	return jobs, nil
 }
 
-// GetPendingJobs returns the jobs still awaiting or in progress (pending and
-// processing), oldest first, so the frontend can render their upload progress.
-func (s *Service) GetPendingJobs() ([]EnqueuedJob, error) {
+// GetActiveTransfers returns the jobs currently in flight (pending or
+// processing, of any type) plus completed download jobs awaiting the save
+// dialog, oldest first, so the frontend can render progress and trigger
+// FinalizeDownload.
+func (s *Service) GetActiveTransfers() ([]EnqueuedJob, error) {
 	if _, err := s.sessionProvider.RequireSession(); err != nil {
 		return nil, err
 	}
@@ -174,22 +206,122 @@ func (s *Service) GetPendingJobs() ([]EnqueuedJob, error) {
 		return nil, err
 	}
 
-	pending := make([]EnqueuedJob, 0, len(jobs))
+	active := make([]EnqueuedJob, 0, len(jobs))
 	for _, job := range jobs {
 		if job.Status != queue.StatusPending && job.Status != queue.StatusProcessing {
-			continue
+			// Completed downloads are kept visible until the user picks a save
+			// destination; everything else done is no longer active.
+			if job.Type != queue.TypeDownload || job.Status != queue.StatusCompleted {
+				continue
+			}
 		}
-		pending = append(pending, EnqueuedJob{
-			ID:         job.ID,
-			File:       job.File,
-			CustomName: job.CustomName,
-			Size:       job.Size,
-			Status:     job.Status,
-			Progress:   job.Progress,
-			Tags:       job.Tags,
-		})
+		active = append(active, toEnqueuedJob(job))
 	}
-	return pending, nil
+	return active, nil
+}
+
+// toEnqueuedJob maps a queue.Job to the flat frontend-facing shape.
+func toEnqueuedJob(job *queue.Job) EnqueuedJob {
+	return EnqueuedJob{
+		ID:         job.ID,
+		Type:       job.Type,
+		File:       job.File,
+		CustomName: job.CustomName,
+		Size:       job.Size,
+		Status:     job.Status,
+		Progress:   job.Progress,
+		Tags:       job.Tags,
+	}
+}
+
+// EnqueueDownload queues a background download of the stored file with the
+// given upload ID and returns immediately. The file is reconstructed and staged
+// by the processor; FinalizeDownload shows the save dialog once it is ready.
+func (s *Service) EnqueueDownload(storageID int64) (EnqueuedJob, error) {
+	if _, err := s.sessionProvider.RequireSession(); err != nil {
+		return EnqueuedJob{}, err
+	}
+
+	upload, err := s.repo.GetUpload(context.Background(), storageID)
+	if err != nil {
+		slog.Error("download: get stored file", "storageID", storageID, "error", err)
+		return EnqueuedJob{}, errors.AsInternalServerError("download: get stored file", err)
+	}
+
+	name := upload.CustomName
+	if name == "" {
+		name = upload.File
+	}
+
+	job, err := s.queueService.Add(queue.AddInput{
+		Type:       queue.TypeDownload,
+		FileID:     storageID,
+		File:       upload.File,
+		CustomName: name,
+		Size:       upload.Size,
+	})
+	if err != nil {
+		slog.Error("download: enqueue", "storageID", storageID, "error", err)
+		return EnqueuedJob{}, err
+	}
+	s.processor.Submit(job.ID)
+	return toEnqueuedJob(job), nil
+}
+
+// FinalizeDownload shows the native save dialog for a completed download and,
+// on confirmation, copies the staged plaintext to the chosen location. The
+// staging file and the transient download job are removed either way. It
+// returns the saved path, or "" (nil error) when the user cancels.
+func (s *Service) FinalizeDownload(jobID int64) (string, error) {
+	if _, err := s.sessionProvider.RequireSession(); err != nil {
+		return "", err
+	}
+
+	job, err := s.queueService.Get(jobID)
+	if err != nil {
+		return "", err
+	}
+	if job.Type != queue.TypeDownload {
+		return "", errors.ErrInvalidInput
+	}
+
+	staged := filepath.Join(downloadsDir, fmt.Sprintf("%d", jobID))
+	if _, err := os.Stat(staged); err != nil {
+		return "", errors.NewInternalServerError("download: staged file missing", err)
+	}
+
+	name := job.CustomName
+	if name == "" {
+		name = job.File
+	}
+
+	dest, err := dialog.SaveFile(s.ctx, dialog.Options{
+		DefaultFilename: name,
+		Title:           "Save Downloaded File",
+	})
+	if err != nil {
+		return "", errors.AsInternalServerError("download: save dialog", err)
+	}
+
+	// The staging file and the transient job are discarded whether the user
+	// saves or cancels.
+	defer func() {
+		_ = os.Remove(staged)
+		_ = s.queueService.Delete(jobID)
+	}()
+
+	if dest == "" {
+		return "", nil
+	}
+
+	data, err := os.ReadFile(staged)
+	if err != nil {
+		return "", errors.AsInternalServerError("download: read staging", err)
+	}
+	if err := os.WriteFile(dest, data, 0o600); err != nil {
+		return "", errors.AsInternalServerError("download: write destination", err)
+	}
+	return dest, nil
 }
 
 // GetStoredFiles returns every persisted upload (the drive listing), newest

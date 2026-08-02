@@ -28,6 +28,9 @@ type Repository interface {
 	// CreateChunks inserts one row per shard for the given file in a single
 	// transaction.
 	CreateChunks(ctx context.Context, fileID int64, chunks []ChunkInput) error
+	// GetChunks returns the shard records for a stored file, ordered by shard
+	// index so they can be read back in reconstruction order.
+	GetChunks(ctx context.Context, fileID int64) ([]Chunk, error)
 	// GetAll returns every stored file, newest first.
 	GetAll(ctx context.Context) ([]*Upload, error)
 	// GetUpload fetches one stored file by its upload ID.
@@ -292,4 +295,37 @@ func (r *repository) DeleteUpload(ctx context.Context, id int64) error {
 		return fmt.Errorf("failed to delete upload: %w", err)
 	}
 	return nil
+}
+
+// GetChunks returns the shard records for a stored file, ordered by shard
+// index so they can be read back in reconstruction order.
+func (r *repository) GetChunks(ctx context.Context, fileID int64) ([]Chunk, error) {
+	query := `SELECT id, file_id, shard_index, chunk_id, storage_id, created_at
+		FROM chunks WHERE file_id = ? ORDER BY shard_index ASC`
+
+	rows, err := r.db.QueryContext(ctx, query, fileID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list chunks: %w", err)
+	}
+	defer rows.Close()
+
+	var chunks []Chunk
+	for rows.Next() {
+		var chunk Chunk
+		if err := rows.Scan(
+			&chunk.ID,
+			&chunk.FileID,
+			&chunk.ShardIndex,
+			&chunk.ChunkID,
+			&chunk.StorageID,
+			&chunk.CreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan chunk: %w", err)
+		}
+		chunks = append(chunks, chunk)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate chunks: %w", err)
+	}
+	return chunks, nil
 }

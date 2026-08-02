@@ -6,12 +6,20 @@ export function DeleteStoredFile(arg1) {
   return window['go']['upload']['Service']['DeleteStoredFile'](arg1);
 }
 
+export function EnqueueDownload(arg1) {
+  return window['go']['upload']['Service']['EnqueueDownload'](arg1);
+}
+
 export function EnqueueFiles(arg1) {
   return window['go']['upload']['Service']['EnqueueFiles'](arg1);
 }
 
-export function GetPendingJobs() {
-  return window['go']['upload']['Service']['GetPendingJobs']();
+export function FinalizeDownload(arg1) {
+  return window['go']['upload']['Service']['FinalizeDownload'](arg1);
+}
+
+export function GetActiveTransfers() {
+  return window['go']['upload']['Service']['GetActiveTransfers']();
 }
 
 export function GetStoredFiles() {

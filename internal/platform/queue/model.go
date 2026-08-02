@@ -31,6 +31,10 @@ type Job struct {
 	ID int64
 	// Type is the operation this job represents (upload, download or delete).
 	Type string
+	// FileID references the stored upload this job operates on (uploads.id).
+	// It is set for download/delete jobs and 0 for uploads, which carry their
+	// own source File instead.
+	FileID int64
 	// File is the original filename as it exists on disk (used to read the
 	// file during processing).
 	File string

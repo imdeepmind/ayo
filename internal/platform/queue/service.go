@@ -23,8 +23,11 @@ func NewService(repo Repository) *Service {
 
 // AddInput describes a file to enqueue. File and Path must be present. Type is
 // the operation kind (upload/download/delete); when empty it defaults to upload.
+// FileID references a stored upload for download/delete jobs; it is ignored for
+// uploads.
 type AddInput struct {
 	Type       string
+	FileID     int64
 	File       string
 	CustomName string
 	Path       string
@@ -32,13 +35,11 @@ type AddInput struct {
 	Tags       []string
 }
 
-// Add enqueues a file as a single pending job (progress 0) and returns the
-// persisted job, populated with its assigned ID. One call per file.
+// Add enqueues a single pending job (progress 0) and returns the persisted job,
+// populated with its assigned ID. One call per job. The required inputs depend
+// on the job type: uploads carry a source File and Path, while download/delete
+// jobs reference an existing stored upload via FileID.
 func (s *Service) Add(input AddInput) (*Job, error) {
-	if input.File == "" || input.Path == "" || input.Size < 0 {
-		return nil, errors.ErrInvalidInput
-	}
-
 	if input.Type == "" {
 		input.Type = TypeUpload
 	}
@@ -46,8 +47,20 @@ func (s *Service) Add(input AddInput) (*Job, error) {
 		return nil, errors.ErrInvalidInput
 	}
 
+	switch input.Type {
+	case TypeUpload:
+		if input.File == "" || input.Path == "" || input.Size < 0 {
+			return nil, errors.ErrInvalidInput
+		}
+	case TypeDownload, TypeDelete:
+		if input.FileID <= 0 {
+			return nil, errors.ErrInvalidInput
+		}
+	}
+
 	job, err := s.repo.Add(context.Background(), &Job{
 		Type:       input.Type,
+		FileID:     input.FileID,
 		File:       input.File,
 		CustomName: input.CustomName,
 		Path:       input.Path,

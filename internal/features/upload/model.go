@@ -13,9 +13,11 @@ type PickedFile struct {
 
 // EnqueuedJob is the frontend-facing representation of a queued file. It is a
 // slimmed-down view of a queue.Job: timestamps are omitted so the Wails model
-// stays a flat, predictable shape.
+// stays a flat, predictable shape. Type lets the UI distinguish upload,
+// download and (future) delete jobs.
 type EnqueuedJob struct {
 	ID         int64
+	Type       string
 	File       string
 	CustomName string
 	Size       int64

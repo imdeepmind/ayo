@@ -56,6 +56,7 @@ func initializeTable(db *sql.DB) error {
 	query := `CREATE TABLE IF NOT EXISTS queue (
 		id          INTEGER PRIMARY KEY AUTOINCREMENT,
 		type        TEXT NOT NULL DEFAULT 'upload' CHECK (type IN ('upload', 'download', 'delete')),
+		file_id     INTEGER NOT NULL DEFAULT 0,
 		file        TEXT NOT NULL,
 		custom_name TEXT NOT NULL DEFAULT '',
 		path        TEXT NOT NULL,
@@ -81,13 +82,14 @@ func (r *repository) Add(ctx context.Context, job *Job) (*Job, error) {
 		return nil, fmt.Errorf("failed to encode tags: %w", err)
 	}
 
-	query := `INSERT INTO queue (type, file, custom_name, path, size, status, progress, tags)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+	query := `INSERT INTO queue (type, file_id, file, custom_name, path, size, status, progress, tags)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	result, err := r.db.ExecContext(
 		ctx,
 		query,
 		job.Type,
+		job.FileID,
 		job.File,
 		job.CustomName,
 		job.Path,
@@ -110,7 +112,7 @@ func (r *repository) Add(ctx context.Context, job *Job) (*Job, error) {
 
 // Get fetches a job by ID. It returns ErrJobNotFound when no such job exists.
 func (r *repository) Get(ctx context.Context, id int64) (*Job, error) {
-	query := `SELECT id, type, file, custom_name, path, size, status, progress, tags,
+	query := `SELECT id, type, file_id, file, custom_name, path, size, status, progress, tags,
 		created_at, updated_at FROM queue WHERE id = ?`
 
 	job, err := scanJob(r.db.QueryRowContext(ctx, query, id))
@@ -126,7 +128,7 @@ func (r *repository) Get(ctx context.Context, id int64) (*Job, error) {
 // GetAll returns every job ordered oldest first, which is the natural order
 // for processing.
 func (r *repository) GetAll(ctx context.Context) ([]*Job, error) {
-	query := `SELECT id, type, file, custom_name, path, size, status, progress, tags,
+	query := `SELECT id, type, file_id, file, custom_name, path, size, status, progress, tags,
 		created_at, updated_at FROM queue ORDER BY id ASC`
 
 	rows, err := r.db.QueryContext(ctx, query)
@@ -158,6 +160,7 @@ func scanJob(row interface{ Scan(dest ...any) error }) (*Job, error) {
 	err := row.Scan(
 		&job.ID,
 		&job.Type,
+		&job.FileID,
 		&job.File,
 		&job.CustomName,
 		&job.Path,
@@ -212,7 +215,7 @@ func (r *repository) Update(ctx context.Context, id int64, status string, progre
 // progress (pending and processing), oldest first, so a worker can resume work
 // after a restart.
 func (r *repository) GetIncompleteByType(ctx context.Context, jobType string) ([]*Job, error) {
-	query := `SELECT id, type, file, custom_name, path, size, status, progress, tags,
+	query := `SELECT id, type, file_id, file, custom_name, path, size, status, progress, tags,
 		created_at, updated_at FROM queue
 		WHERE type = ? AND status IN (?, ?) ORDER BY id ASC`
 

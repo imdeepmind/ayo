@@ -1,9 +1,12 @@
 import { Link } from 'react-router-dom';
-import { Settings } from 'lucide-react';
+import { Settings, Loader2 } from 'lucide-react';
 import IconButton from '@/components/bits/IconButton';
 
 type DriveStatusBarProps = {
   totalUsedBytes: number;
+  activeUploads: number;
+  activeDownloads: number;
+  overallProgress: number | null;
 };
 
 function formatSize(bytes: number): string {
@@ -14,7 +17,24 @@ function formatSize(bytes: number): string {
   return `${value.toFixed(1)} ${units[index]}`;
 }
 
-export default function DriveStatusBar({ totalUsedBytes }: DriveStatusBarProps) {
+function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`;
+}
+
+export default function DriveStatusBar({
+  totalUsedBytes,
+  activeUploads,
+  activeDownloads,
+  overallProgress,
+}: DriveStatusBarProps) {
+  const hasTransfers = activeUploads > 0 || activeDownloads > 0;
+
+  const statusParts: string[] = [];
+  if (activeUploads > 0) statusParts.push(`Uploading ${plural(activeUploads, 'file')}`);
+  if (activeDownloads > 0) statusParts.push(`Downloading ${plural(activeDownloads, 'file')}`);
+  const statusText = statusParts.join(' · ');
+  const progress = overallProgress ?? 0;
+
   return (
     <div className="fixed inset-x-0 bottom-0 z-10 border-t border-slate-200 bg-white/90 text-xs text-slate-600 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/90 dark:text-slate-300 w-full">
       <div className="mx-auto flex w-full items-center justify-between gap-4 px-4 md:px-8 lg:px-16 py-2">
@@ -26,6 +46,25 @@ export default function DriveStatusBar({ totalUsedBytes }: DriveStatusBarProps) 
           </Link>
           <span className="whitespace-nowrap">Storage used: {formatSize(totalUsedBytes)}</span>
         </div>
+
+        {hasTransfers ? (
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1.5 whitespace-nowrap font-medium text-sky-700 dark:text-sky-300">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              {statusText} · {progress}%
+            </span>
+            <div className="h-1.5 w-32 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+              <div
+                className="h-full rounded-full bg-sky-500 transition-[width] duration-500"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+        ) : (
+          <span className="hidden sm:block text-slate-400 dark:text-slate-500">
+            {statusText || 'All caught up'}
+          </span>
+        )}
       </div>
     </div>
   );

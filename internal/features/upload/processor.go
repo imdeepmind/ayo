@@ -31,14 +31,19 @@ const (
 	// job. Their reconstruction metadata lives on the uploads table, not in the
 	// chunk folder.
 	chunksDir = "data/chunks"
+	// downloadsDir is where reconstructed download jobs are staged until the
+	// user picks a final destination via the native save dialog. Files are
+	// named by job ID and cleaned up on finalize (or swept at startup).
+	downloadsDir = "data/downloads"
 )
 
-// Processor consumes queued jobs off a channel and runs the upload pipeline for
-// each one. It is the worker half of the upload feature: files are enqueued via
-// Service.EnqueueFiles and processed asynchronously here.
+// Processor consumes queued jobs off a channel and runs the upload/download
+// pipeline for each one. It is the worker half of the upload feature: files are
+// enqueued via Service and processed asynchronously here, dispatching on each
+// job's type.
 //
-// The current pipeline mirrors how settings are encrypted, then splits the
-// encrypted file into Reed-Solomon shards:
+// Upload pipeline (mirrors how settings are encrypted, then splits the
+// encrypted file into Reed-Solomon shards):
 //
 //  1. The entire file is read, encrypted with the session master key via
 //     crypto.EncryptData, and the self-contained blob (nonce ‖ ciphertext) is
@@ -49,7 +54,14 @@ const (
 //  3. An uploads record (carrying the reconstruction metadata) and one chunks
 //     record per shard are persisted, then the job is marked completed.
 //
-// The chunk upload stage will be appended to process in a later step.
+// Download pipeline reverses that: the stored upload's shards are read back in
+// order, reconstructed with Reed-Solomon, concatenated, trimmed to the stored
+// encrypted size and decrypted, then staged under data/downloads/<jobID> until
+// the user picks a destination. The frontend triggers that final copy via
+// Service.FinalizeDownload.
+//
+// The chunk upload stage will be appended to the upload pipeline in a later
+// step.
 type Processor struct {
 	sessionProvider  SessionProvider
 	settingsProvider SettingsProvider
@@ -123,12 +135,20 @@ func (p *Processor) push(id int64) {
 	}
 }
 
-// resume feeds upload jobs left over from a previous run into the channel so
-// they are processed alongside newly enqueued ones. It runs once, on the first
-// Submit, by which point the caller holds a valid session. Only upload-type
-// jobs are claimed; download/delete jobs belong to other workers.
+// resume feeds upload and download jobs left over from a previous run into the
+// channel so they are processed alongside newly enqueued ones. It runs once,
+// on the first Submit, by which point the caller holds a valid session. Other
+// job types (e.g. delete) belong to workers that do not exist yet and are left
+// untouched.
 func (p *Processor) resume() {
-	incomplete, err := p.queue.GetIncompleteByType(queue.TypeUpload)
+	p.resumeType(queue.TypeUpload)
+	p.resumeType(queue.TypeDownload)
+}
+
+// resumeType enqueues every incomplete job of the given type, resetting any
+// that were mid-flight when the app shut down.
+func (p *Processor) resumeType(jobType string) {
+	incomplete, err := p.queue.GetIncompleteByType(jobType)
 	if err != nil {
 		return
 	}
@@ -154,16 +174,32 @@ func (p *Processor) worker() {
 	}
 }
 
-// process runs the upload pipeline for a single job. It is the upload
-// counterpart of settings.UpdateSettings: the file is encrypted with the
-// session master key and the resulting blob is persisted.
+// process runs the pipeline for a single job, dispatching on its type. It is
+// the upload counterpart of settings.UpdateSettings: the file is encrypted with
+// the session master key and the resulting blob is persisted.
 func (p *Processor) process(id int64) {
-	if err := p.queue.UpdateStatusAndProgress(id, queue.StatusProcessing, 0); err != nil {
+	job, err := p.queue.Get(id)
+	if err != nil {
 		return
 	}
 
-	job, err := p.queue.Get(id)
-	if err != nil {
+	switch job.Type {
+	case queue.TypeDownload:
+		p.processDownload(job)
+	case queue.TypeUpload:
+		p.processUpload(job)
+	default:
+		// No worker for this type yet; keep it pending so a future worker can
+		// claim it rather than failing it.
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusPending, 0)
+	}
+}
+
+// processUpload encrypts and chunks one queued file, then persists the uploads
+// and chunks records.
+func (p *Processor) processUpload(job *queue.Job) {
+	id := job.ID
+	if err := p.queue.UpdateStatusAndProgress(id, queue.StatusProcessing, 0); err != nil {
 		return
 	}
 
@@ -225,6 +261,80 @@ func (p *Processor) process(id int64) {
 
 	if err := p.uploadRepository.CreateChunks(context.Background(), upload.ID, shards); err != nil {
 		slog.Error("persist chunks", "error", err)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 90)
+		return
+	}
+
+	_ = p.queue.UpdateStatusAndProgress(id, queue.StatusCompleted, 100)
+}
+
+// processDownload reconstructs a stored file from its shards, decrypts it and
+// stages the plaintext under data/downloads/<jobID> so the user can pick a
+// destination. The staged file is finalized (copied + cleaned up) by
+// Service.FinalizeDownload.
+func (p *Processor) processDownload(job *queue.Job) {
+	id := job.ID
+	if err := p.queue.UpdateStatusAndProgress(id, queue.StatusProcessing, 0); err != nil {
+		return
+	}
+
+	session, err := p.sessionProvider.RequireSession()
+	if err != nil {
+		// No session means no master key. Keep the job pending rather than
+		// failing it; it will be picked up on the next resume.
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusPending, 0)
+		return
+	}
+
+	upload, err := p.uploadRepository.GetUpload(context.Background(), job.FileID)
+	if err != nil {
+		slog.Error("download: get stored file", "job", id, "error", err)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 0)
+		return
+	}
+
+	chunks, err := p.uploadRepository.GetChunks(context.Background(), upload.ID)
+	if err != nil {
+		slog.Error("download: get shards", "job", id, "error", err)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 10)
+		return
+	}
+
+	dir := filepath.Join(chunksDir, fmt.Sprintf("job_%d", upload.JobID))
+	shardPaths := make([]string, 0, len(chunks))
+	for _, chunk := range chunks {
+		shardPaths = append(shardPaths, filepath.Join(dir, chunk.ChunkID))
+	}
+
+	ciphertext, err := reconstructCiphertext(shardManifest{
+		EncryptedSize: upload.EncryptedSize,
+		DataShards:    upload.DataShards,
+		ParityShards:  upload.ParityShards,
+		ShardSize:     upload.ShardSize,
+		BlockCount:    upload.BlockCount,
+	}, shardPaths)
+	if err != nil {
+		slog.Error("download: reconstruct", "job", id, "error", err)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 50)
+		return
+	}
+
+	_ = p.queue.UpdateStatusAndProgress(id, queue.StatusProcessing, 80)
+
+	plaintext, err := crypto.DecryptData(session.MasterKey, ciphertext)
+	if err != nil {
+		slog.Error("download: decrypt", "job", id, "error", err)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 90)
+		return
+	}
+
+	if err := os.MkdirAll(downloadsDir, 0o700); err != nil {
+		slog.Error("download: create staging dir", "error", err)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 90)
+		return
+	}
+	if err := os.WriteFile(filepath.Join(downloadsDir, fmt.Sprintf("%d", id)), plaintext, 0o600); err != nil {
+		slog.Error("download: write staging", "error", err)
 		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 90)
 		return
 	}

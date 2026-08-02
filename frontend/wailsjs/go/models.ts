@@ -220,6 +220,7 @@ export namespace upload {
 	}
 	export class EnqueuedJob {
 	    ID: number;
+	    Type: string;
 	    File: string;
 	    CustomName: string;
 	    Size: number;
@@ -234,6 +235,7 @@ export namespace upload {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.ID = source["ID"];
+	        this.Type = source["Type"];
 	        this.File = source["File"];
 	        this.CustomName = source["CustomName"];
 	        this.Size = source["Size"];
