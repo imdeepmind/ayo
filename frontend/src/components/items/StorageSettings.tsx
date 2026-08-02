@@ -624,6 +624,7 @@ export default function StorageSettings() {
             label="Enable Ayo Provided Storage"
             description="Let Ayo manage your storage infrastructure."
             checked={ayoEnabled}
+            disabled
             onChange={(e) => setAyoEnabled(e.target.checked)}
           />
 
