@@ -14,7 +14,7 @@ export default function GlobalStatusBar() {
   return (
     <DriveStatusBar
       totalUsedBytes={storageUsed}
-      activeUploads={uploads.length}
+      uploads={uploads.map((u) => ({ name: u.CustomName || u.File, progress: u.Progress }))}
       activeDownloads={downloads.length}
       activeDeletes={deletes.length}
       overallProgress={overallProgress}
