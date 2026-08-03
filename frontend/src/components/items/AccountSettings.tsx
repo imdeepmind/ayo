@@ -91,38 +91,44 @@ export default function AccountSettings() {
   const currentAction = actions.find((a) => a.id === activeAction);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-          Account Settings
-        </h2>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Account Settings</h2>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
           Manage your account security and data.
         </p>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         {actions.map((action) => (
           <div
             key={action.id}
-            className={`rounded-xl border p-4 transition ${
+            className={`rounded-2xl border-2 p-6 transition-all duration-200 ${
               action.variant === 'danger'
-                ? 'border-red-200 bg-red-50/30 dark:border-red-900/40 dark:bg-red-900/10'
-                : 'border-amber-200 bg-amber-50/30 dark:border-amber-900/40 dark:bg-amber-900/10'
+                ? 'border-red-200 bg-gradient-to-br from-red-50 to-rose-50 dark:border-red-900/40 dark:from-red-950/20 dark:to-rose-950/20'
+                : 'border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50 dark:border-amber-900/40 dark:from-amber-950/20 dark:to-yellow-950/20'
             }`}
           >
-            <div className="flex items-start gap-3">
-              <action.icon className="mt-0.5 h-5 w-5 flex-shrink-0" />
+            <div className="flex items-start gap-4">
+              <div
+                className={`rounded-xl p-2.5 ${
+                  action.variant === 'danger'
+                    ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+                    : 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
+                }`}
+              >
+                <action.icon className="h-5 w-5" />
+              </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
                   {action.title}
                 </h3>
-                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
                   {action.description}
                 </p>
 
                 {activeAction === action.id ? (
-                  <form onSubmit={handleSubmit(onSubmit)} className="mt-4 space-y-3">
+                  <form onSubmit={handleSubmit(onSubmit)} className="mt-5 space-y-4">
                     <TextInput
                       id={`${action.id}-password`}
                       label="Current Password"
@@ -161,14 +167,14 @@ export default function AccountSettings() {
                       </>
                     )}
 
-                    <div className="flex gap-2 pt-1">
-                      <Button type="submit" className="text-xs px-3 py-1.5" disabled={isSubmitting}>
+                    <div className="flex gap-3 pt-2">
+                      <Button type="submit" className="text-sm" disabled={isSubmitting}>
                         {isSubmitting ? 'Processing...' : currentAction?.confirmLabel}
                       </Button>
                       <Button
                         type="button"
                         variant="ghost"
-                        className="text-xs px-3 py-1.5"
+                        className="text-sm"
                         onClick={handleCancel}
                       >
                         Cancel
@@ -182,10 +188,10 @@ export default function AccountSettings() {
                       reset();
                       setActiveAction(action.id);
                     }}
-                    className={`mt-3 inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                    className={`mt-4 inline-flex items-center rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-200 shadow-lg ${
                       action.variant === 'danger'
-                        ? 'bg-red-500 text-white hover:bg-red-600 shadow-sm'
-                        : 'bg-amber-500 text-white hover:bg-amber-600 shadow-sm'
+                        ? 'bg-gradient-to-r from-red-500 to-rose-500 text-white hover:from-red-400 hover:to-rose-400 hover:shadow-xl shadow-red-500/30'
+                        : 'bg-gradient-to-r from-amber-500 to-yellow-500 text-white hover:from-amber-400 hover:to-yellow-400 hover:shadow-xl shadow-amber-500/30'
                     }`}
                   >
                     {action.buttonLabel}

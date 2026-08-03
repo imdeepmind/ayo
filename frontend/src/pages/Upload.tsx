@@ -85,10 +85,10 @@ export default function Upload() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-8 md:px-8 pb-32">
-      <div className="mb-8">
-        <h1 className="mb-2 text-2xl font-bold text-slate-900 dark:text-slate-100">Upload Files</h1>
-        <p className="text-slate-600 dark:text-slate-400">
+    <div className="mx-auto w-full max-w-4xl px-4 py-10 md:px-8 pb-32">
+      <div className="mb-10">
+        <h1 className="mb-3 text-3xl font-bold text-slate-900 dark:text-slate-100">Upload Files</h1>
+        <p className="text-base text-slate-600 dark:text-slate-400 leading-relaxed">
           Drop files below or click to browse your computer.
         </p>
       </div>
@@ -98,14 +98,14 @@ export default function Upload() {
 
       {/* Active Transfers */}
       {transfers.length > 0 && (
-        <div className="mt-10">
-          <div className="mb-4">
-            <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">
+        <div className="mt-12">
+          <div className="mb-5">
+            <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">
               Active Transfers ({transfers.length})
             </h2>
           </div>
 
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-4">
             {transfers.map((job) => (
               <PendingUploadItem key={job.ID} item={job} />
             ))}
@@ -115,21 +115,21 @@ export default function Upload() {
 
       {/* File List */}
       {files.length > 0 && (
-        <div className="mt-10">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">
+        <div className="mt-12">
+          <div className="mb-5 flex items-center justify-between">
+            <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">
               Selected Files ({files.length})
             </h2>
             <Button
               variant="ghost"
               onClick={() => setFiles([])}
-              className="px-3 py-1.5 text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+              className="px-4 py-2 text-sm font-semibold text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
             >
               Clear All
             </Button>
           </div>
 
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-4">
             {files.map((fileInfo) => (
               <UploadFileItem
                 key={fileInfo.id}

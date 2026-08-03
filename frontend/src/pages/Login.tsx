@@ -44,29 +44,29 @@ export default function Login() {
   return (
     <PageSection>
       <AuthCard
-        title="Login"
-        description={<>Please provide your username and password to login to your ayo drive.</>}
+        title="Welcome back"
+        description={<>Sign in to access your secure, encrypted ayo drive</>}
         footer={
-          <div className="flex flex-col items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-300 sm:flex-row">
-            <div className="flex gap-2">
-              <span>New here?</span>
+          <div className="flex flex-col items-center justify-between gap-3 text-sm text-slate-600 dark:text-slate-400 sm:flex-row">
+            <div className="flex items-center gap-1.5">
+              <span>New to ayo?</span>
               <Link
                 to="/auth/register"
-                className="font-medium text-sky-600 hover:text-sky-500 dark:text-sky-400 dark:hover:text-sky-300"
+                className="font-semibold text-sky-600 hover:text-sky-500 dark:text-sky-400 dark:hover:text-sky-300 transition-colors"
               >
-                Create an account
+                Create an account →
               </Link>
             </div>
             <Link
               to="/auth/reset"
-              className="font-medium text-slate-600 underline underline-offset-4 hover:text-sky-600 dark:text-slate-300 dark:hover:text-sky-300"
+              className="font-medium text-slate-500 hover:text-sky-600 dark:text-slate-400 dark:hover:text-sky-400 transition-colors"
             >
               Forgot password?
             </Link>
           </div>
         }
       >
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
           <TextInput
             id="username"
             label="Username"
@@ -86,7 +86,7 @@ export default function Login() {
             {...register('password')}
           />
 
-          <Button type="submit" fullWidth className="mt-2" disabled={isSubmitting}>
+          <Button type="submit" fullWidth className="mt-6" disabled={isSubmitting}>
             {isSubmitting ? 'Signing in...' : 'Sign in'}
           </Button>
         </form>

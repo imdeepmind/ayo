@@ -97,19 +97,19 @@ function ProviderForm({
   };
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white transition dark:border-slate-700 dark:bg-slate-800/60">
+    <div className="rounded-2xl border-2 border-slate-200 bg-white/90 backdrop-blur-sm shadow-lg transition-all duration-200 dark:border-slate-700 dark:bg-slate-800/90">
       {/* Header */}
       <button
         type="button"
         onClick={() => onToggleCollapse(provider.id)}
-        className="flex w-full items-center justify-between px-4 py-3 text-left"
+        className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-slate-50/50 dark:hover:bg-slate-700/30 rounded-t-2xl transition-colors"
       >
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-sky-500">
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400">
             {providerLabel(provider.type)}
           </span>
           {!provider.collapsed && (
-            <span className="text-xs text-slate-400">
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
               {provider.type === 'aws'
                 ? (provider.fields as AWSFields).bucketName || 'Untitled'
                 : provider.type === 'azure'
@@ -120,7 +120,7 @@ function ProviderForm({
         </div>
         <div className="flex items-center gap-2">
           <ChevronDown
-            className="h-3.5 w-3.5 text-slate-400 transition-transform"
+            className="h-4 w-4 text-slate-400 transition-transform duration-200"
             style={{ transform: provider.collapsed ? 'rotate(0deg)' : 'rotate(180deg)' }}
           />
         </div>
@@ -128,7 +128,7 @@ function ProviderForm({
 
       {/* Body */}
       {!provider.collapsed && (
-        <div className="space-y-3 border-t border-slate-100 px-4 pb-4 pt-3 dark:border-slate-700">
+        <div className="space-y-4 border-t-2 border-slate-100 px-6 pb-6 pt-5 dark:border-slate-700">
           {provider.type === 'aws' && (
             <>
               <TextInput
@@ -199,10 +199,10 @@ function ProviderForm({
 
           {provider.type === 'gcp' && (
             <>
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <label
                   htmlFor={`${provider.id}-sa-json`}
-                  className="block text-sm font-medium text-slate-700 dark:text-slate-200"
+                  className="block text-sm font-semibold text-slate-700 dark:text-slate-200"
                 >
                   Service Account JSON
                 </label>
@@ -212,16 +212,36 @@ function ProviderForm({
                   placeholder='{"type": "service_account", ...}'
                   value={(provider.fields as GCPFields).serviceAccountJson}
                   onChange={(e) => update('serviceAccountJson', e.target.value)}
-                  className={`w-full rounded-lg border ${errors.serviceAccountJson ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-slate-300 focus:border-sky-500 focus:ring-sky-500'} bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm outline-none transition focus:ring-2 dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-100 font-mono`}
+                  className={`w-full rounded-xl border-2 ${errors.serviceAccountJson ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20' : 'border-slate-200 focus:border-sky-500 focus:ring-sky-500/20 dark:border-slate-600 dark:focus:border-sky-400'} bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm outline-none transition-all duration-200 focus:ring-4 dark:bg-slate-900/50 dark:text-slate-100 dark:placeholder:text-slate-500 font-mono`}
                 />
                 {errors.serviceAccountJson && (
-                  <p className="text-xs text-red-500 dark:text-red-400">
+                  <p className="text-sm text-red-500 dark:text-red-400 flex items-center gap-1.5">
+                    <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
                     {errors.serviceAccountJson}
                   </p>
                 )}
-                <p className="text-xs text-slate-400 dark:text-slate-500">
-                  Must contain: type, project_id, private_key_id, private_key, client_email,
-                  client_id
+                <p className="text-xs text-slate-500 dark:text-slate-400 flex items-start gap-1.5">
+                  <svg
+                    className="w-3.5 h-3.5 flex-shrink-0 mt-0.5"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  <span>
+                    Must contain: type, project_id, private_key_id, private_key, client_email,
+                    client_id
+                  </span>
                 </p>
               </div>
               <TextInput
@@ -235,12 +255,20 @@ function ProviderForm({
             </>
           )}
 
-          <div className="pt-2">
+          <div className="pt-3 flex items-center gap-2">
             <button
               type="button"
               onClick={() => onRemove(provider.id)}
-              className="text-xs font-medium text-red-500 transition hover:text-red-600 dark:text-red-400 dark:hover:text-red-300"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-500 transition-colors hover:text-red-600 dark:text-red-400 dark:hover:text-red-300"
             >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                />
+              </svg>
               Remove Provider
             </button>
           </div>
@@ -502,25 +530,23 @@ export default function StorageSettings() {
 
   // -- Tab classes --
   const tabClass = (id: TabId) =>
-    `px-4 py-2.5 text-sm font-medium transition-colors border-b-2 ${
+    `px-5 py-3 text-sm font-semibold transition-all duration-200 border-b-2 ${
       activeTab === id
-        ? 'border-sky-500 text-sky-600 dark:text-sky-400'
-        : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
+        ? 'border-sky-500 text-sky-600 dark:border-sky-400 dark:text-sky-400'
+        : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 dark:text-slate-400 dark:hover:text-slate-300 dark:hover:border-slate-600'
     }`;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-          Storage Settings
-        </h2>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Storage Settings</h2>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
           Configure where your files are stored and how they are protected.
         </p>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-200 dark:border-slate-700">
+      <div className="flex border-b-2 border-slate-200 dark:border-slate-700">
         <button type="button" className={tabClass('custom')} onClick={() => setActiveTab('custom')}>
           Custom Storage (Recommended)
         </button>
@@ -531,20 +557,22 @@ export default function StorageSettings() {
 
       {/* Custom Storage Tab */}
       {activeTab === 'custom' && (
-        <div className="space-y-5">
-          <Toggle
-            id="custom-storage-toggle"
-            label="Enable Custom Storage"
-            description="Use your own cloud storage for maximum security and cost control."
-            checked={customEnabled}
-            onChange={(e) => setCustomEnabled(e.target.checked)}
-          />
+        <div className="space-y-6">
+          <div className="rounded-2xl border-2 border-slate-200 bg-white/90 backdrop-blur-sm p-6 shadow-lg dark:border-slate-700 dark:bg-slate-800/90">
+            <Toggle
+              id="custom-storage-toggle"
+              label="Enable Custom Storage"
+              description="Use your own cloud storage for maximum security and cost control."
+              checked={customEnabled}
+              onChange={(e) => setCustomEnabled(e.target.checked)}
+            />
+          </div>
 
           <div
-            className={`space-y-5 transition-opacity ${customEnabled ? 'opacity-100' : 'pointer-events-none opacity-40'}`}
+            className={`space-y-6 transition-opacity duration-200 ${customEnabled ? 'opacity-100' : 'pointer-events-none opacity-40'}`}
           >
             {/* Provider list */}
-            <div className="space-y-3">
+            <div className="space-y-4">
               {providers.map((p) => (
                 <ProviderForm
                   key={p.id}
@@ -558,21 +586,31 @@ export default function StorageSettings() {
             </div>
 
             {/* Add provider */}
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                Add storage provider:
-              </span>
-              {(['aws', 'gcp', 'azure'] as ProviderType[]).map((type) => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => addProvider(type)}
-                  disabled={!customEnabled}
-                  className="inline-flex items-center gap-1 rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-sky-400 hover:text-sky-600 dark:border-slate-600 dark:text-slate-300 dark:hover:border-sky-500 dark:hover:text-sky-400 disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  + {providerLabel(type)}
-                </button>
-              ))}
+            <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 p-6 dark:border-slate-700 dark:bg-slate-900/30">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  Add storage provider:
+                </span>
+                {(['aws', 'gcp', 'azure'] as ProviderType[]).map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => addProvider(type)}
+                    disabled={!customEnabled}
+                    className="inline-flex items-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-sm transition-all duration-200 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-600 hover:shadow-md dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-sky-500 dark:hover:bg-sky-950/30 dark:hover:text-sky-400 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-slate-300 disabled:hover:bg-white disabled:hover:text-slate-600"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 4v16m8-8H4"
+                      />
+                    </svg>
+                    {providerLabel(type)}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Erasure Coding */}
@@ -586,13 +624,8 @@ export default function StorageSettings() {
 
             {/* Save */}
             <div className="pt-2">
-              <Button
-                type="button"
-                onClick={handleSaveCustom}
-                disabled={!customEnabled}
-                className="text-sm"
-              >
-                Save Custom Storage Settings
+              <Button type="button" onClick={handleSaveCustom} disabled={!customEnabled}>
+                💾 Save Custom Storage Settings
               </Button>
             </div>
           </div>
@@ -601,16 +634,18 @@ export default function StorageSettings() {
 
       {/* Ayo Provided Storage Tab */}
       {activeTab === 'ayo' && (
-        <div className="space-y-5">
+        <div className="space-y-6">
           {/* Warning */}
-          <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-700/60 dark:bg-amber-900/20">
-            <div className="flex gap-3">
-              <AlertTriangle className="h-5 w-5 flex-shrink-0 text-amber-500" />
-              <div>
-                <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+          <div className="rounded-2xl border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50 p-6 dark:border-amber-700/60 dark:from-amber-950/20 dark:to-yellow-950/20">
+            <div className="flex gap-4">
+              <div className="rounded-xl bg-amber-100 p-2.5 dark:bg-amber-900/30">
+                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="flex-1">
+                <p className="text-base font-bold text-amber-900 dark:text-amber-100">
                   Custom storage is more secure and cheaper
                 </p>
-                <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                <p className="mt-2 text-sm text-amber-800 dark:text-amber-200 leading-relaxed">
                   Use Ayo Provided Storage only if you want to avoid the technical difficulties of
                   setting up your own cloud storage. Your data will be stored on Ayo-managed
                   infrastructure.
@@ -619,17 +654,19 @@ export default function StorageSettings() {
             </div>
           </div>
 
-          <Toggle
-            id="ayo-storage-toggle"
-            label="Enable Ayo Provided Storage"
-            description="Let Ayo manage your storage infrastructure."
-            checked={ayoEnabled}
-            disabled
-            onChange={(e) => setAyoEnabled(e.target.checked)}
-          />
+          <div className="rounded-2xl border-2 border-slate-200 bg-white/90 backdrop-blur-sm p-6 shadow-lg dark:border-slate-700 dark:bg-slate-800/90">
+            <Toggle
+              id="ayo-storage-toggle"
+              label="Enable Ayo Provided Storage"
+              description="Let Ayo manage your storage infrastructure."
+              checked={ayoEnabled}
+              disabled
+              onChange={(e) => setAyoEnabled(e.target.checked)}
+            />
+          </div>
 
           <div
-            className={`space-y-5 transition-opacity ${ayoEnabled ? 'opacity-100' : 'pointer-events-none opacity-40'}`}
+            className={`space-y-6 transition-opacity duration-200 ${ayoEnabled ? 'opacity-100' : 'pointer-events-none opacity-40'}`}
           >
             <ErasureCodingSection
               enabled={ayoErasureEnabled}
@@ -640,13 +677,8 @@ export default function StorageSettings() {
             />
 
             <div className="pt-2">
-              <Button
-                type="button"
-                onClick={handleSaveAyo}
-                disabled={!ayoEnabled}
-                className="text-sm"
-              >
-                Save Ayo Storage Settings
+              <Button type="button" onClick={handleSaveAyo} disabled={!ayoEnabled}>
+                💾 Save Ayo Storage Settings
               </Button>
             </div>
           </div>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import PageSection from '@/components/bits/Section';
 import AuthCard from '@/components/items/AuthCard';
@@ -65,29 +65,84 @@ export default function Register() {
   return (
     <PageSection>
       <AuthCard
-        title="Register"
+        title={recoveryKey ? 'Save your recovery key' : 'Create your account'}
         description={
           recoveryKey
-            ? 'Save your recovery key securely. You will need it to restore your account.'
-            : 'Create a simple demo account with a username and password.'
+            ? 'This key is essential for account recovery. Store it in a safe place.'
+            : 'Join ayo and start storing your files securely with end-to-end encryption.'
+        }
+        footer={
+          !recoveryKey && (
+            <div className="flex items-center justify-center gap-1.5 text-sm text-slate-600 dark:text-slate-400">
+              <span>Already have an account?</span>
+              <Link
+                to="/auth/login"
+                className="font-semibold text-sky-600 hover:text-sky-500 dark:text-sky-400 dark:hover:text-sky-300 transition-colors"
+              >
+                Sign in →
+              </Link>
+            </div>
+          )
         }
       >
         {recoveryKey ? (
-          <div className="space-y-4">
-            <div className="p-4 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-700">
-              <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 font-semibold">
-                Your Recovery Key:
-              </p>
-              <p className="font-mono text-sm break-all text-gray-900 dark:text-gray-100">
-                {recoveryKey}
-              </p>
+          <div className="space-y-5">
+            <div className="relative overflow-hidden rounded-xl border-2 border-sky-200 dark:border-sky-800 bg-gradient-to-br from-sky-50 to-blue-50 dark:from-sky-950/30 dark:to-blue-950/30 p-5">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-sky-400/10 rounded-full blur-2xl -mr-16 -mt-16" />
+              <div className="relative">
+                <div className="flex items-center gap-2 mb-3">
+                  <svg
+                    className="w-5 h-5 text-sky-600 dark:text-sky-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
+                    />
+                  </svg>
+                  <p className="text-sm font-semibold text-sky-900 dark:text-sky-100">
+                    Your Recovery Key
+                  </p>
+                </div>
+                <div className="bg-white/80 dark:bg-slate-900/50 rounded-lg p-4 backdrop-blur-sm border border-sky-200/50 dark:border-sky-800/50">
+                  <p className="font-mono text-sm break-all text-slate-900 dark:text-slate-100 leading-relaxed">
+                    {recoveryKey}
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-300 dark:border-amber-700">
-              <p className="text-sm text-amber-800 dark:text-amber-200">
-                ⚠️ <strong>Important:</strong> Store this recovery key in a safe place. You will
-                need it to restore your account if you forget your password.
-              </p>
+            <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-800 p-5">
+              <div className="flex gap-3">
+                <div className="flex-shrink-0">
+                  <svg
+                    className="w-6 h-6 text-amber-600 dark:text-amber-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-1">
+                    Critical: Store this key securely
+                  </p>
+                  <p className="text-sm text-amber-800 dark:text-amber-200 leading-relaxed">
+                    You&apos;ll need this recovery key to reset your password. Without it, you
+                    won&apos;t be able to recover your account or access your encrypted files.
+                  </p>
+                </div>
+              </div>
             </div>
 
             <Button
@@ -97,11 +152,11 @@ export default function Register() {
               className="mt-2"
               disabled={isSaving}
             >
-              {isSaving ? 'Saving...' : 'Download Recovery Key'}
+              {isSaving ? 'Saving...' : '💾 Download Recovery Key'}
             </Button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             <TextInput
               id="reg-username"
               label="Username"
@@ -125,14 +180,16 @@ export default function Register() {
               id="reg-confirm-password"
               label="Confirm Password"
               type="password"
-              placeholder="Confirm your password"
+              placeholder="Re-enter your password"
               error={errors.confirmPassword?.message}
               {...register('confirmPassword')}
             />
 
-            <Button type="submit" fullWidth className="mt-2" disabled={isSubmitting}>
-              {isSubmitting ? 'Creating account...' : 'Create account'}
-            </Button>
+            <div className="pt-2">
+              <Button type="submit" fullWidth disabled={isSubmitting}>
+                {isSubmitting ? 'Creating your account...' : 'Create account'}
+              </Button>
+            </div>
           </form>
         )}
       </AuthCard>

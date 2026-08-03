@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import PageSection from '@/components/bits/Section';
 import AuthCard from '@/components/items/AuthCard';
@@ -70,29 +70,84 @@ export default function Reset() {
   return (
     <PageSection>
       <AuthCard
-        title="Reset password"
+        title={newRecoveryKey ? 'Save your new recovery key' : 'Reset your password'}
         description={
           newRecoveryKey
-            ? 'Save your new recovery key securely. You will need it if you forget your password again.'
-            : 'Provide your username, recovery key, and a new password.'
+            ? 'Your password has been reset. Save your new recovery key securely.'
+            : 'Enter your username, recovery key, and choose a new password.'
+        }
+        footer={
+          !newRecoveryKey && (
+            <div className="flex items-center justify-center gap-1.5 text-sm text-slate-600 dark:text-slate-400">
+              <span>Remember your password?</span>
+              <Link
+                to="/auth/login"
+                className="font-semibold text-sky-600 hover:text-sky-500 dark:text-sky-400 dark:hover:text-sky-300 transition-colors"
+              >
+                Sign in →
+              </Link>
+            </div>
+          )
         }
       >
         {newRecoveryKey ? (
-          <div className="space-y-4">
-            <div className="p-4 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-700">
-              <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 font-semibold">
-                Your New Recovery Key:
-              </p>
-              <p className="font-mono text-sm break-all text-gray-900 dark:text-gray-100">
-                {newRecoveryKey}
-              </p>
+          <div className="space-y-5">
+            <div className="relative overflow-hidden rounded-xl border-2 border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 p-5">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400/10 rounded-full blur-2xl -mr-16 -mt-16" />
+              <div className="relative">
+                <div className="flex items-center gap-2 mb-3">
+                  <svg
+                    className="w-5 h-5 text-emerald-600 dark:text-emerald-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">
+                    Your New Recovery Key
+                  </p>
+                </div>
+                <div className="bg-white/80 dark:bg-slate-900/50 rounded-lg p-4 backdrop-blur-sm border border-emerald-200/50 dark:border-emerald-800/50">
+                  <p className="font-mono text-sm break-all text-slate-900 dark:text-slate-100 leading-relaxed">
+                    {newRecoveryKey}
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-300 dark:border-amber-700">
-              <p className="text-sm text-amber-800 dark:text-amber-200">
-                ⚠️ <strong>Important:</strong> Store this new recovery key in a safe place. Your old
-                recovery key is no longer valid.
-              </p>
+            <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-800 p-5">
+              <div className="flex gap-3">
+                <div className="flex-shrink-0">
+                  <svg
+                    className="w-6 h-6 text-amber-600 dark:text-amber-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-1">
+                    Important: Your old recovery key is invalid
+                  </p>
+                  <p className="text-sm text-amber-800 dark:text-amber-200 leading-relaxed">
+                    Store this new recovery key in a safe place. Your previous recovery key will no
+                    longer work for password resets.
+                  </p>
+                </div>
+              </div>
             </div>
 
             <Button
@@ -102,11 +157,11 @@ export default function Reset() {
               className="mt-2"
               disabled={isSaving}
             >
-              {isSaving ? 'Saving...' : 'Download New Recovery Key'}
+              {isSaving ? 'Saving...' : '💾 Download New Recovery Key'}
             </Button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             <TextInput
               id="reset-username"
               label="Username"
@@ -119,34 +174,38 @@ export default function Reset() {
 
             <TextInput
               id="recovery-key"
-              label="Recovery key"
+              label="Recovery Key"
               type="password"
-              placeholder="Enter a recovery key"
+              placeholder="Enter your recovery key"
               error={errors.recoveryKey?.message}
               {...register('recoveryKey')}
             />
 
-            <TextInput
-              id="reset-password"
-              label="New password"
-              type="password"
-              placeholder="Enter a new password"
-              error={errors.newPassword?.message}
-              {...register('newPassword')}
-            />
+            <div className="pt-1">
+              <TextInput
+                id="reset-password"
+                label="New Password"
+                type="password"
+                placeholder="Choose a new password"
+                error={errors.newPassword?.message}
+                {...register('newPassword')}
+              />
+            </div>
 
             <TextInput
               id="reset-confirm-password"
-              label="Confirm password"
+              label="Confirm Password"
               type="password"
-              placeholder="Confirm your new password"
+              placeholder="Re-enter your new password"
               error={errors.confirmPassword?.message}
               {...register('confirmPassword')}
             />
 
-            <Button type="submit" fullWidth className="mt-2" isLoading={isSubmitting}>
-              Submit reset request
-            </Button>
+            <div className="pt-2">
+              <Button type="submit" fullWidth isLoading={isSubmitting}>
+                Reset password
+              </Button>
+            </div>
           </form>
         )}
       </AuthCard>

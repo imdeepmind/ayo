@@ -34,33 +34,33 @@ export default function UploadDropzone({ onPick }: UploadDropzoneProps) {
 
   return (
     <div
-      className={`group relative flex min-h-[300px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed transition-all duration-200 ${
+      className={`group relative flex min-h-[320px] cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed transition-all duration-200 ${
         isDragging
-          ? 'border-indigo-500 bg-indigo-50 dark:border-indigo-400 dark:bg-indigo-900/20'
-          : 'border-slate-300 bg-slate-100 hover:border-indigo-400 hover:bg-slate-200/50 dark:border-slate-700 dark:bg-slate-800/50 dark:hover:border-indigo-500'
+          ? 'border-sky-500 bg-gradient-to-br from-sky-50 to-blue-50 shadow-lg dark:border-sky-400 dark:from-sky-950/30 dark:to-blue-950/30'
+          : 'border-slate-300 bg-gradient-to-br from-slate-50 to-slate-100 hover:border-sky-400 hover:from-slate-100 hover:to-slate-50 dark:border-slate-700 dark:from-slate-900/50 dark:to-slate-800/50 dark:hover:border-sky-500'
       }`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       onClick={onPick}
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 opacity-0 transition-opacity duration-300 group-hover:opacity-100 rounded-2xl pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-br from-sky-500/5 to-blue-500/5 opacity-0 transition-opacity duration-300 group-hover:opacity-100 rounded-3xl pointer-events-none" />
 
-      <div className="flex flex-col items-center gap-4 text-center z-10 px-6 py-10">
+      <div className="flex flex-col items-center gap-5 text-center z-10 px-6 py-12">
         <div
-          className={`rounded-full p-4 transition-transform duration-300 ${
+          className={`rounded-2xl p-5 transition-all duration-300 ${
             isDragging
-              ? 'scale-110 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400'
-              : 'bg-white shadow-sm dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+              ? 'scale-110 bg-gradient-to-br from-sky-100 to-blue-100 shadow-xl dark:from-sky-900/50 dark:to-blue-900/50 text-sky-600 dark:text-sky-400'
+              : 'bg-white shadow-lg dark:bg-slate-800 text-slate-500 dark:text-slate-400 group-hover:shadow-xl group-hover:scale-105'
           }`}
         >
-          <UploadCloud className="h-10 w-10" />
+          <UploadCloud className="h-12 w-12" />
         </div>
         <div>
-          <span className="text-lg font-semibold text-slate-700 dark:text-slate-200">
+          <span className="text-xl font-bold text-slate-800 dark:text-slate-100">
             {isDragging ? 'Drop files here' : 'Drop files here or click to browse'}
           </span>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
             Supports any file type. Maximum size 5GB per file.
           </p>
         </div>

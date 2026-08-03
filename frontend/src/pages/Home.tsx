@@ -178,7 +178,7 @@ export default function Home() {
   return (
     <div className="w-full relative">
       <div className="relative w-full pb-16">
-        <div className="mx-auto w-full px-4 pt-6 md:px-8 lg:px-16">
+        <div className="mx-auto w-full px-4 pt-8 md:px-8 lg:px-16">
           <DriveToolbar
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
@@ -187,48 +187,53 @@ export default function Home() {
             }}
           />
 
-          <div className="relative w-full">
+          <div className="relative w-full mt-6">
             {/* Bulk Action Bar */}
             <div
               className={`
-              fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 rounded-full border border-sky-200 bg-white/90 px-5 py-3 shadow-xl backdrop-blur-md transition-all duration-300 dark:border-sky-800 dark:bg-slate-900/90
+              fixed bottom-24 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-2xl border-2 border-sky-200 bg-white/95 px-6 py-4 shadow-2xl backdrop-blur-lg transition-all duration-300 dark:border-sky-800 dark:bg-slate-900/95
               ${selectedFileIds.size > 0 ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-8 opacity-0 scale-95 pointer-events-none'}
             `}
             >
-              <span className="mr-2 text-sm font-medium text-sky-800 dark:text-sky-300">
+              <span className="mr-2 text-sm font-bold text-sky-800 dark:text-sky-300">
                 {selectedFileIds.size} selected
               </span>
               <Button
                 type="button"
                 variant="ghost"
-                className="h-8 px-3 text-xs text-sky-700 hover:bg-sky-100 hover:text-sky-800 dark:text-sky-400 dark:hover:bg-sky-900/40 dark:hover:text-sky-300"
+                className="h-9 px-4 text-sm text-sky-700 hover:bg-sky-100 hover:text-sky-800 dark:text-sky-400 dark:hover:bg-sky-900/40 dark:hover:text-sky-300"
                 onClick={clearSelection}
               >
                 Clear
               </Button>
-              <div className="h-4 w-px bg-sky-200 dark:bg-sky-800/50" />
+              <div className="h-5 w-px bg-sky-200 dark:bg-sky-800/50" />
               <Button
                 type="button"
                 variant="ghost"
-                className="h-8 px-3 text-xs"
+                className="h-9 px-4 text-sm"
                 onClick={handleBulkDownload}
               >
-                <Download className="mr-1.5 h-3.5 w-3.5" />
+                <Download className="mr-2 h-4 w-4" />
                 Download All
               </Button>
               <Button
                 type="button"
-                className="h-8 px-3 text-xs bg-red-500 hover:bg-red-600 focus:ring-red-500"
+                className="h-9 px-4 text-sm bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-400 hover:to-rose-400 focus:ring-red-500/50 shadow-lg shadow-red-500/30"
                 onClick={handleBulkDelete}
               >
-                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                <Trash2 className="mr-2 h-4 w-4" />
                 Delete All
               </Button>
             </div>
 
             {isLoading ? (
-              <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 shadow-sm px-4 py-12 text-center text-sm text-slate-500 dark:text-slate-400">
-                Loading your files...
+              <div className="mt-4 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white/90 backdrop-blur-sm dark:bg-slate-800/90 shadow-lg px-6 py-16 text-center">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="animate-spin rounded-full h-10 w-10 border-4 border-slate-200 border-t-sky-500 dark:border-slate-700 dark:border-t-sky-400" />
+                  <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                    Loading your files...
+                  </span>
+                </div>
               </div>
             ) : (
               <DriveFileTable
