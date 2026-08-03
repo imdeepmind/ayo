@@ -2,13 +2,12 @@ import { useNavigate } from 'react-router-dom';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Download, Trash2 } from 'lucide-react';
-import { calculateTotalUsedBytes, getFileType, type FileItem } from '@/lib/files';
+import { getFileType, type FileItem } from '@/lib/files';
 import { EnqueueDelete, EnqueueDownload, GetStoredFiles } from '../../wailsjs/go/upload/Service';
 import { upload } from '../../wailsjs/go/models';
-import { useActiveTransfers } from '@/hooks/useActiveTransfers';
+import { useActiveTransfers } from '@/context/ActiveTransfersContext';
 import DriveToolbar from '@/components/items/DriveToolbar';
 import DriveFileTable from '@/components/items/DriveFileTable';
-import DriveStatusBar from '@/components/items/DriveStatusBar';
 import EditFileModal from '@/components/items/EditFileModal';
 import Button from '@/components/bits/Button';
 import ConfirmDialog from '@/components/bits/ConfirmDialog';
@@ -30,7 +29,7 @@ export default function Home() {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const { uploads, downloads, deletes, overallProgress, refresh } = useActiveTransfers();
+  const { deletes, refresh } = useActiveTransfers();
 
   // Selection state
   const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
@@ -86,8 +85,6 @@ export default function Home() {
       return nameMatch || typeMatch || tagMatch;
     });
   }, [searchQuery, files]);
-
-  const totalUsedBytes = useMemo(() => calculateTotalUsedBytes(files), [files]);
 
   // -- Handlers --
 
@@ -246,14 +243,6 @@ export default function Home() {
             )}
           </div>
         </div>
-
-        <DriveStatusBar
-          totalUsedBytes={totalUsedBytes}
-          activeUploads={uploads.length}
-          activeDownloads={downloads.length}
-          activeDeletes={deletes.length}
-          overallProgress={overallProgress}
-        />
       </div>
 
       <EditFileModal

@@ -5,7 +5,7 @@ import UploadDropzone from '@/components/items/UploadDropzone';
 import UploadFileItem, { type UploadFile } from '@/components/items/UploadFileItem';
 import PendingUploadItem from '@/components/items/PendingUploadItem';
 import UploadStickyBar from '@/components/items/UploadStickyBar';
-import { useActiveTransfers } from '@/hooks/useActiveTransfers';
+import { useActiveTransfers } from '@/context/ActiveTransfersContext';
 import { EnqueueFiles, PickFiles } from '../../wailsjs/go/upload/Service';
 import { upload } from '../../wailsjs/go/models';
 

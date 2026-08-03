@@ -22,6 +22,10 @@ export function GetActiveTransfers() {
   return window['go']['upload']['Service']['GetActiveTransfers']();
 }
 
+export function GetStorageUsed() {
+  return window['go']['upload']['Service']['GetStorageUsed']();
+}
+
 export function GetStoredFiles() {
   return window['go']['upload']['Service']['GetStoredFiles']();
 }

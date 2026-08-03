@@ -35,6 +35,8 @@ type Repository interface {
 	GetAll(ctx context.Context) ([]*Upload, error)
 	// GetUpload fetches one stored file by its upload ID.
 	GetUpload(ctx context.Context, id int64) (*Upload, error)
+	// GetTotalSize returns the sum of all stored file sizes (in bytes).
+	GetTotalSize(ctx context.Context) (int64, error)
 	// DeleteUpload removes a stored file by its upload ID. Its chunk rows are
 	// removed by the chunks → uploads foreign key cascade.
 	DeleteUpload(ctx context.Context, id int64) error
@@ -285,6 +287,17 @@ func (r *repository) GetAll(ctx context.Context) ([]*Upload, error) {
 // GetUpload fetches one stored file by its upload ID.
 func (r *repository) GetUpload(ctx context.Context, id int64) (*Upload, error) {
 	return r.getUpload(ctx, id)
+}
+
+// GetTotalSize returns the sum of all stored file sizes in bytes. Files with
+// no rows yet (or an empty table) report 0.
+func (r *repository) GetTotalSize(ctx context.Context) (int64, error) {
+	query := `SELECT COALESCE(SUM(size), 0) FROM uploads`
+	var total int64
+	if err := r.db.QueryRowContext(ctx, query).Scan(&total); err != nil {
+		return 0, fmt.Errorf("failed to sum upload sizes: %w", err)
+	}
+	return total, nil
 }
 
 // DeleteUpload removes a stored file by its upload ID. Its chunk rows are
