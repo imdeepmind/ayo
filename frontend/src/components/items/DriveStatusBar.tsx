@@ -6,6 +6,7 @@ type DriveStatusBarProps = {
   totalUsedBytes: number;
   activeUploads: number;
   activeDownloads: number;
+  activeDeletes: number;
   overallProgress: number | null;
 };
 
@@ -25,13 +26,15 @@ export default function DriveStatusBar({
   totalUsedBytes,
   activeUploads,
   activeDownloads,
+  activeDeletes,
   overallProgress,
 }: DriveStatusBarProps) {
-  const hasTransfers = activeUploads > 0 || activeDownloads > 0;
+  const hasTransfers = activeUploads > 0 || activeDownloads > 0 || activeDeletes > 0;
 
   const statusParts: string[] = [];
   if (activeUploads > 0) statusParts.push(`Uploading ${plural(activeUploads, 'file')}`);
   if (activeDownloads > 0) statusParts.push(`Downloading ${plural(activeDownloads, 'file')}`);
+  if (activeDeletes > 0) statusParts.push(`Deleting ${plural(activeDeletes, 'file')}`);
   const statusText = statusParts.join(' · ');
   const progress = overallProgress ?? 0;
 

@@ -143,6 +143,7 @@ func (p *Processor) push(id int64) {
 func (p *Processor) resume() {
 	p.resumeType(queue.TypeUpload)
 	p.resumeType(queue.TypeDownload)
+	p.resumeType(queue.TypeDelete)
 }
 
 // resumeType enqueues every incomplete job of the given type, resetting any
@@ -188,6 +189,8 @@ func (p *Processor) process(id int64) {
 		p.processDownload(job)
 	case queue.TypeUpload:
 		p.processUpload(job)
+	case queue.TypeDelete:
+		p.processDelete(job)
 	default:
 		// No worker for this type yet; keep it pending so a future worker can
 		// claim it rather than failing it.
@@ -262,6 +265,46 @@ func (p *Processor) processUpload(job *queue.Job) {
 	if err := p.uploadRepository.CreateChunks(context.Background(), upload.ID, shards); err != nil {
 		slog.Error("persist chunks", "error", err)
 		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 90)
+		return
+	}
+
+	_ = p.queue.UpdateStatusAndProgress(id, queue.StatusCompleted, 100)
+}
+
+// processDelete removes a stored file and its on-disk chunks. The order
+// matches the intent: chunk data (shard folder + encrypted blob) is wiped
+// first, then the database rows (uploads + chunks via the FK cascade). The
+// delete job's queue record is kept so the operation is persisted, not removed.
+func (p *Processor) processDelete(job *queue.Job) {
+	id := job.ID
+	if err := p.queue.UpdateStatusAndProgress(id, queue.StatusProcessing, 0); err != nil {
+		return
+	}
+
+	upload, err := p.uploadRepository.GetUpload(context.Background(), job.FileID)
+	if err != nil {
+		// The stored file is already gone (e.g. a resumed job that was deleted
+		// before a crash). Treat it as deleted and complete the job.
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusCompleted, 100)
+		return
+	}
+
+	_ = p.queue.UpdateStatusAndProgress(id, queue.StatusProcessing, 40)
+
+	// delete all chunks first: the shard folder and the encrypted blob.
+	if err := os.RemoveAll(filepath.Join(chunksDir, fmt.Sprintf("job_%d", upload.JobID))); err != nil {
+		slog.Error("delete: remove shards", "job", id, "error", err)
+	}
+	if err := os.Remove(filepath.Join(encryptedDir, fmt.Sprintf("%d.enc", upload.JobID))); err != nil {
+		slog.Error("delete: remove encrypted blob", "job", id, "error", err)
+	}
+
+	_ = p.queue.UpdateStatusAndProgress(id, queue.StatusProcessing, 80)
+
+	// finally delete the database data (chunk rows cascade with the uploads row).
+	if err := p.uploadRepository.DeleteUpload(context.Background(), job.FileID); err != nil {
+		slog.Error("delete: remove stored file", "job", id, "error", err)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 80)
 		return
 	}
 

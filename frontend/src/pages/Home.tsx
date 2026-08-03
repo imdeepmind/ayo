@@ -1,9 +1,9 @@
 import { useNavigate } from 'react-router-dom';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Download, Trash2 } from 'lucide-react';
 import { calculateTotalUsedBytes, getFileType, type FileItem } from '@/lib/files';
-import { DeleteStoredFile, EnqueueDownload, GetStoredFiles } from '../../wailsjs/go/upload/Service';
+import { EnqueueDelete, EnqueueDownload, GetStoredFiles } from '../../wailsjs/go/upload/Service';
 import { upload } from '../../wailsjs/go/models';
 import { useActiveTransfers } from '@/hooks/useActiveTransfers';
 import DriveToolbar from '@/components/items/DriveToolbar';
@@ -11,6 +11,7 @@ import DriveFileTable from '@/components/items/DriveFileTable';
 import DriveStatusBar from '@/components/items/DriveStatusBar';
 import EditFileModal from '@/components/items/EditFileModal';
 import Button from '@/components/bits/Button';
+import ConfirmDialog from '@/components/bits/ConfirmDialog';
 
 function toFileItem(stored: upload.StoredFile): FileItem {
   return {
@@ -29,7 +30,7 @@ export default function Home() {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const { uploads, downloads, overallProgress, refresh } = useActiveTransfers();
+  const { uploads, downloads, deletes, overallProgress, refresh } = useActiveTransfers();
 
   // Selection state
   const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
@@ -37,6 +38,10 @@ export default function Home() {
   // Editing state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [fileToEdit, setFileToEdit] = useState<FileItem | null>(null);
+
+  // Delete confirmation state. window.confirm is not supported in the Wails
+  // webview, so deletion is confirmed through an in-app dialog instead.
+  const [deletePending, setDeletePending] = useState<FileItem[] | null>(null);
 
   const loadFiles = useCallback(async () => {
     try {
@@ -53,6 +58,23 @@ export default function Home() {
   useEffect(() => {
     loadFiles();
   }, [loadFiles]);
+
+  // When a delete finishes in the background (its job leaves the active list),
+  // refresh the stored-file listing so the row disappears once the DB record
+  // is gone, and confirm the deletion.
+  const wasDeleting = useRef(false);
+  const pendingDeleteCount = useRef(0);
+  useEffect(() => {
+    if (deletes.length > 0) {
+      wasDeleting.current = true;
+    } else if (wasDeleting.current) {
+      wasDeleting.current = false;
+      const count = pendingDeleteCount.current;
+      pendingDeleteCount.current = 0;
+      void loadFiles();
+      toast.success(`File${count === 1 ? '' : 's'} successfully deleted`);
+    }
+  }, [deletes.length, loadFiles]);
 
   const filteredFiles = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -108,24 +130,25 @@ export default function Home() {
   };
 
   const deleteFiles = async (ids: string[]) => {
-    for (const id of ids) {
-      try {
-        await DeleteStoredFile(Number(id));
-      } catch (err) {
-        console.error('Failed to delete file:', err);
-        toast.error('Failed to delete a file. Please try again.');
-        return;
+    try {
+      for (const id of ids) {
+        await EnqueueDelete(Number(id));
       }
+    } catch (err) {
+      console.error('Failed to delete file:', err);
+      toast.error('Failed to delete a file. Please try again.');
+      return;
     }
+    // Deletion happens in the background via the queue; the status bar shows
+    // progress and a success toast fires once the jobs complete.
+    pendingDeleteCount.current += ids.length;
     const count = ids.length;
-    toast.success(`Deleted ${count} ${count === 1 ? 'file' : 'files'}`);
+    toast(`Deleting ${count} ${count === 1 ? 'file' : 'files'}…`);
     clearSelection();
-    await loadFiles();
   };
 
-  const handleDelete = async (file: FileItem) => {
-    if (!window.confirm(`Delete "${file.name}"? This cannot be undone.`)) return;
-    await deleteFiles([file.id]);
+  const handleDelete = (file: FileItem) => {
+    setDeletePending([file]);
   };
 
   const saveEdit = (id: string, newName: string, newTags: string[]) => {
@@ -142,16 +165,17 @@ export default function Home() {
     clearSelection();
   };
 
-  const handleBulkDelete = async () => {
-    const count = selectedFileIds.size;
-    if (
-      !window.confirm(
-        `Delete ${count} selected ${count === 1 ? 'file' : 'files'}? This cannot be undone.`
-      )
-    ) {
-      return;
-    }
-    await deleteFiles([...selectedFileIds]);
+  const handleBulkDelete = () => {
+    const ids = [...selectedFileIds];
+    if (ids.length === 0) return;
+    setDeletePending(files.filter((f) => ids.includes(f.id)));
+  };
+
+  const confirmPendingDelete = () => {
+    if (!deletePending) return;
+    const ids = deletePending.map((f) => f.id);
+    setDeletePending(null);
+    void deleteFiles(ids);
   };
 
   return (
@@ -227,6 +251,7 @@ export default function Home() {
           totalUsedBytes={totalUsedBytes}
           activeUploads={uploads.length}
           activeDownloads={downloads.length}
+          activeDeletes={deletes.length}
           overallProgress={overallProgress}
         />
       </div>
@@ -239,6 +264,20 @@ export default function Home() {
           setFileToEdit(null);
         }}
         onSave={saveEdit}
+      />
+
+      <ConfirmDialog
+        isOpen={deletePending !== null}
+        title={deletePending && deletePending.length > 1 ? 'Delete Files' : 'Delete File'}
+        message={
+          deletePending && deletePending.length > 1
+            ? `Delete ${deletePending.length} selected files? This cannot be undone.`
+            : `Delete "${deletePending?.[0]?.name}"? This cannot be undone.`
+        }
+        confirmLabel="Delete"
+        destructive
+        onConfirm={confirmPendingDelete}
+        onCancel={() => setDeletePending(null)}
       />
     </div>
   );

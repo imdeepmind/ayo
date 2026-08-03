@@ -11,6 +11,7 @@ export type ActiveTransfers = {
   transfers: ActiveTransfer[];
   uploads: ActiveTransfer[];
   downloads: ActiveTransfer[];
+  deletes: ActiveTransfer[];
   completedDownloads: ActiveTransfer[];
   overallProgress: number | null;
   refresh: () => Promise<void>;
@@ -75,9 +76,18 @@ export function useActiveTransfers(): ActiveTransfers {
 
   const uploads = transfers.filter((t) => t.Type === 'upload');
   const downloads = transfers.filter((t) => t.Type === 'download' && t.Status !== 'completed');
+  const deletes = transfers.filter((t) => t.Type === 'delete' && t.Status !== 'completed');
   const completedDownloads = transfers.filter(
     (t) => t.Type === 'download' && t.Status === 'completed'
   );
 
-  return { transfers, uploads, downloads, completedDownloads, overallProgress, refresh: load };
+  return {
+    transfers,
+    uploads,
+    downloads,
+    deletes,
+    completedDownloads,
+    overallProgress,
+    refresh: load,
+  };
 }

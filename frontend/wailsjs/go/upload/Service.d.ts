@@ -3,7 +3,7 @@
 import {upload} from '../models';
 import {context} from '../models';
 
-export function DeleteStoredFile(arg1:number):Promise<void>;
+export function EnqueueDelete(arg1:number):Promise<upload.EnqueuedJob>;
 
 export function EnqueueDownload(arg1:number):Promise<upload.EnqueuedJob>;
 

@@ -57,6 +57,10 @@ type UploadRepository interface {
 	CreateChunks(ctx context.Context, fileID int64, chunks []ChunkInput) error
 	GetUpload(ctx context.Context, id int64) (*Upload, error)
 	GetChunks(ctx context.Context, fileID int64) ([]Chunk, error)
+	// DeleteUpload removes a stored file by its upload ID; its chunk rows are
+	// removed by the chunks → uploads foreign key cascade. Used by the
+	// processor when handling a delete job.
+	DeleteUpload(ctx context.Context, id int64) error
 }
 
 // Service handles the upload flow. It is bound to the frontend via Wails.
@@ -353,29 +357,37 @@ func (s *Service) GetStoredFiles() ([]StoredFile, error) {
 	return stored, nil
 }
 
-// DeleteStoredFile removes a persisted upload: its uploads row (and chunk rows
-// via the foreign-key cascade), plus the shard folder and encrypted blob on
-// disk. On-disk cleanup is best-effort; the database row is the source of
-// truth, so a leftover file is logged rather than failing the delete.
-func (s *Service) DeleteStoredFile(id int64) error {
+// EnqueueDelete queues a background delete of the stored file with the given
+// upload ID and returns immediately. The processor wipes the file's on-disk
+// chunks and then removes its database rows; the delete job's queue record is
+// kept once it completes.
+func (s *Service) EnqueueDelete(storageID int64) (EnqueuedJob, error) {
 	if _, err := s.sessionProvider.RequireSession(); err != nil {
-		return err
+		return EnqueuedJob{}, err
 	}
 
-	upload, err := s.repo.GetUpload(context.Background(), id)
+	upload, err := s.repo.GetUpload(context.Background(), storageID)
 	if err != nil {
-		return errors.AsInternalServerError("delete stored file: get", err)
+		slog.Error("delete: get stored file", "storageID", storageID, "error", err)
+		return EnqueuedJob{}, errors.AsInternalServerError("delete: get stored file", err)
 	}
 
-	if err := s.repo.DeleteUpload(context.Background(), id); err != nil {
-		return errors.AsInternalServerError("delete stored file: delete", err)
+	name := upload.CustomName
+	if name == "" {
+		name = upload.File
 	}
 
-	if err := os.RemoveAll(filepath.Join(chunksDir, fmt.Sprintf("job_%d", upload.JobID))); err != nil {
-		slog.Error("delete stored file: remove shards", "error", err)
+	job, err := s.queueService.Add(queue.AddInput{
+		Type:       queue.TypeDelete,
+		FileID:     storageID,
+		File:       upload.File,
+		CustomName: name,
+		Size:       upload.Size,
+	})
+	if err != nil {
+		slog.Error("delete: enqueue", "storageID", storageID, "error", err)
+		return EnqueuedJob{}, err
 	}
-	if err := os.Remove(filepath.Join(encryptedDir, fmt.Sprintf("%d.enc", upload.JobID))); err != nil {
-		slog.Error("delete stored file: remove encrypted blob", "error", err)
-	}
-	return nil
+	s.processor.Submit(job.ID)
+	return toEnqueuedJob(job), nil
 }
