@@ -12,13 +12,13 @@ type AuthCardProps = {
 export default function AuthCard({ title, description, children, footer }: AuthCardProps) {
   return (
     <Card>
-      <div className="mb-6">
+      <div className="mb-8">
         <PageTitle>{title}</PageTitle>
-        {description && <PageSubtitle className="mt-1">{description}</PageSubtitle>}
+        {description && <PageSubtitle className="mt-2">{description}</PageSubtitle>}
       </div>
       <div>{children}</div>
       {footer && (
-        <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">{footer}</div>
+        <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">{footer}</div>
       )}
     </Card>
   );

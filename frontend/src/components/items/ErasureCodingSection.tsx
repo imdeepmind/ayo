@@ -68,8 +68,8 @@ export default function ErasureCodingSection({
   disabled = false,
 }: ErasureCodingSectionProps) {
   return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800/60">
+    <div className="space-y-5">
+      <div className="rounded-2xl border-2 border-slate-200 bg-white/90 backdrop-blur-sm p-6 shadow-lg dark:border-slate-700 dark:bg-slate-800/90">
         <Toggle
           id="erasure-coding-toggle"
           label="Erasure Coding"
@@ -81,21 +81,21 @@ export default function ErasureCodingSection({
       </div>
 
       {enabled && !disabled && (
-        <div className="space-y-3 pl-1">
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+        <div className="space-y-4 rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-blue-50/30 p-6 dark:border-slate-700 dark:from-slate-900/50 dark:to-blue-950/20">
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-300 leading-relaxed">
             Choose how data is split into data shards + parity shards. Higher parity means more
             fault tolerance but more storage overhead.
           </p>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {configs.map((c) => (
               <label
                 key={c.value}
-                className={`group relative cursor-pointer rounded-xl border-2 p-4 transition
+                className={`group relative cursor-pointer rounded-2xl border-2 p-5 transition-all duration-200
                   ${
                     selectedConfig === c.value
-                      ? 'border-sky-500 bg-sky-50/50 shadow-sm dark:border-sky-400 dark:bg-sky-900/10'
-                      : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800/40 dark:hover:border-slate-600'
+                      ? 'border-sky-500 bg-gradient-to-br from-sky-50 to-blue-50 shadow-lg dark:border-sky-400 dark:from-sky-950/40 dark:to-blue-950/40'
+                      : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-md dark:border-slate-700 dark:bg-slate-800/60 dark:hover:border-slate-600'
                   }
                 `}
               >
@@ -109,37 +109,39 @@ export default function ErasureCodingSection({
                 />
 
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  <span className="text-base font-bold text-slate-900 dark:text-slate-100">
                     {c.label}
                   </span>
                   <span
-                    className={`h-4 w-4 rounded-full border-2 transition ${
+                    className={`h-5 w-5 rounded-full border-2 transition-all duration-200 ${
                       selectedConfig === c.value
-                        ? 'border-sky-500 bg-sky-500'
+                        ? 'border-sky-500 bg-sky-500 shadow-sm'
                         : 'border-slate-300 dark:border-slate-600'
                     }`}
                   >
                     {selectedConfig === c.value && (
                       <span className="flex h-full w-full items-center justify-center">
-                        <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                        <span className="h-2 w-2 rounded-full bg-white" />
                       </span>
                     )}
                   </span>
                 </div>
 
-                <div className="mt-2 space-y-1">
-                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-slate-500 dark:text-slate-400">
-                    <span>
+                <div className="mt-3 space-y-1.5">
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600 dark:text-slate-400">
+                    <span className="font-medium">
                       {c.data} data + {c.parity} parity
                     </span>
                     <span>{c.totalShards} shards total</span>
                   </div>
-                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-slate-500 dark:text-slate-400">
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600 dark:text-slate-400">
                     <span>Can lose {c.faultTolerance} shards</span>
-                    <span>Overhead: {c.overhead}</span>
+                    <span className="font-semibold text-sky-600 dark:text-sky-400">
+                      Overhead: {c.overhead}
+                    </span>
                   </div>
                   {c.note && (
-                    <p className="mt-1 text-xs italic text-slate-400 dark:text-slate-500">
+                    <p className="mt-2 text-xs italic text-slate-500 dark:text-slate-400 leading-relaxed">
                       {c.note}
                     </p>
                   )}
