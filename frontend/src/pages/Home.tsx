@@ -1,18 +1,35 @@
 import { useNavigate } from 'react-router-dom';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Download, Trash2 } from 'lucide-react';
-import { files as initialFiles, calculateTotalUsedBytes, type FileItem } from '@/mock-data/files';
+import { getFileType, type FileItem } from '@/lib/files';
+import { EnqueueDelete, EnqueueDownload, GetStoredFiles } from '../../wailsjs/go/upload/Service';
+import { upload } from '../../wailsjs/go/models';
+import { useActiveTransfers } from '@/context/ActiveTransfersContext';
 import DriveToolbar from '@/components/items/DriveToolbar';
 import DriveFileTable from '@/components/items/DriveFileTable';
-import DriveStatusBar from '@/components/items/DriveStatusBar';
 import EditFileModal from '@/components/items/EditFileModal';
 import Button from '@/components/bits/Button';
+import ConfirmDialog from '@/components/bits/ConfirmDialog';
+
+function toFileItem(stored: upload.StoredFile): FileItem {
+  return {
+    id: String(stored.ID),
+    name: stored.Name,
+    type: getFileType(stored.Name),
+    sizeBytes: stored.Size,
+    modifiedAt: stored.CreatedAt,
+    owner: 'You',
+    tags: stored.Tags,
+  };
+}
 
 export default function Home() {
   const navigate = useNavigate();
-  const [files, setFiles] = useState<FileItem[]>(initialFiles);
+  const [files, setFiles] = useState<FileItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const { deletes, refresh } = useActiveTransfers();
 
   // Selection state
   const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
@@ -20,6 +37,43 @@ export default function Home() {
   // Editing state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [fileToEdit, setFileToEdit] = useState<FileItem | null>(null);
+
+  // Delete confirmation state. window.confirm is not supported in the Wails
+  // webview, so deletion is confirmed through an in-app dialog instead.
+  const [deletePending, setDeletePending] = useState<FileItem[] | null>(null);
+
+  const loadFiles = useCallback(async () => {
+    try {
+      const stored = await GetStoredFiles();
+      setFiles(stored.map(toFileItem));
+    } catch (err) {
+      console.error('Failed to load stored files:', err);
+      toast.error('Failed to load files. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadFiles();
+  }, [loadFiles]);
+
+  // When a delete finishes in the background (its job leaves the active list),
+  // refresh the stored-file listing so the row disappears once the DB record
+  // is gone, and confirm the deletion.
+  const wasDeleting = useRef(false);
+  const pendingDeleteCount = useRef(0);
+  useEffect(() => {
+    if (deletes.length > 0) {
+      wasDeleting.current = true;
+    } else if (wasDeleting.current) {
+      wasDeleting.current = false;
+      const count = pendingDeleteCount.current;
+      pendingDeleteCount.current = 0;
+      void loadFiles();
+      toast.success(`File${count === 1 ? '' : 's'} successfully deleted`);
+    }
+  }, [deletes.length, loadFiles]);
 
   const filteredFiles = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -31,8 +85,6 @@ export default function Home() {
       return nameMatch || typeMatch || tagMatch;
     });
   }, [searchQuery, files]);
-
-  const totalUsedBytes = useMemo(() => calculateTotalUsedBytes(files), [files]);
 
   // -- Handlers --
 
@@ -63,21 +115,44 @@ export default function Home() {
     setIsEditModalOpen(true);
   };
 
-  const handleDownload = (file: FileItem) => {
-    toast.success(`Started downloading: ${file.name}`);
-  };
-
-  const handleDelete = (file: FileItem) => {
-    setFiles((prev) => prev.filter((f) => f.id !== file.id));
-    toast.success(`Deleted: ${file.name}`);
-    if (selectedFileIds.has(file.id)) {
-      handleSelectionChange(file.id, false);
+  const handleDownload = async (file: FileItem) => {
+    try {
+      const job = await EnqueueDownload(Number(file.id));
+      toast.success(`Downloading ${job.CustomName || job.File}`);
+      refresh();
+    } catch (err) {
+      console.error('Failed to start download:', err);
+      toast.error('Failed to start the download. Please try again.');
     }
   };
 
+  const deleteFiles = async (ids: string[]) => {
+    try {
+      for (const id of ids) {
+        await EnqueueDelete(Number(id));
+      }
+    } catch (err) {
+      console.error('Failed to delete file:', err);
+      toast.error('Failed to delete a file. Please try again.');
+      return;
+    }
+    // Deletion happens in the background via the queue; the status bar shows
+    // progress and a success toast fires once the jobs complete.
+    pendingDeleteCount.current += ids.length;
+    const count = ids.length;
+    toast(`Deleting ${count} ${count === 1 ? 'file' : 'files'}…`);
+    clearSelection();
+  };
+
+  const handleDelete = (file: FileItem) => {
+    setDeletePending([file]);
+  };
+
   const saveEdit = (id: string, newName: string, newTags: string[]) => {
-    setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, name: newName, tags: newTags } : f)));
-    toast.success('File updated successfully');
+    void id;
+    void newName;
+    void newTags;
+    toast('Renaming and editing tags is not available yet.');
   };
 
   // -- Bulk Actions --
@@ -88,9 +163,16 @@ export default function Home() {
   };
 
   const handleBulkDelete = () => {
-    setFiles((prev) => prev.filter((f) => !selectedFileIds.has(f.id)));
-    toast.success(`Deleted ${selectedFileIds.size} files`);
-    clearSelection();
+    const ids = [...selectedFileIds];
+    if (ids.length === 0) return;
+    setDeletePending(files.filter((f) => ids.includes(f.id)));
+  };
+
+  const confirmPendingDelete = () => {
+    if (!deletePending) return;
+    const ids = deletePending.map((f) => f.id);
+    setDeletePending(null);
+    void deleteFiles(ids);
   };
 
   return (
@@ -144,19 +226,23 @@ export default function Home() {
               </Button>
             </div>
 
-            <DriveFileTable
-              files={filteredFiles}
-              selectedFileIds={selectedFileIds}
-              onSelectionChange={handleSelectionChange}
-              onSelectAllChange={handleSelectAllChange}
-              onEdit={handleEdit}
-              onDownload={handleDownload}
-              onDelete={handleDelete}
-            />
+            {isLoading ? (
+              <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 shadow-sm px-4 py-12 text-center text-sm text-slate-500 dark:text-slate-400">
+                Loading your files...
+              </div>
+            ) : (
+              <DriveFileTable
+                files={filteredFiles}
+                selectedFileIds={selectedFileIds}
+                onSelectionChange={handleSelectionChange}
+                onSelectAllChange={handleSelectAllChange}
+                onEdit={handleEdit}
+                onDownload={handleDownload}
+                onDelete={handleDelete}
+              />
+            )}
           </div>
         </div>
-
-        <DriveStatusBar totalUsedBytes={totalUsedBytes} />
       </div>
 
       <EditFileModal
@@ -167,6 +253,20 @@ export default function Home() {
           setFileToEdit(null);
         }}
         onSave={saveEdit}
+      />
+
+      <ConfirmDialog
+        isOpen={deletePending !== null}
+        title={deletePending && deletePending.length > 1 ? 'Delete Files' : 'Delete File'}
+        message={
+          deletePending && deletePending.length > 1
+            ? `Delete ${deletePending.length} selected files? This cannot be undone.`
+            : `Delete "${deletePending?.[0]?.name}"? This cannot be undone.`
+        }
+        confirmLabel="Delete"
+        destructive
+        onConfirm={confirmPendingDelete}
+        onCancel={() => setDeletePending(null)}
       />
     </div>
   );

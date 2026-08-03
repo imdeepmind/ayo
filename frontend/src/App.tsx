@@ -10,56 +10,61 @@ import Upload from '@/pages/Upload';
 import Header from '@/components/items/Header';
 import { ThemeProvider } from '@/theme/ThemeProvider';
 import { AuthProvider } from '@/context/AuthContext';
+import { ActiveTransfersProvider } from '@/context/ActiveTransfersContext';
 import ProtectedRoute from '@/components/items/ProtectedRoute';
 import PublicRoute from '@/components/items/PublicRoute';
+import GlobalStatusBar from '@/components/items/GlobalStatusBar';
 
 function App() {
   return (
     <AuthProvider>
       <ThemeProvider>
-        <BrowserRouter>
-          <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
-            <Header />
-            <main className="flex-1">
-              <Routes>
-                <Route element={<ProtectedRoute />}>
-                  <Route path="/" element={<Home />} />
-                  <Route path="/settings" element={<Settings />} />
-                  <Route path="/upload" element={<Upload />} />
-                </Route>
-                <Route element={<PublicRoute />}>
-                  <Route path="/auth/login" element={<Login />} />
-                  <Route path="/auth/register" element={<Register />} />
-                  <Route path="/auth/reset" element={<Reset />} />
-                </Route>
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </main>
-          </div>
-          <Toaster
-            position="bottom-right"
-            toastOptions={{
-              duration: 4000,
-              style: {
-                background: 'var(--toast-bg)',
-                color: 'var(--toast-color)',
-                border: '1px solid var(--toast-border)',
-              },
-              success: {
-                iconTheme: {
-                  primary: '#10b981',
-                  secondary: '#fff',
+        <ActiveTransfersProvider>
+          <BrowserRouter>
+            <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+              <Header />
+              <main className="flex-1">
+                <Routes>
+                  <Route element={<ProtectedRoute />}>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/settings" element={<Settings />} />
+                    <Route path="/upload" element={<Upload />} />
+                  </Route>
+                  <Route element={<PublicRoute />}>
+                    <Route path="/auth/login" element={<Login />} />
+                    <Route path="/auth/register" element={<Register />} />
+                    <Route path="/auth/reset" element={<Reset />} />
+                  </Route>
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </main>
+              <GlobalStatusBar />
+            </div>
+            <Toaster
+              position="bottom-right"
+              toastOptions={{
+                duration: 4000,
+                style: {
+                  background: 'var(--toast-bg)',
+                  color: 'var(--toast-color)',
+                  border: '1px solid var(--toast-border)',
                 },
-              },
-              error: {
-                iconTheme: {
-                  primary: '#ef4444',
-                  secondary: '#fff',
+                success: {
+                  iconTheme: {
+                    primary: '#10b981',
+                    secondary: '#fff',
+                  },
                 },
-              },
-            }}
-          />
-        </BrowserRouter>
+                error: {
+                  iconTheme: {
+                    primary: '#ef4444',
+                    secondary: '#fff',
+                  },
+                },
+              }}
+            />
+          </BrowserRouter>
+        </ActiveTransfersProvider>
       </ThemeProvider>
     </AuthProvider>
   );

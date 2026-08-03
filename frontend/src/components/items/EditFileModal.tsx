@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Tag as TagIcon } from 'lucide-react';
-import type { FileItem } from '@/mock-data/files';
+import type { FileItem } from '@/lib/files';
 import TextInput from '@/components/bits/Input';
 import Button from '@/components/bits/Button';
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { File as FileIcon, Trash2, Edit2, Check, X } from 'lucide-react';
+import { File as FileIcon, Trash2, Edit2, Check, X, Tag as TagIcon } from 'lucide-react';
 import Button from '@/components/bits/Button';
 
 // Helper to format file size
@@ -14,28 +14,47 @@ const formatBytes = (bytes: number, decimals = 2) => {
 
 export type UploadFile = {
   id: string;
-  file: File;
+  name: string;
+  path: string;
+  size: number;
   customName: string;
+  tags: string[];
 };
 
 type UploadFileItemProps = {
   fileInfo: UploadFile;
   onRemove: (id: string) => void;
-  onSaveEdit: (id: string, newName: string) => void;
+  onSaveEdit: (id: string, newName: string, newTags: string[]) => void;
 };
 
 export default function UploadFileItem({ fileInfo, onRemove, onSaveEdit }: UploadFileItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(fileInfo.customName);
+  const [editTags, setEditTags] = useState<string[]>(fileInfo.tags);
+  const [newTag, setNewTag] = useState('');
 
   const handleSave = () => {
-    onSaveEdit(fileInfo.id, editName);
+    onSaveEdit(fileInfo.id, editName, editTags);
     setIsEditing(false);
   };
 
   const handleCancel = () => {
     setEditName(fileInfo.customName);
+    setEditTags(fileInfo.tags);
+    setNewTag('');
     setIsEditing(false);
+  };
+
+  const handleAddTag = () => {
+    const trimmed = newTag.trim();
+    if (trimmed && !editTags.includes(trimmed)) {
+      setEditTags([...editTags, trimmed]);
+    }
+    setNewTag('');
+  };
+
+  const handleRemoveTag = (tag: string) => {
+    setEditTags(editTags.filter((t) => t !== tag));
   };
 
   return (
@@ -47,34 +66,83 @@ export default function UploadFileItem({ fileInfo, onRemove, onSaveEdit }: Uploa
 
         <div className="flex flex-1 flex-col overflow-hidden">
           {isEditing ? (
-            <div className="flex items-center gap-2 pr-4">
-              <input
-                type="text"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                className="w-full max-w-[300px] rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-100"
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSave();
-                  if (e.key === 'Escape') handleCancel();
-                }}
-              />
-              <Button
-                variant="ghost"
-                onClick={handleSave}
-                className="!p-1.5 border-none text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20 bg-transparent dark:bg-transparent"
-                title="Save"
-              >
-                <Check className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={handleCancel}
-                className="!p-1.5 border-none text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 bg-transparent dark:bg-transparent"
-                title="Cancel"
-              >
-                <X className="h-4 w-4" />
-              </Button>
+            <div className="space-y-3 pr-4">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full max-w-[300px] rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-100"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSave();
+                    if (e.key === 'Escape') handleCancel();
+                  }}
+                />
+                <Button
+                  variant="ghost"
+                  onClick={handleSave}
+                  className="!p-1.5 border-none text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20 bg-transparent dark:bg-transparent"
+                  title="Save"
+                >
+                  <Check className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={handleCancel}
+                  className="!p-1.5 border-none text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 bg-transparent dark:bg-transparent"
+                  title="Cancel"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {editTags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center gap-1 rounded-full bg-sky-100 py-0.5 pl-2 pr-1 text-xs font-medium text-sky-800 dark:bg-sky-900/40 dark:text-sky-300"
+                  >
+                    {tag}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveTag(tag)}
+                      className="rounded-full p-0.5 hover:bg-sky-200 dark:hover:bg-sky-800 transition"
+                      title={`Remove tag ${tag}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+                <div className="flex items-center gap-1.5">
+                  <div className="relative">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2">
+                      <TagIcon className="h-3.5 w-3.5 text-slate-400" />
+                    </div>
+                    <input
+                      type="text"
+                      value={newTag}
+                      onChange={(e) => setNewTag(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddTag();
+                        }
+                        if (e.key === 'Escape') handleCancel();
+                      }}
+                      placeholder="Add tag..."
+                      className="w-32 rounded-lg border border-slate-300 bg-white py-1 pl-7 pr-2 text-xs text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-100 placeholder:text-slate-400"
+                    />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    onClick={handleAddTag}
+                    className="!px-2 !py-1 border-none text-xs text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/20 bg-transparent dark:bg-transparent shadow-none"
+                  >
+                    Add
+                  </Button>
+                </div>
+              </div>
             </div>
           ) : (
             <>
@@ -85,8 +153,20 @@ export default function UploadFileItem({ fileInfo, onRemove, onSaveEdit }: Uploa
                 {fileInfo.customName}
               </span>
               <span className="text-xs text-slate-500 dark:text-slate-400">
-                {formatBytes(fileInfo.file.size)}
+                {formatBytes(fileInfo.size)}
               </span>
+              {fileInfo.tags.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {fileInfo.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800 dark:bg-sky-900/40 dark:text-sky-300"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
             </>
           )}
         </div>

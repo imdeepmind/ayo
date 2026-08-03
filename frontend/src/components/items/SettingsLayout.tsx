@@ -28,7 +28,7 @@ export default function SettingsLayout({
   };
 
   return (
-    <div className="mx-auto w-full px-4 pt-6 pb-10 md:px-8 lg:px-16">
+    <div className="mx-auto w-full px-4 pt-6 pb-16 md:px-8 lg:px-16">
       {/* Mobile drawer toggle */}
       <div className="mb-4 lg:hidden">
         <button

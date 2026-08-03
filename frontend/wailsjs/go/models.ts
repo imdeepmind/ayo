@@ -166,3 +166,120 @@ export namespace settings {
 
 }
 
+export namespace upload {
+	
+	export class EnqueueFileInput {
+	    Name: string;
+	    CustomName: string;
+	    Path: string;
+	    Size: number;
+	    Tags: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new EnqueueFileInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Name = source["Name"];
+	        this.CustomName = source["CustomName"];
+	        this.Path = source["Path"];
+	        this.Size = source["Size"];
+	        this.Tags = source["Tags"];
+	    }
+	}
+	export class EnqueueFilesInput {
+	    Files: EnqueueFileInput[];
+	
+	    static createFrom(source: any = {}) {
+	        return new EnqueueFilesInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Files = this.convertValues(source["Files"], EnqueueFileInput);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class EnqueuedJob {
+	    ID: number;
+	    Type: string;
+	    File: string;
+	    CustomName: string;
+	    Size: number;
+	    Status: string;
+	    Progress: number;
+	    Tags: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new EnqueuedJob(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Type = source["Type"];
+	        this.File = source["File"];
+	        this.CustomName = source["CustomName"];
+	        this.Size = source["Size"];
+	        this.Status = source["Status"];
+	        this.Progress = source["Progress"];
+	        this.Tags = source["Tags"];
+	    }
+	}
+	export class PickedFile {
+	    Name: string;
+	    Path: string;
+	    Size: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PickedFile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Name = source["Name"];
+	        this.Path = source["Path"];
+	        this.Size = source["Size"];
+	    }
+	}
+	export class StoredFile {
+	    ID: number;
+	    Name: string;
+	    Size: number;
+	    Tags: string[];
+	    CreatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new StoredFile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Name = source["Name"];
+	        this.Size = source["Size"];
+	        this.Tags = source["Tags"];
+	        this.CreatedAt = source["CreatedAt"];
+	    }
+	}
+
+}
+
