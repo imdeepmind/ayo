@@ -86,6 +86,10 @@ func (s *Service) UpdateSettings(input UpdateSettingsInput) error {
 		return err
 	}
 
+	if err := normalizeProviderIDs(input.CloudKeys); err != nil {
+		return errors.AsInternalServerError("update settings: assign provider ids", err)
+	}
+
 	data, err := json.Marshal(input)
 	if err != nil {
 		return errors.AsInternalServerError("update settings: marshal", err)

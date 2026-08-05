@@ -39,6 +39,7 @@ interface LocalFields {
 
 interface StorageProvider {
   id: string;
+  providerId: string;
   type: ProviderType;
   fields: AWSFields | AzureFields | GCPFields | LocalFields;
   collapsed: boolean;
@@ -59,6 +60,19 @@ const GCP_REQUIRED_KEYS = [
 
 function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function makeProviderId(type: ProviderType) {
+  const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  const bytes = new Uint8Array(8);
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  let random = '';
+  for (const b of bytes) random += alphabet[b % alphabet.length];
+  return `${type}_${random}`;
 }
 
 function emptyFields(type: ProviderType): AWSFields | AzureFields | GCPFields | LocalFields {
@@ -121,6 +135,9 @@ function ProviderForm({
         <div className="flex items-center gap-3">
           <span className="text-xs font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400">
             {providerLabel(provider.type)}
+          </span>
+          <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-500 dark:bg-slate-700/60 dark:text-slate-300">
+            {provider.providerId}
           </span>
           {!provider.collapsed && (
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
@@ -416,6 +433,7 @@ export default function StorageSettings() {
               }
               return {
                 id: generateId(),
+                providerId: k.ID || '',
                 type: providerType,
                 fields,
                 collapsed: true,
@@ -436,6 +454,7 @@ export default function StorageSettings() {
   const addProvider = (type: ProviderType) => {
     const newProvider: StorageProvider = {
       id: generateId(),
+      providerId: makeProviderId(type),
       type,
       fields: emptyFields(type),
       collapsed: false,
@@ -554,6 +573,7 @@ export default function StorageSettings() {
       if (p.type === 'aws') {
         const fields = p.fields as AWSFields;
         return {
+          ID: p.providerId,
           Provider: 'aws',
           AccessKeyID: fields.accessKeyId,
           SecretAccessKey: fields.secretAccessKey,
@@ -563,14 +583,24 @@ export default function StorageSettings() {
       } else if (p.type === 'azure') {
         const fields = p.fields as AzureFields;
         return {
+          ID: p.providerId,
           Provider: 'azure',
           AccountName: fields.storageAccountName,
           AccountKey: fields.storageAccountKey,
           ContainerName: fields.containerName,
         };
+      } else if (p.type === 'gcp') {
+        const fields = p.fields as GCPFields;
+        return {
+          ID: p.providerId,
+          Provider: 'gcp',
+          ServiceAccountJSON: fields.serviceAccountJson,
+          Bucket: fields.bucketName,
+        };
       } else {
         const fields = p.fields as LocalFields;
         return {
+          ID: p.providerId,
           Provider: 'local',
           FolderName: fields.folderName,
           FolderPath: fields.folderPath,
