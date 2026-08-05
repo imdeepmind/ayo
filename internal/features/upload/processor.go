@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
+	"ayo/internal/features/settings"
 	"ayo/internal/platform/queue"
 	"ayo/internal/shared/crypto"
 
@@ -240,7 +243,14 @@ func (p *Processor) processUpload(job *queue.Job) {
 		return
 	}
 
-	shards, manifest, err := p.chunk(id, ciphertext)
+	s, err := p.settingsProvider.GetSettings()
+	if err != nil {
+		slog.Error("chunk file: get settings", "error", err)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 30)
+		return
+	}
+
+	shards, manifest, err := p.chunk(id, s, ciphertext)
 	if err != nil {
 		slog.Error("chunk file", "error", err)
 		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 30)
@@ -291,9 +301,32 @@ func (p *Processor) processDelete(job *queue.Job) {
 
 	_ = p.queue.UpdateStatusAndProgress(id, queue.StatusProcessing, 40)
 
-	// delete all chunks first: the shard folder and the encrypted blob.
-	if err := os.RemoveAll(filepath.Join(chunksDir, fmt.Sprintf("job_%d", upload.JobID))); err != nil {
-		slog.Error("delete: remove shards", "job", id, "error", err)
+	// delete all chunks first: every shard file wherever its provider stores
+	// it, plus the encrypted blob.
+	chunks, err := p.uploadRepository.GetChunks(context.Background(), upload.ID)
+	if err != nil {
+		slog.Error("delete: get shards", "job", id, "error", err)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 40)
+		return
+	}
+
+	var s *settings.Settings
+	if got, err := p.settingsProvider.GetSettings(); err == nil {
+		s = got
+	}
+	legacyDir := filepath.Join(chunksDir, fmt.Sprintf("job_%d", upload.JobID))
+	for _, chunk := range chunks {
+		path, err := p.chunkLocation(s, chunk, legacyDir)
+		if err != nil {
+			slog.Error("delete: resolve shard", "job", id, "chunk", chunk.ChunkID, "error", err)
+			continue
+		}
+		if err := os.Remove(path); err != nil {
+			slog.Error("delete: remove shard", "job", id, "chunk", chunk.ChunkID, "error", err)
+		}
+	}
+	if err := os.RemoveAll(legacyDir); err != nil {
+		slog.Error("delete: clean legacy shard folder", "job", id, "error", err)
 	}
 	if err := os.Remove(filepath.Join(encryptedDir, fmt.Sprintf("%d.enc", upload.JobID))); err != nil {
 		slog.Error("delete: remove encrypted blob", "job", id, "error", err)
@@ -343,10 +376,23 @@ func (p *Processor) processDownload(job *queue.Job) {
 		return
 	}
 
-	dir := filepath.Join(chunksDir, fmt.Sprintf("job_%d", upload.JobID))
+	s, err := p.settingsProvider.GetSettings()
+	if err != nil {
+		slog.Error("download: get settings", "job", id, "error", err)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 10)
+		return
+	}
+
+	legacyDir := filepath.Join(chunksDir, fmt.Sprintf("job_%d", upload.JobID))
 	shardPaths := make([]string, 0, len(chunks))
 	for _, chunk := range chunks {
-		shardPaths = append(shardPaths, filepath.Join(dir, chunk.ChunkID))
+		path, err := p.chunkLocation(s, chunk, legacyDir)
+		if err != nil {
+			slog.Error("download: resolve shard", "job", id, "chunk", chunk.ChunkID, "error", err)
+			_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 10)
+			return
+		}
+		shardPaths = append(shardPaths, path)
 	}
 
 	ciphertext, err := reconstructCiphertext(shardManifest{
@@ -385,23 +431,20 @@ func (p *Processor) processDownload(job *queue.Job) {
 	_ = p.queue.UpdateStatusAndProgress(id, queue.StatusCompleted, 100)
 }
 
-// chunk splits the encrypted file into Reed-Solomon shards written under
-// data/chunks/<jobID>/, using the user's erasure-coding settings. Each shard
-// file is named with a globally unique UUID. It updates job progress from 30%
-// (after encryption) up to 90% as blocks are encoded, and returns the shard
-// records needed to persist the chunks table along with the reconstruction
-// metadata for the uploads table.
-func (p *Processor) chunk(id int64, ciphertext []byte) ([]ChunkInput, shardManifest, error) {
-	s, err := p.settingsProvider.GetSettings()
-	if err != nil {
-		return nil, shardManifest{}, fmt.Errorf("get settings: %w", err)
-	}
+// chunk splits the encrypted file into Reed-Solomon shards, one destination
+// per shard, using the user's erasure-coding settings. Each shard is written
+// through openShardWriter, which randomly picks a configured provider and
+// dispatches to that provider's own write function; the provider's ID is
+// recorded on the chunk row so the shard can be read back later. When no
+// provider is configured (e.g. Ayo mode) shards fall back to
+// data/chunks/job_<id>/ with an empty storage ID.
+//
+// Each shard file is named with a globally unique UUID. It updates job progress
+// from 30% (after encryption) up to 90% as blocks are encoded, and returns the
+// shard records needed to persist the chunks table along with the
+// reconstruction metadata for the uploads table.
+func (p *Processor) chunk(id int64, s *settings.Settings, ciphertext []byte) ([]ChunkInput, shardManifest, error) {
 	cfg := parseShardConfig(s)
-
-	dir := filepath.Join(chunksDir, fmt.Sprintf("job_%d", id))
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return nil, shardManifest{}, fmt.Errorf("create chunk dir: %w", err)
-	}
 
 	enc, err := reedsolomon.New(cfg.dataShards, cfg.parityShards, reedsolomon.WithAutoGoroutines(blockShardSize))
 	if err != nil {
@@ -409,26 +452,26 @@ func (p *Processor) chunk(id int64, ciphertext []byte) ([]ChunkInput, shardManif
 	}
 
 	writers := make([]io.Writer, 0, cfg.totalShards())
-	files := make([]*os.File, 0, cfg.totalShards())
+	closers := make([]io.WriteCloser, 0, cfg.totalShards())
 	shards := make([]ChunkInput, 0, cfg.totalShards())
 	defer func() {
-		for _, f := range files {
-			_ = f.Close()
+		for _, c := range closers {
+			_ = c.Close()
 		}
 	}()
 
 	for i := 0; i < cfg.totalShards(); i++ {
 		chunkID := uuid.NewString() + ".bin"
-		f, err := os.OpenFile(filepath.Join(dir, chunkID), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+		w, storageID, err := p.openShardWriter(id, s.CloudKeys, chunkID)
 		if err != nil {
-			return nil, shardManifest{}, fmt.Errorf("create shard file: %w", err)
+			return nil, shardManifest{}, fmt.Errorf("open shard %d: %w", i, err)
 		}
-		files = append(files, f)
-		writers = append(writers, f)
+		closers = append(closers, w)
+		writers = append(writers, w)
 		shards = append(shards, ChunkInput{
 			ShardIndex: i,
 			ChunkID:    chunkID,
-			StorageID:  0,
+			StorageID:  storageID,
 		})
 	}
 
@@ -452,4 +495,91 @@ func (p *Processor) chunk(id int64, ciphertext []byte) ([]ChunkInput, shardManif
 		ShardSize:     blockShardSize,
 		BlockCount:    blockCount,
 	}, nil
+}
+
+// openShardWriter opens the destination for one shard by randomly picking a
+// configured provider and dispatching to that provider's own write function
+// (e.g. openLocalShard). It returns the open writer and the provider's ID to
+// record on the chunk row. The switch is the extension point for future
+// providers (AWS, GCP, Azure): each adds a case plus its own open<Provider>Shard.
+//
+// With no providers configured (e.g. Ayo-managed storage) shards are written to
+// data/chunks/job_<id>/ and get an empty storage ID, preserving the original
+// pipeline behaviour.
+func (p *Processor) openShardWriter(
+	id int64, providers []settings.CloudKey, chunkID string,
+) (io.WriteCloser, string, error) {
+	if len(providers) == 0 {
+		dir := filepath.Join(chunksDir, fmt.Sprintf("job_%d", id))
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			return nil, "", fmt.Errorf("create chunk dir: %w", err)
+		}
+		f, err := os.OpenFile(filepath.Join(dir, chunkID), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+		if err != nil {
+			return nil, "", fmt.Errorf("create shard file: %w", err)
+		}
+		return f, "", nil
+	}
+
+	key := providers[rand.IntN(len(providers))]
+	switch k := key.(type) {
+	case *settings.LocalKey:
+		f, err := openLocalShard(k, chunkID)
+		return f, k.GetID(), err
+	default:
+		return nil, "", fmt.Errorf("storage provider %q is not supported yet", key.GetProvider())
+	}
+}
+
+// openLocalShard opens a new shard file inside the local provider's storage
+// root, which is the picked folder plus the folder name (FolderPath/FolderName),
+// creating the root first if it does not exist. Shards are stored flat in the
+// root (no per-job subfolders); the UUID chunk IDs prevent collisions.
+func openLocalShard(key *settings.LocalKey, chunkID string) (io.WriteCloser, error) {
+	dir := filepath.Join(key.FolderPath, key.FolderName)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return nil, fmt.Errorf("create local folder: %w", err)
+	}
+	f, err := os.OpenFile(filepath.Join(dir, chunkID), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("create local shard: %w", err)
+	}
+	return f, nil
+}
+
+// localFolderForID returns the storage root (FolderPath/FolderName) of the
+// configured Local provider whose ID matches, so a shard recorded against that
+// provider can be located.
+func localFolderForID(s *settings.Settings, storageID string) (string, bool) {
+	if s == nil {
+		return "", false
+	}
+	for _, k := range s.CloudKeys {
+		if key, ok := k.(*settings.LocalKey); ok && key.GetID() == storageID {
+			return filepath.Join(key.FolderPath, key.FolderName), true
+		}
+	}
+	return "", false
+}
+
+// chunkLocation resolves the on-disk location of one chunk row so it can be
+// read (download) or removed (delete). It dispatches on the provider recorded
+// in the chunk's storage ID; empty storage IDs (legacy/Ayo data) resolve to the
+// legacyDir. The switch is the extension point for future providers.
+func (p *Processor) chunkLocation(s *settings.Settings, chunk Chunk, legacyDir string) (string, error) {
+	if chunk.StorageID == "" {
+		return filepath.Join(legacyDir, chunk.ChunkID), nil
+	}
+
+	prefix, _, _ := strings.Cut(chunk.StorageID, "_")
+	switch prefix {
+	case string(settings.Local):
+		folder, ok := localFolderForID(s, chunk.StorageID)
+		if !ok {
+			return "", fmt.Errorf("local provider %q is no longer configured", chunk.StorageID)
+		}
+		return filepath.Join(folder, chunk.ChunkID), nil
+	default:
+		return "", fmt.Errorf("storage provider %q is not supported yet", prefix)
+	}
 }

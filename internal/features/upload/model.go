@@ -40,7 +40,6 @@ type Upload struct {
 	CustomName string
 	Size       int64
 	Tags       []string
-	StorageID  int
 
 	EncryptedSize int64
 	DataShards    int
@@ -55,21 +54,24 @@ type Upload struct {
 // Chunk is the persisted representation of one Reed-Solomon shard, mirroring
 // one row of the `chunks` table. ChunkID is the globally unique shard filename
 // (a UUID); ShardIndex preserves the reconstruction order (data shards 0..D-1,
-// then parity shards).
+// then parity shards). StorageID identifies the provider the shard was uploaded
+// to (e.g. "local_ab12cd34"); it is empty for legacy rows stored under
+// data/chunks.
 type Chunk struct {
 	ID         int64
 	FileID     int64
 	ShardIndex int
 	ChunkID    string
-	StorageID  int
+	StorageID  string
 	CreatedAt  time.Time
 }
 
-// ChunkInput describes one shard to persist, before it has an ID.
+// ChunkInput describes one shard to persist, before it has an ID. StorageID is
+// the provider ID the shard was assigned to during upload.
 type ChunkInput struct {
 	ShardIndex int
 	ChunkID    string
-	StorageID  int
+	StorageID  string
 }
 
 // StoredFile is the frontend-facing representation of one row of the `uploads`

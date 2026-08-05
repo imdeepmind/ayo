@@ -533,23 +533,24 @@ export default function StorageSettings() {
       }
     }
 
-    // Duplicate bucket/container check
+    // Duplicate bucket/container check. Local providers are excluded: folders
+    // are distinguished by their Folder Name, so reusing a path is allowed.
     const seen = new Map<string, string>();
     for (const p of providers) {
+      if (p.type === 'local') continue;
       const key = `${p.type}::${getBucketOrContainer(p)}`;
       if (!getBucketOrContainer(p)) continue;
       if (seen.has(key)) {
-        const label =
-          p.type === 'azure' ? 'containerName' : p.type === 'local' ? 'folderPath' : 'bucketName';
+        const label = p.type === 'azure' ? 'containerName' : 'bucketName';
         if (!newErrors[p.id]) newErrors[p.id] = {};
         newErrors[p.id][label] =
-          `Duplicate: another ${providerLabel(p.type)} provider already uses this ${p.type === 'azure' ? 'container' : p.type === 'local' ? 'folder' : 'bucket'}`;
+          `Duplicate: another ${providerLabel(p.type)} provider already uses this ${p.type === 'azure' ? 'container' : 'bucket'}`;
         valid = false;
         // Also mark the original
         const origId = seen.get(key)!;
         if (!newErrors[origId]) newErrors[origId] = {};
         newErrors[origId][label] =
-          `Duplicate: another ${providerLabel(p.type)} provider already uses this ${p.type === 'azure' ? 'container' : p.type === 'local' ? 'folder' : 'bucket'}`;
+          `Duplicate: another ${providerLabel(p.type)} provider already uses this ${p.type === 'azure' ? 'container' : 'bucket'}`;
       } else {
         seen.set(key, p.id);
       }
