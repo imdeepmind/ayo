@@ -37,6 +37,14 @@ type GCPKey struct {
 
 func (g GCPKey) GetProvider() Provider { return g.Provider }
 
+type LocalKey struct {
+	Provider   Provider
+	FolderName string
+	FolderPath string
+}
+
+func (l LocalKey) GetProvider() Provider { return l.Provider }
+
 // decodeCloudKeys unmarshals a set of raw cloud-key JSON objects into their
 // concrete provider structs, dispatching on the Provider field. Unknown
 // providers are rejected.
@@ -66,6 +74,12 @@ func decodeCloudKeys(rawKeys []json.RawMessage) ([]CloudKey, error) {
 			keys = append(keys, key)
 		case GCP:
 			var key GCPKey
+			if err := json.Unmarshal(rawKey, &key); err != nil {
+				return nil, err
+			}
+			keys = append(keys, key)
+		case Local:
+			var key LocalKey
 			if err := json.Unmarshal(rawKey, &key); err != nil {
 				return nil, err
 			}

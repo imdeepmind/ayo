@@ -7,12 +7,12 @@ import Toggle from '@/components/bits/Toggle';
 import ErasureCodingSection, {
   type ErasureCodingConfig,
 } from '@/components/items/ErasureCodingSection';
-import { GetSettings, UpdateSettings } from '../../../wailsjs/go/settings/Service';
+import { GetSettings, UpdateSettings, PickFolder } from '../../../wailsjs/go/settings/Service';
 import { settings } from '../../../wailsjs/go/models';
 
 // ---------- Types ----------
 
-type ProviderType = 'aws' | 'azure' | 'gcp';
+type ProviderType = 'aws' | 'azure' | 'gcp' | 'local';
 
 interface AWSFields {
   accessKeyId: string;
@@ -32,10 +32,15 @@ interface GCPFields {
   bucketName: string;
 }
 
+interface LocalFields {
+  folderName: string;
+  folderPath: string;
+}
+
 interface StorageProvider {
   id: string;
   type: ProviderType;
-  fields: AWSFields | AzureFields | GCPFields;
+  fields: AWSFields | AzureFields | GCPFields | LocalFields;
   collapsed: boolean;
 }
 
@@ -56,7 +61,7 @@ function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-function emptyFields(type: ProviderType): AWSFields | AzureFields | GCPFields {
+function emptyFields(type: ProviderType): AWSFields | AzureFields | GCPFields | LocalFields {
   switch (type) {
     case 'aws':
       return { accessKeyId: '', secretAccessKey: '', region: '', bucketName: '' };
@@ -64,17 +69,26 @@ function emptyFields(type: ProviderType): AWSFields | AzureFields | GCPFields {
       return { storageAccountName: '', storageAccountKey: '', containerName: '' };
     case 'gcp':
       return { serviceAccountJson: '', bucketName: '' };
+    case 'local':
+      return { folderName: '', folderPath: '' };
   }
 }
 
 function providerLabel(type: ProviderType) {
-  return type === 'aws' ? 'AWS S3' : type === 'azure' ? 'Azure Blob' : 'Google Cloud';
+  return type === 'aws'
+    ? 'AWS S3'
+    : type === 'azure'
+      ? 'Azure Blob'
+      : type === 'gcp'
+        ? 'Google Cloud'
+        : 'Local System';
 }
 
 function getBucketOrContainer(p: StorageProvider): string {
   if (p.type === 'aws') return (p.fields as AWSFields).bucketName.trim().toLowerCase();
   if (p.type === 'azure') return (p.fields as AzureFields).containerName.trim().toLowerCase();
-  return (p.fields as GCPFields).bucketName.trim().toLowerCase();
+  if (p.type === 'gcp') return (p.fields as GCPFields).bucketName.trim().toLowerCase();
+  return (p.fields as LocalFields).folderPath.trim().toLowerCase();
 }
 
 // ---------- Sub-components ----------
@@ -114,7 +128,9 @@ function ProviderForm({
                 ? (provider.fields as AWSFields).bucketName || 'Untitled'
                 : provider.type === 'azure'
                   ? (provider.fields as AzureFields).containerName || 'Untitled'
-                  : (provider.fields as GCPFields).bucketName || 'Untitled'}
+                  : provider.type === 'gcp'
+                    ? (provider.fields as GCPFields).bucketName || 'Untitled'
+                    : (provider.fields as LocalFields).folderName || 'Untitled'}
             </span>
           )}
         </div>
@@ -255,6 +271,63 @@ function ProviderForm({
             </>
           )}
 
+          {provider.type === 'local' && (
+            <>
+              <TextInput
+                id={`${provider.id}-folder-name`}
+                label="Folder Name"
+                placeholder="e.g. Backups"
+                value={(provider.fields as LocalFields).folderName}
+                onChange={(e) => update('folderName', e.target.value)}
+                error={errors.folderName}
+              />
+              <div className="space-y-2">
+                <label
+                  htmlFor={`${provider.id}-folder-path`}
+                  className="block text-sm font-semibold text-slate-700 dark:text-slate-200"
+                >
+                  Folder Location
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    id={`${provider.id}-folder-path`}
+                    type="text"
+                    readOnly
+                    placeholder="Choose a folder..."
+                    value={(provider.fields as LocalFields).folderPath}
+                    className={`w-full flex-1 rounded-xl border-2 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 shadow-sm outline-none transition-all duration-200 focus:ring-4 dark:bg-slate-900/50 dark:text-slate-200 dark:placeholder:text-slate-500 ${errors.folderPath ? 'border-red-400' : 'border-slate-200 dark:border-slate-600'}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const path = await PickFolder();
+                        if (path) update('folderPath', path);
+                      } catch (err) {
+                        console.error(err);
+                        toast.error('Failed to open folder picker: ' + String(err));
+                      }
+                    }}
+                    className="inline-flex items-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-sm transition-all duration-200 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-sky-500 dark:hover:bg-sky-950/30 dark:hover:text-sky-400"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                      />
+                    </svg>
+                    Browse
+                  </button>
+                </div>
+                {errors.folderPath && (
+                  <p className="text-sm text-red-500 dark:text-red-400">{errors.folderPath}</p>
+                )}
+              </div>
+            </>
+          )}
+
           <div className="pt-3 flex items-center gap-2">
             <button
               type="button"
@@ -335,6 +408,11 @@ export default function StorageSettings() {
                   serviceAccountJson: k.ServiceAccountJSON || '',
                   bucketName: k.Bucket || '',
                 };
+              } else if (providerType === 'local') {
+                fields = {
+                  folderName: k.FolderName || '',
+                  folderPath: k.FolderPath || '',
+                };
               }
               return {
                 id: generateId(),
@@ -408,7 +486,7 @@ export default function StorageSettings() {
         if (!f.storageAccountName.trim()) errs.storageAccountName = 'Account Name is required';
         if (!f.storageAccountKey.trim()) errs.storageAccountKey = 'Account Key is required';
         if (!f.containerName.trim()) errs.containerName = 'Container Name is required';
-      } else {
+      } else if (p.type === 'gcp') {
         const f = p.fields as GCPFields;
         if (!f.serviceAccountJson.trim()) {
           errs.serviceAccountJson = 'Service Account JSON is required';
@@ -424,6 +502,10 @@ export default function StorageSettings() {
           }
         }
         if (!f.bucketName.trim()) errs.bucketName = 'Bucket Name is required';
+      } else {
+        const f = p.fields as LocalFields;
+        if (!f.folderName.trim()) errs.folderName = 'Folder Name is required';
+        if (!f.folderPath.trim()) errs.folderPath = 'Please choose a folder';
       }
 
       if (Object.keys(errs).length > 0) {
@@ -438,16 +520,17 @@ export default function StorageSettings() {
       const key = `${p.type}::${getBucketOrContainer(p)}`;
       if (!getBucketOrContainer(p)) continue;
       if (seen.has(key)) {
-        const label = p.type === 'azure' ? 'containerName' : 'bucketName';
+        const label =
+          p.type === 'azure' ? 'containerName' : p.type === 'local' ? 'folderPath' : 'bucketName';
         if (!newErrors[p.id]) newErrors[p.id] = {};
         newErrors[p.id][label] =
-          `Duplicate: another ${providerLabel(p.type)} provider already uses this ${p.type === 'azure' ? 'container' : 'bucket'}`;
+          `Duplicate: another ${providerLabel(p.type)} provider already uses this ${p.type === 'azure' ? 'container' : p.type === 'local' ? 'folder' : 'bucket'}`;
         valid = false;
         // Also mark the original
         const origId = seen.get(key)!;
         if (!newErrors[origId]) newErrors[origId] = {};
         newErrors[origId][label] =
-          `Duplicate: another ${providerLabel(p.type)} provider already uses this ${p.type === 'azure' ? 'container' : 'bucket'}`;
+          `Duplicate: another ${providerLabel(p.type)} provider already uses this ${p.type === 'azure' ? 'container' : p.type === 'local' ? 'folder' : 'bucket'}`;
       } else {
         seen.set(key, p.id);
       }
@@ -486,11 +569,11 @@ export default function StorageSettings() {
           ContainerName: fields.containerName,
         };
       } else {
-        const fields = p.fields as GCPFields;
+        const fields = p.fields as LocalFields;
         return {
-          Provider: 'gcp',
-          ServiceAccountJSON: fields.serviceAccountJson,
-          Bucket: fields.bucketName,
+          Provider: 'local',
+          FolderName: fields.folderName,
+          FolderPath: fields.folderPath,
         };
       }
     });
@@ -591,7 +674,7 @@ export default function StorageSettings() {
                 <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                   Add storage provider:
                 </span>
-                {(['aws', 'gcp', 'azure'] as ProviderType[]).map((type) => (
+                {(['aws', 'gcp', 'azure', 'local'] as ProviderType[]).map((type) => (
                   <button
                     key={type}
                     type="button"

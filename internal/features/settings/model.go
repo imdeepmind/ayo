@@ -15,6 +15,7 @@ const (
 	AWS   Provider = "aws"
 	Azure Provider = "azure"
 	GCP   Provider = "gcp"
+	Local Provider = "local"
 
 	EC22  ErasureCodingMode = "2+2"
 	EC63  ErasureCodingMode = "6+3"

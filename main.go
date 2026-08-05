@@ -104,6 +104,7 @@ func main() {
 			// Only services that need the Wails context receive it here.
 			recoveryService.Startup(ctx)
 			uploadService.Startup(ctx)
+			settingsService.Startup(ctx)
 		},
 		DisableResize: false,
 		Mac: &mac.Options{
