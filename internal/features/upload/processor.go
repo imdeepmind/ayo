@@ -7,11 +7,11 @@ import (
 	"io"
 	"log/slog"
 	"math/rand/v2"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 
+	"ayo/internal/clients"
 	"ayo/internal/features/settings"
 	"ayo/internal/platform/queue"
 	"ayo/internal/shared/crypto"
@@ -70,6 +70,7 @@ type Processor struct {
 	settingsProvider SettingsProvider
 	queue            QueueService
 	uploadRepository UploadRepository
+	client           clients.Client
 	jobs             chan int64
 	wg               sync.WaitGroup
 	resumeOnce       sync.Once
@@ -82,15 +83,17 @@ type Processor struct {
 	queuedMu sync.Mutex
 }
 
-// NewProcessor wires the session provider, settings provider, queue and upload
-// repository into a ready-to-use Processor. Workers are spawned by Start.
+// NewProcessor wires the session provider, settings provider, queue, upload
+// repository and storage client into a ready-to-use Processor. Workers are
+// spawned by Start.
 func NewProcessor(sessionProvider SessionProvider, settingsProvider SettingsProvider,
-	queue QueueService, uploadRepository UploadRepository) *Processor {
+	queue QueueService, uploadRepository UploadRepository, client clients.Client) *Processor {
 	return &Processor{
 		sessionProvider:  sessionProvider,
 		settingsProvider: settingsProvider,
 		queue:            queue,
 		uploadRepository: uploadRepository,
+		client:           client,
 		jobs:             make(chan int64, jobChannelSize),
 		queued:           make(map[int64]struct{}),
 	}
@@ -217,7 +220,7 @@ func (p *Processor) processUpload(job *queue.Job) {
 		return
 	}
 
-	plaintext, err := os.ReadFile(job.Path)
+	plaintext, err := p.client.ReadFile(job.Path)
 	if err != nil {
 		slog.Error("encrypt file: read", "error", err)
 		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 0)
@@ -232,12 +235,12 @@ func (p *Processor) processUpload(job *queue.Job) {
 	}
 
 	dst := filepath.Join(encryptedDir, fmt.Sprintf("%d.enc", id))
-	if err := os.MkdirAll(encryptedDir, 0o700); err != nil {
+	if err := p.client.MkdirAll(encryptedDir, 0o700); err != nil {
 		slog.Error("encrypt file: create dir", "error", err)
 		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 0)
 		return
 	}
-	if err := os.WriteFile(dst, ciphertext, 0o600); err != nil {
+	if err := p.client.WriteFile(dst, ciphertext, 0o600); err != nil {
 		slog.Error("encrypt file: write", "error", err)
 		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 0)
 		return
@@ -321,14 +324,14 @@ func (p *Processor) processDelete(job *queue.Job) {
 			slog.Error("delete: resolve shard", "job", id, "chunk", chunk.ChunkID, "error", err)
 			continue
 		}
-		if err := os.Remove(path); err != nil {
+		if err := p.client.Remove(path); err != nil {
 			slog.Error("delete: remove shard", "job", id, "chunk", chunk.ChunkID, "error", err)
 		}
 	}
-	if err := os.RemoveAll(legacyDir); err != nil {
+	if err := p.client.RemoveAll(legacyDir); err != nil {
 		slog.Error("delete: clean legacy shard folder", "job", id, "error", err)
 	}
-	if err := os.Remove(filepath.Join(encryptedDir, fmt.Sprintf("%d.enc", upload.JobID))); err != nil {
+	if err := p.client.Remove(filepath.Join(encryptedDir, fmt.Sprintf("%d.enc", upload.JobID))); err != nil {
 		slog.Error("delete: remove encrypted blob", "job", id, "error", err)
 	}
 
@@ -395,7 +398,7 @@ func (p *Processor) processDownload(job *queue.Job) {
 		shardPaths = append(shardPaths, path)
 	}
 
-	ciphertext, err := reconstructCiphertext(shardManifest{
+	ciphertext, err := reconstructCiphertext(p.client, shardManifest{
 		EncryptedSize: upload.EncryptedSize,
 		DataShards:    upload.DataShards,
 		ParityShards:  upload.ParityShards,
@@ -417,12 +420,12 @@ func (p *Processor) processDownload(job *queue.Job) {
 		return
 	}
 
-	if err := os.MkdirAll(downloadsDir, 0o700); err != nil {
+	if err := p.client.MkdirAll(downloadsDir, 0o700); err != nil {
 		slog.Error("download: create staging dir", "error", err)
 		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 90)
 		return
 	}
-	if err := os.WriteFile(filepath.Join(downloadsDir, fmt.Sprintf("%d", id)), plaintext, 0o600); err != nil {
+	if err := p.client.WriteFile(filepath.Join(downloadsDir, fmt.Sprintf("%d", id)), plaintext, 0o600); err != nil {
 		slog.Error("download: write staging", "error", err)
 		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 90)
 		return
@@ -531,10 +534,10 @@ func (p *Processor) openShardWriter(
 ) (io.WriteCloser, string, error) {
 	if len(providers) == 0 {
 		dir := filepath.Join(chunksDir, fmt.Sprintf("job_%d", id))
-		if err := os.MkdirAll(dir, 0o700); err != nil {
+		if err := p.client.MkdirAll(dir, 0o700); err != nil {
 			return nil, "", fmt.Errorf("create chunk dir: %w", err)
 		}
-		f, err := os.OpenFile(filepath.Join(dir, chunkID), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+		f, err := p.client.OpenWriter(filepath.Join(dir, chunkID))
 		if err != nil {
 			return nil, "", fmt.Errorf("create shard file: %w", err)
 		}
@@ -544,7 +547,7 @@ func (p *Processor) openShardWriter(
 	key := providers[rand.IntN(len(providers))]
 	switch k := key.(type) {
 	case *settings.LocalKey:
-		f, err := openLocalShard(k, chunkID)
+		f, err := openLocalShard(p.client, k, chunkID)
 		return f, k.GetID(), err
 	default:
 		return nil, "", fmt.Errorf("storage provider %q is not supported yet", key.GetProvider())
@@ -555,12 +558,12 @@ func (p *Processor) openShardWriter(
 // root, which is the picked folder plus the folder name (FolderPath/FolderName),
 // creating the root first if it does not exist. Shards are stored flat in the
 // root (no per-job subfolders); the UUID chunk IDs prevent collisions.
-func openLocalShard(key *settings.LocalKey, chunkID string) (io.WriteCloser, error) {
+func openLocalShard(client clients.Client, key *settings.LocalKey, chunkID string) (io.WriteCloser, error) {
 	dir := filepath.Join(key.FolderPath, key.FolderName)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	if err := client.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("create local folder: %w", err)
 	}
-	f, err := os.OpenFile(filepath.Join(dir, chunkID), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	f, err := client.OpenWriter(filepath.Join(dir, chunkID))
 	if err != nil {
 		return nil, fmt.Errorf("create local shard: %w", err)
 	}

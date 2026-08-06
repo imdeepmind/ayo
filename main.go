@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"ayo/internal/clients"
 	"ayo/internal/features/auth"
 	"ayo/internal/features/recovery"
 	"ayo/internal/features/settings"
@@ -75,6 +76,11 @@ func main() {
 	}
 	queueService := queue.NewService(queueRepository)
 
+	// Storage client: the primitive backend the upload feature reads and writes
+	// files through. Local filesystem for now; remote backends (S3, Azure Blob,
+	// GCP) will implement the same clients.Client interface.
+	fileClient := clients.NewLocalFilesystem()
+
 	// Upload service: native file selection + enqueues one job per uploaded
 	// file into the queue. The processor encrypts each file, splits it into
 	// Reed-Solomon shards using the erasure-coding settings, and persists the
@@ -83,7 +89,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	uploadService := upload.NewService(authService, settingsService, queueService, uploadRepository)
+	uploadService := upload.NewService(authService, settingsService, queueService, uploadRepository, fileClient)
 
 	// Create application with options. Anything passed to Bind is exposed to
 	// the frontend as generated JavaScript bindings under

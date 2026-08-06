@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 
+	"ayo/internal/clients"
 	"ayo/internal/features/settings"
 
 	"github.com/klauspost/reedsolomon"
@@ -229,7 +229,7 @@ func encodeBlocks(enc reedsolomon.Encoder, cfg shardConfig, src io.Reader,
 // for each block, emit shard 0..D-1's slice for that block, then move to the
 // next block. The result is trimmed to the exact encrypted size to remove the
 // final block's zero-padding.
-func reconstructCiphertext(manifest shardManifest, shardPaths []string) ([]byte, error) {
+func reconstructCiphertext(client clients.Client, manifest shardManifest, shardPaths []string) ([]byte, error) {
 	total := manifest.DataShards + manifest.ParityShards
 	if manifest.DataShards <= 0 || total != len(shardPaths) {
 		return nil, fmt.Errorf("invalid layout: expected %d shards, got %d", total, len(shardPaths))
@@ -238,7 +238,7 @@ func reconstructCiphertext(manifest shardManifest, shardPaths []string) ([]byte,
 	shards := make([][]byte, total)
 	present := 0
 	for i, path := range shardPaths {
-		data, err := os.ReadFile(path)
+		data, err := client.ReadFile(path)
 		if err != nil {
 			// Missing shard; leave nil so Reconstruct can fill it from parity.
 			continue

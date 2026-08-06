@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"time"
 
+	"ayo/internal/clients"
 	"ayo/internal/features/auth"
 	"ayo/internal/features/settings"
 	"ayo/internal/platform/dialog"
@@ -76,17 +76,19 @@ type Service struct {
 	queueService     QueueService
 	repo             Repository
 	processor        *Processor
+	client           clients.Client
 	validate         *validator.Validate
 }
 
 func NewService(sessionProvider SessionProvider, settingsProvider SettingsProvider,
-	queueService QueueService, repo Repository) *Service {
+	queueService QueueService, repo Repository, client clients.Client) *Service {
 	return &Service{
 		sessionProvider:  sessionProvider,
 		settingsProvider: settingsProvider,
 		queueService:     queueService,
 		repo:             repo,
-		processor:        NewProcessor(sessionProvider, settingsProvider, queueService, repo),
+		client:           client,
+		processor:        NewProcessor(sessionProvider, settingsProvider, queueService, repo, client),
 		validate:         validator.New(),
 	}
 }
@@ -105,10 +107,10 @@ func (s *Service) Startup(ctx context.Context) {
 // (completed but never saved, or mid-flight) is discarded, since the staged
 // bytes are not a persisted record and the user can simply download again.
 func (s *Service) cleanupStaleDownloads() {
-	if err := os.RemoveAll(downloadsDir); err != nil {
+	if err := s.client.RemoveAll(downloadsDir); err != nil {
 		slog.Error("startup: clear downloads staging", "error", err)
 	}
-	if err := os.MkdirAll(downloadsDir, 0o700); err != nil {
+	if err := s.client.MkdirAll(downloadsDir, 0o700); err != nil {
 		slog.Error("startup: create downloads staging", "error", err)
 	}
 
@@ -140,7 +142,7 @@ func (s *Service) PickFiles() ([]PickedFile, error) {
 
 	picked := make([]PickedFile, 0, len(paths))
 	for _, path := range paths {
-		info, err := os.Stat(path)
+		info, err := s.client.Stat(path)
 		if err != nil {
 			continue
 		}
@@ -290,7 +292,7 @@ func (s *Service) FinalizeDownload(jobID int64) (string, error) {
 	}
 
 	staged := filepath.Join(downloadsDir, fmt.Sprintf("%d", jobID))
-	if _, err := os.Stat(staged); err != nil {
+	if _, err := s.client.Stat(staged); err != nil {
 		return "", errors.NewInternalServerError("download: staged file missing", err)
 	}
 
@@ -310,7 +312,7 @@ func (s *Service) FinalizeDownload(jobID int64) (string, error) {
 	// The staging file and the transient job are discarded whether the user
 	// saves or cancels.
 	defer func() {
-		_ = os.Remove(staged)
+		_ = s.client.Remove(staged)
 		_ = s.queueService.Delete(jobID)
 	}()
 
@@ -318,11 +320,11 @@ func (s *Service) FinalizeDownload(jobID int64) (string, error) {
 		return "", nil
 	}
 
-	data, err := os.ReadFile(staged)
+	data, err := s.client.ReadFile(staged)
 	if err != nil {
 		return "", errors.AsInternalServerError("download: read staging", err)
 	}
-	if err := os.WriteFile(dest, data, 0o600); err != nil {
+	if err := s.client.WriteFile(dest, data, 0o600); err != nil {
 		return "", errors.AsInternalServerError("download: write destination", err)
 	}
 	return dest, nil
