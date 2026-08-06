@@ -432,7 +432,9 @@ func (p *Processor) processDownload(job *queue.Job) {
 }
 
 // chunk splits the encrypted file into Reed-Solomon shards, one destination
-// per shard, using the user's erasure-coding settings. Each shard is written
+// per shard. The data/parity shard counts come from the dynamic planner
+// (computeShardCount), which scales with the file size so chunks stay within
+// [minShardSize, maxShardSize] even for small files. Each shard is written
 // through openShardWriter, which randomly picks a configured provider and
 // dispatches to that provider's own write function; the provider's ID is
 // recorded on the chunk row so the shard can be read back later. When no
@@ -444,9 +446,27 @@ func (p *Processor) processDownload(job *queue.Job) {
 // shard records needed to persist the chunks table along with the
 // reconstruction metadata for the uploads table.
 func (p *Processor) chunk(id int64, s *settings.Settings, ciphertext []byte) ([]ChunkInput, shardManifest, error) {
-	cfg := parseShardConfig(s)
+	dataShards, parityShards := computeShardCount(int64(len(ciphertext)), s.ErasureCoding, s.ErasureCodingConfig)
 
-	enc, err := reedsolomon.New(cfg.dataShards, cfg.parityShards, reedsolomon.WithAutoGoroutines(blockShardSize))
+	// Size each shard so the data shards carry the whole file (a chunk of
+	// ~len(ciphertext)/dataShards bytes), clamped into [minShardSize,
+	// blockShardSize] to keep chunks small for small files and per-block memory
+	// bounded for large ones.
+	shardSize := int(ceilDiv(int64(len(ciphertext)), int64(dataShards)))
+	if shardSize < minShardSize {
+		shardSize = minShardSize
+	}
+	if shardSize > blockShardSize {
+		shardSize = blockShardSize
+	}
+
+	cfg := shardConfig{
+		dataShards:   dataShards,
+		parityShards: parityShards,
+		blockSize:    dataShards * shardSize,
+	}
+
+	enc, err := reedsolomon.New(cfg.dataShards, cfg.parityShards, reedsolomon.WithAutoGoroutines(shardSize))
 	if err != nil {
 		return nil, shardManifest{}, fmt.Errorf("create encoder: %w", err)
 	}
@@ -492,7 +512,7 @@ func (p *Processor) chunk(id int64, s *settings.Settings, ciphertext []byte) ([]
 		EncryptedSize: int64(len(ciphertext)),
 		DataShards:    cfg.dataShards,
 		ParityShards:  cfg.parityShards,
-		ShardSize:     blockShardSize,
+		ShardSize:     shardSize,
 		BlockCount:    blockCount,
 	}, nil
 }
