@@ -710,7 +710,8 @@ export default function StorageSettings() {
                     key={type}
                     type="button"
                     onClick={() => addProvider(type)}
-                    disabled={!customEnabled}
+                    disabled={!customEnabled || type === 'gcp' || type === 'azure'}
+                    title={type === 'gcp' || type === 'azure' ? 'Coming soon' : undefined}
                     className="inline-flex items-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-sm transition-all duration-200 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-600 hover:shadow-md dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-sky-500 dark:hover:bg-sky-950/30 dark:hover:text-sky-400 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-slate-300 disabled:hover:bg-white disabled:hover:text-slate-600"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
