@@ -219,26 +219,33 @@ func encodeBlocks(enc reedsolomon.Encoder, cfg shardConfig, src io.Reader,
 	}
 }
 
-// reconstructCiphertext rebuilds the encrypted blob from its shard files using
-// the stored manifest layout (the download counterpart of chunk()). Each shard
-// path maps to a chunk row, ordered by shard index. Missing shards are
-// recovered from parity via Reconstruct when enough remain.
+// shardRef pairs a storage client with the object key of one shard, so each
+// shard can be read from whichever backend holds it (local filesystem or S3).
+type shardRef struct {
+	client clients.Client
+	key    string
+}
+
+// reconstructCiphertext rebuilds the encrypted blob from its shards using the
+// stored manifest layout (the download counterpart of chunk()). Each ref maps
+// to a chunk row, ordered by shard index. Missing shards are recovered from
+// parity via Reconstruct when enough remain.
 //
 // Because encoding is block-based (each block appends one shard-size slice to
 // every shard file), the data shards must be re-interleaved block by block:
 // for each block, emit shard 0..D-1's slice for that block, then move to the
 // next block. The result is trimmed to the exact encrypted size to remove the
 // final block's zero-padding.
-func reconstructCiphertext(client clients.Client, manifest shardManifest, shardPaths []string) ([]byte, error) {
+func reconstructCiphertext(manifest shardManifest, refs []shardRef) ([]byte, error) {
 	total := manifest.DataShards + manifest.ParityShards
-	if manifest.DataShards <= 0 || total != len(shardPaths) {
-		return nil, fmt.Errorf("invalid layout: expected %d shards, got %d", total, len(shardPaths))
+	if manifest.DataShards <= 0 || total != len(refs) {
+		return nil, fmt.Errorf("invalid layout: expected %d shards, got %d", total, len(refs))
 	}
 
 	shards := make([][]byte, total)
 	present := 0
-	for i, path := range shardPaths {
-		data, err := client.ReadFile(path)
+	for i, ref := range refs {
+		data, err := ref.client.ReadFile(ref.key)
 		if err != nil {
 			// Missing shard; leave nil so Reconstruct can fill it from parity.
 			continue

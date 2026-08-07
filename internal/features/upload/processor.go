@@ -319,12 +319,12 @@ func (p *Processor) processDelete(job *queue.Job) {
 	}
 	legacyDir := filepath.Join(chunksDir, fmt.Sprintf("job_%d", upload.JobID))
 	for _, chunk := range chunks {
-		path, err := p.chunkLocation(s, chunk, legacyDir)
+		client, key, err := p.shardClient(s, chunk, legacyDir)
 		if err != nil {
 			slog.Error("delete: resolve shard", "job", id, "chunk", chunk.ChunkID, "error", err)
 			continue
 		}
-		if err := p.client.Remove(path); err != nil {
+		if err := client.Remove(key); err != nil {
 			slog.Error("delete: remove shard", "job", id, "chunk", chunk.ChunkID, "error", err)
 		}
 	}
@@ -387,24 +387,24 @@ func (p *Processor) processDownload(job *queue.Job) {
 	}
 
 	legacyDir := filepath.Join(chunksDir, fmt.Sprintf("job_%d", upload.JobID))
-	shardPaths := make([]string, 0, len(chunks))
+	shardRefs := make([]shardRef, 0, len(chunks))
 	for _, chunk := range chunks {
-		path, err := p.chunkLocation(s, chunk, legacyDir)
+		client, key, err := p.shardClient(s, chunk, legacyDir)
 		if err != nil {
 			slog.Error("download: resolve shard", "job", id, "chunk", chunk.ChunkID, "error", err)
 			_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 10)
 			return
 		}
-		shardPaths = append(shardPaths, path)
+		shardRefs = append(shardRefs, shardRef{client: client, key: key})
 	}
 
-	ciphertext, err := reconstructCiphertext(p.client, shardManifest{
+	ciphertext, err := reconstructCiphertext(shardManifest{
 		EncryptedSize: upload.EncryptedSize,
 		DataShards:    upload.DataShards,
 		ParityShards:  upload.ParityShards,
 		ShardSize:     upload.ShardSize,
 		BlockCount:    upload.BlockCount,
-	}, shardPaths)
+	}, shardRefs)
 	if err != nil {
 		slog.Error("download: reconstruct", "job", id, "error", err)
 		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 50)
@@ -477,9 +477,14 @@ func (p *Processor) chunk(id int64, s *settings.Settings, ciphertext []byte) ([]
 	writers := make([]io.Writer, 0, cfg.totalShards())
 	closers := make([]io.WriteCloser, 0, cfg.totalShards())
 	shards := make([]ChunkInput, 0, cfg.totalShards())
+	// Close any writer left open on an early error return (e.g. a local shard
+	// file handle). Writers closed successfully below are set to nil so they
+	// are never closed twice (an S3 PutObject must only run once).
 	defer func() {
 		for _, c := range closers {
-			_ = c.Close()
+			if c != nil {
+				_ = c.Close()
+			}
 		}
 	}()
 
@@ -509,6 +514,16 @@ func (p *Processor) chunk(id int64, s *settings.Settings, ciphertext []byte) ([]
 	})
 	if err != nil {
 		return nil, shardManifest{}, fmt.Errorf("encode blocks: %w", err)
+	}
+
+	// Close every shard writer now so provider uploads (e.g. the S3 PutObject)
+	// happen while the job can still be marked failed. A close error must fail
+	// the job rather than being swallowed by the deferred cleanup.
+	for i := range closers {
+		if err := closers[i].Close(); err != nil {
+			return nil, shardManifest{}, fmt.Errorf("close shard %d: %w", i, err)
+		}
+		closers[i] = nil
 	}
 
 	return shards, shardManifest{
@@ -549,6 +564,9 @@ func (p *Processor) openShardWriter(
 	case *settings.LocalKey:
 		f, err := openLocalShard(p.client, k, chunkID)
 		return f, k.GetID(), err
+	case *settings.AWSKey:
+		w, err := openS3Shard(k, chunkID)
+		return w, k.GetID(), err
 	default:
 		return nil, "", fmt.Errorf("storage provider %q is not supported yet", key.GetProvider())
 	}
@@ -570,6 +588,21 @@ func openLocalShard(client clients.Client, key *settings.LocalKey, chunkID strin
 	return f, nil
 }
 
+// openS3Shard returns a writer that streams the shard into the configured AWS
+// bucket as a single object named chunkID. The write is buffered and uploaded
+// when the writer is closed (see clients.S3).
+func openS3Shard(key *settings.AWSKey, chunkID string) (io.WriteCloser, error) {
+	c, err := clients.NewS3(key.Bucket, key.Region, key.AccessKeyID, key.SecretAccessKey)
+	if err != nil {
+		return nil, fmt.Errorf("create s3 client: %w", err)
+	}
+	w, err := c.OpenWriter(chunkID)
+	if err != nil {
+		return nil, fmt.Errorf("open s3 shard: %w", err)
+	}
+	return w, nil
+}
+
 // localFolderForID returns the storage root (FolderPath/FolderName) of the
 // configured Local provider whose ID matches, so a shard recorded against that
 // provider can be located.
@@ -585,13 +618,28 @@ func localFolderForID(s *settings.Settings, storageID string) (string, bool) {
 	return "", false
 }
 
-// chunkLocation resolves the on-disk location of one chunk row so it can be
-// read (download) or removed (delete). It dispatches on the provider recorded
-// in the chunk's storage ID; empty storage IDs (legacy/Ayo data) resolve to the
-// legacyDir. The switch is the extension point for future providers.
-func (p *Processor) chunkLocation(s *settings.Settings, chunk Chunk, legacyDir string) (string, error) {
+// awsKeyForID returns the configured AWS provider whose ID matches, so a shard
+// recorded against it can be read from or removed from its bucket.
+func awsKeyForID(s *settings.Settings, storageID string) (*settings.AWSKey, bool) {
+	if s == nil {
+		return nil, false
+	}
+	for _, k := range s.CloudKeys {
+		if key, ok := k.(*settings.AWSKey); ok && key.GetID() == storageID {
+			return key, true
+		}
+	}
+	return nil, false
+}
+
+// shardClient resolves the storage client and object key for one chunk row so
+// it can be read (download) or removed (delete). It dispatches on the provider
+// recorded in the chunk's storage ID; empty storage IDs (legacy/Ayo data)
+// resolve to the local filesystem's legacyDir. The switch is the extension
+// point for future providers (GCP, Azure).
+func (p *Processor) shardClient(s *settings.Settings, chunk Chunk, legacyDir string) (clients.Client, string, error) {
 	if chunk.StorageID == "" {
-		return filepath.Join(legacyDir, chunk.ChunkID), nil
+		return p.client, filepath.Join(legacyDir, chunk.ChunkID), nil
 	}
 
 	prefix, _, _ := strings.Cut(chunk.StorageID, "_")
@@ -599,10 +647,20 @@ func (p *Processor) chunkLocation(s *settings.Settings, chunk Chunk, legacyDir s
 	case string(settings.Local):
 		folder, ok := localFolderForID(s, chunk.StorageID)
 		if !ok {
-			return "", fmt.Errorf("local provider %q is no longer configured", chunk.StorageID)
+			return nil, "", fmt.Errorf("local provider %q is no longer configured", chunk.StorageID)
 		}
-		return filepath.Join(folder, chunk.ChunkID), nil
+		return p.client, filepath.Join(folder, chunk.ChunkID), nil
+	case string(settings.AWS):
+		key, ok := awsKeyForID(s, chunk.StorageID)
+		if !ok {
+			return nil, "", fmt.Errorf("aws provider %q is no longer configured", chunk.StorageID)
+		}
+		c, err := clients.NewS3(key.Bucket, key.Region, key.AccessKeyID, key.SecretAccessKey)
+		if err != nil {
+			return nil, "", fmt.Errorf("create s3 client: %w", err)
+		}
+		return c, chunk.ChunkID, nil
 	default:
-		return "", fmt.Errorf("storage provider %q is not supported yet", prefix)
+		return nil, "", fmt.Errorf("storage provider %q is not supported yet", prefix)
 	}
 }
