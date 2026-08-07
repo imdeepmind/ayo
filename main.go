@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"ayo/internal/clients"
+	"ayo/internal/clients/storage"
 	"ayo/internal/features/auth"
 	"ayo/internal/features/recovery"
 	"ayo/internal/features/settings"
@@ -79,9 +79,9 @@ func main() {
 	// Storage client: the local filesystem backend the upload feature reads and
 	// writes its own runtime files (encrypted staging, downloads) and local
 	// shards through. S3 clients for cloud shards are created on demand from the
-	// user's configured AWS keys; both implement the same clients.Client
+	// user's configured AWS keys; both implement the same storage.Client
 	// interface. Remote backends (Azure Blob, GCP) can be added the same way.
-	fileClient := clients.NewLocalFilesystem()
+	fileClient := storage.NewLocalFilesystem()
 
 	// Upload service: native file selection + enqueues one job per uploaded
 	// file into the queue. The processor encrypts each file, splits it into

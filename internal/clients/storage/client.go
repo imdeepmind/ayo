@@ -1,4 +1,4 @@
-package clients
+package storage
 
 import (
 	"io"
@@ -7,9 +7,11 @@ import (
 // Client abstracts the storage backend primitives the upload feature reads and
 // writes shards through. Each method operates on a string "key": for the local
 // filesystem backend a key is a path; for S3 it is an object key in a bucket.
-// Callers resolve a concrete destination (including provider selection and path
-// building) and hand it to the client, keeping clients a pure primitive layer
-// with no domain knowledge.
+//
+// Provider selection, path/object-key building and the per-provider dispatch
+// all live in this package (OpenShardWriter and ResolveShard), so the upload
+// layer never sees a provider type: adding a new backend only adds a case in
+// this package's dispatch functions plus a Client implementation.
 //
 // Only operations that are genuinely portable across backends live here.
 // Filesystem-specific operations (MkdirAll, Stat, RemoveAll and the one-shot

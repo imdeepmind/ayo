@@ -1,4 +1,4 @@
-package clients
+package storage
 
 import (
 	"bytes"
@@ -11,31 +11,32 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
-// S3 is a Client backed by an AWS S3 bucket. Every key is interpreted as an S3
-// object key in the bucket configured at construction time. It exists so shards
-// can be written to and read back from a user's own bucket alongside the local
-// filesystem backend; the Client interface is the shared seam.
-type S3 struct {
+// s3Client is a Client backed by an AWS S3 bucket. Every key is interpreted as
+// an S3 object key in the bucket configured at construction time. It exists so
+// shards can be written to and read back from a user's own bucket alongside the
+// local filesystem backend; the Client interface is the shared seam. It is only
+// constructed through the storage dispatch (OpenShardWriter/ResolveShard).
+type s3Client struct {
 	client *s3.Client
 	bucket string
 }
 
-// NewS3 returns a Client configured with static credentials for the given
+// newS3 returns a Client configured with static credentials for the given
 // bucket and region.
-func NewS3(bucket, region, accessKeyID, secretAccessKey string) (*S3, error) {
+func newS3(bucket, region, accessKeyID, secretAccessKey string) *s3Client {
 	cfg := aws.Config{
 		Region:      region,
 		Credentials: credentials.NewStaticCredentialsProvider(accessKeyID, secretAccessKey, ""),
 	}
-	return &S3{
+	return &s3Client{
 		client: s3.NewFromConfig(cfg),
 		bucket: bucket,
-	}, nil
+	}
 }
 
 // ReadFile reads the whole object at key. A missing object yields an error, so
 // the erasure-coding layer can treat it as a lost shard to recover from parity.
-func (s *S3) ReadFile(key string) ([]byte, error) {
+func (s *s3Client) ReadFile(key string) ([]byte, error) {
 	out, err := s.client.GetObject(context.Background(), &s3.GetObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(key),
@@ -57,7 +58,7 @@ func (s *S3) ReadFile(key string) ([]byte, error) {
 // planner (at most a few MiB), so buffering keeps the operation atomic: either
 // the whole object is uploaded or the job fails, and the SDK's built-in retries
 // cover transient failures.
-func (s *S3) OpenWriter(key string) (io.WriteCloser, error) {
+func (s *s3Client) OpenWriter(key string) (io.WriteCloser, error) {
 	return &s3ShardWriter{
 		client: s.client,
 		bucket: s.bucket,
@@ -66,7 +67,7 @@ func (s *S3) OpenWriter(key string) (io.WriteCloser, error) {
 }
 
 // Remove deletes the object at key. S3 deletes are idempotent.
-func (s *S3) Remove(key string) error {
+func (s *s3Client) Remove(key string) error {
 	_, err := s.client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(key),
@@ -102,5 +103,5 @@ func (w *s3ShardWriter) Close() error {
 	return nil
 }
 
-// ensure S3 satisfies the Client interface at compile time.
-var _ Client = (*S3)(nil)
+// ensure s3Client satisfies the Client interface at compile time.
+var _ Client = (*s3Client)(nil)

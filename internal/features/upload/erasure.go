@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"ayo/internal/clients"
+	"ayo/internal/clients/storage"
 	"ayo/internal/features/settings"
 
 	"github.com/klauspost/reedsolomon"
@@ -222,7 +222,7 @@ func encodeBlocks(enc reedsolomon.Encoder, cfg shardConfig, src io.Reader,
 // shardRef pairs a storage client with the object key of one shard, so each
 // shard can be read from whichever backend holds it (local filesystem or S3).
 type shardRef struct {
-	client clients.Client
+	client storage.Client
 	key    string
 }
 

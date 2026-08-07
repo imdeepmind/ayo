@@ -6,12 +6,10 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"math/rand/v2"
 	"path/filepath"
-	"strings"
 	"sync"
 
-	"ayo/internal/clients"
+	"ayo/internal/clients/storage"
 	"ayo/internal/features/settings"
 	"ayo/internal/platform/queue"
 	"ayo/internal/shared/crypto"
@@ -68,7 +66,7 @@ type Processor struct {
 	settingsProvider SettingsProvider
 	queue            QueueService
 	uploadRepository UploadRepository
-	local            *clients.LocalFilesystem
+	local            *storage.LocalFilesystem
 	jobs             chan int64
 	wg               sync.WaitGroup
 	resumeOnce       sync.Once
@@ -87,7 +85,7 @@ type Processor struct {
 // and the local/legacy shard paths; S3 clients are created on demand from the
 // configured AWS keys. Workers are spawned by Start.
 func NewProcessor(sessionProvider SessionProvider, settingsProvider SettingsProvider,
-	queue QueueService, uploadRepository UploadRepository, local *clients.LocalFilesystem) *Processor {
+	queue QueueService, uploadRepository UploadRepository, local *storage.LocalFilesystem) *Processor {
 	return &Processor{
 		sessionProvider:  sessionProvider,
 		settingsProvider: settingsProvider,
@@ -314,7 +312,7 @@ func (p *Processor) processDelete(job *queue.Job) {
 	}
 	legacyDir := filepath.Join(chunksDir, fmt.Sprintf("job_%d", upload.JobID))
 	for _, chunk := range chunks {
-		client, key, err := p.shardClient(s, chunk, legacyDir)
+		client, key, err := storage.ResolveShard(s.CloudKeys, chunk.StorageID, chunk.ChunkID, legacyDir)
 		if err != nil {
 			slog.Error("delete: resolve shard", "job", id, "chunk", chunk.ChunkID, "error", err)
 			continue
@@ -384,7 +382,7 @@ func (p *Processor) processDownload(job *queue.Job) {
 	legacyDir := filepath.Join(chunksDir, fmt.Sprintf("job_%d", upload.JobID))
 	shardRefs := make([]shardRef, 0, len(chunks))
 	for _, chunk := range chunks {
-		client, key, err := p.shardClient(s, chunk, legacyDir)
+		client, key, err := storage.ResolveShard(s.CloudKeys, chunk.StorageID, chunk.ChunkID, legacyDir)
 		if err != nil {
 			slog.Error("download: resolve shard", "job", id, "chunk", chunk.ChunkID, "error", err)
 			_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 10)
@@ -427,9 +425,9 @@ func (p *Processor) processDownload(job *queue.Job) {
 // chunk splits the encrypted file into Reed-Solomon shards, one destination
 // per shard. The data/parity shard counts come from the dynamic planner
 // (computeShardCount), which scales with the file size so chunks stay within
-// [minShardSize, maxShardSize] even for small files. Each shard is written
-// through openShardWriter, which randomly picks a configured provider and
-// dispatches to that provider's own write function; the provider's ID is
+// [minShardSize, maxShardSize] even for small files. Each shard is opened
+// through storage.OpenShardWriter, which randomly picks a configured provider
+// and dispatches to that provider's own write function; the provider's ID is
 // recorded on the chunk row so the shard can be read back later. When no
 // provider is configured (e.g. Ayo mode) shards fall back to
 // data/chunks/job_<id>/ with an empty storage ID.
@@ -478,9 +476,10 @@ func (p *Processor) chunk(id int64, s *settings.Settings, ciphertext []byte) ([]
 		}
 	}()
 
+	legacyDir := filepath.Join(chunksDir, fmt.Sprintf("job_%d", id))
 	for i := 0; i < cfg.totalShards(); i++ {
 		chunkID := uuid.NewString() + ".bin"
-		w, storageID, err := p.openShardWriter(id, s.CloudKeys, chunkID)
+		w, storageID, err := storage.OpenShardWriter(s.CloudKeys, chunkID, legacyDir)
 		if err != nil {
 			return nil, shardManifest{}, fmt.Errorf("open shard %d: %w", i, err)
 		}
@@ -523,127 +522,4 @@ func (p *Processor) chunk(id int64, s *settings.Settings, ciphertext []byte) ([]
 		ShardSize:     shardSize,
 		BlockCount:    blockCount,
 	}, nil
-}
-
-// openShardWriter opens the destination for one shard by randomly picking a
-// configured provider and dispatching to that provider's own write function
-// (e.g. openLocalShard). It returns the open writer and the provider's ID to
-// record on the chunk row. The switch is the extension point for future
-// providers (AWS, GCP, Azure): each adds a case plus its own open<Provider>Shard.
-//
-// With no providers configured (e.g. Ayo-managed storage) shards are written to
-// data/chunks/job_<id>/ and get an empty storage ID, preserving the original
-// pipeline behaviour.
-func (p *Processor) openShardWriter(
-	id int64, providers []settings.CloudKey, chunkID string,
-) (io.WriteCloser, string, error) {
-	if len(providers) == 0 {
-		dir := filepath.Join(chunksDir, fmt.Sprintf("job_%d", id))
-		f, err := p.local.OpenWriter(filepath.Join(dir, chunkID))
-		if err != nil {
-			return nil, "", fmt.Errorf("create shard file: %w", err)
-		}
-		return f, "", nil
-	}
-
-	key := providers[rand.IntN(len(providers))]
-	switch k := key.(type) {
-	case *settings.LocalKey:
-		f, err := openLocalShard(p.local, k, chunkID)
-		return f, k.GetID(), err
-	case *settings.AWSKey:
-		w, err := openS3Shard(k, chunkID)
-		return w, k.GetID(), err
-	default:
-		return nil, "", fmt.Errorf("storage provider %q is not supported yet", key.GetProvider())
-	}
-}
-
-// openLocalShard opens a new shard file inside the local provider's storage
-// root, which is the picked folder plus the folder name (FolderPath/FolderName);
-// the root is created automatically by OpenWriter. Shards are stored flat in
-// the root (no per-job subfolders); the UUID chunk IDs prevent collisions.
-func openLocalShard(fs *clients.LocalFilesystem, key *settings.LocalKey, chunkID string) (io.WriteCloser, error) {
-	f, err := fs.OpenWriter(filepath.Join(key.FolderPath, key.FolderName, chunkID))
-	if err != nil {
-		return nil, fmt.Errorf("create local shard: %w", err)
-	}
-	return f, nil
-}
-
-// openS3Shard returns a writer that streams the shard into the configured AWS
-// bucket as a single object named chunkID. The write is buffered and uploaded
-// when the writer is closed (see clients.S3).
-func openS3Shard(key *settings.AWSKey, chunkID string) (io.WriteCloser, error) {
-	c, err := clients.NewS3(key.Bucket, key.Region, key.AccessKeyID, key.SecretAccessKey)
-	if err != nil {
-		return nil, fmt.Errorf("create s3 client: %w", err)
-	}
-	w, err := c.OpenWriter(chunkID)
-	if err != nil {
-		return nil, fmt.Errorf("open s3 shard: %w", err)
-	}
-	return w, nil
-}
-
-// localFolderForID returns the storage root (FolderPath/FolderName) of the
-// configured Local provider whose ID matches, so a shard recorded against that
-// provider can be located.
-func localFolderForID(s *settings.Settings, storageID string) (string, bool) {
-	if s == nil {
-		return "", false
-	}
-	for _, k := range s.CloudKeys {
-		if key, ok := k.(*settings.LocalKey); ok && key.GetID() == storageID {
-			return filepath.Join(key.FolderPath, key.FolderName), true
-		}
-	}
-	return "", false
-}
-
-// awsKeyForID returns the configured AWS provider whose ID matches, so a shard
-// recorded against it can be read from or removed from its bucket.
-func awsKeyForID(s *settings.Settings, storageID string) (*settings.AWSKey, bool) {
-	if s == nil {
-		return nil, false
-	}
-	for _, k := range s.CloudKeys {
-		if key, ok := k.(*settings.AWSKey); ok && key.GetID() == storageID {
-			return key, true
-		}
-	}
-	return nil, false
-}
-
-// shardClient resolves the storage client and object key for one chunk row so
-// it can be read (download) or removed (delete). It dispatches on the provider
-// recorded in the chunk's storage ID; empty storage IDs (legacy/Ayo data)
-// resolve to the local filesystem's legacyDir. The switch is the extension
-// point for future providers (GCP, Azure).
-func (p *Processor) shardClient(s *settings.Settings, chunk Chunk, legacyDir string) (clients.Client, string, error) {
-	if chunk.StorageID == "" {
-		return p.local, filepath.Join(legacyDir, chunk.ChunkID), nil
-	}
-
-	prefix, _, _ := strings.Cut(chunk.StorageID, "_")
-	switch prefix {
-	case string(settings.Local):
-		folder, ok := localFolderForID(s, chunk.StorageID)
-		if !ok {
-			return nil, "", fmt.Errorf("local provider %q is no longer configured", chunk.StorageID)
-		}
-		return p.local, filepath.Join(folder, chunk.ChunkID), nil
-	case string(settings.AWS):
-		key, ok := awsKeyForID(s, chunk.StorageID)
-		if !ok {
-			return nil, "", fmt.Errorf("aws provider %q is no longer configured", chunk.StorageID)
-		}
-		c, err := clients.NewS3(key.Bucket, key.Region, key.AccessKeyID, key.SecretAccessKey)
-		if err != nil {
-			return nil, "", fmt.Errorf("create s3 client: %w", err)
-		}
-		return c, chunk.ChunkID, nil
-	default:
-		return nil, "", fmt.Errorf("storage provider %q is not supported yet", prefix)
-	}
 }
