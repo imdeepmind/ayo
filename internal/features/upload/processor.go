@@ -52,25 +52,23 @@ const (
 //     crypto.EncryptData, and the self-contained blob (nonce ‖ ciphertext) is
 //     written to data/encrypted/<jobID>.enc.
 //  2. The blob is encoded into data + parity shards (the layout comes from the
-//     user's erasure-coding settings) and written to
-//     data/chunks/<jobID>/<uuid>.bin.
+//     user's erasure-coding settings). Each shard is uploaded to a randomly
+//     chosen configured provider (a local folder or an S3 bucket); when no
+//     provider is configured it falls back to data/chunks/<jobID>/<uuid>.bin.
 //  3. An uploads record (carrying the reconstruction metadata) and one chunks
 //     record per shard are persisted, then the job is marked completed.
 //
 // Download pipeline reverses that: the stored upload's shards are read back in
-// order, reconstructed with Reed-Solomon, concatenated, trimmed to the stored
-// encrypted size and decrypted, then staged under data/downloads/<jobID> until
-// the user picks a destination. The frontend triggers that final copy via
-// Service.FinalizeDownload.
-//
-// The chunk upload stage will be appended to the upload pipeline in a later
-// step.
+// order from whichever provider holds them, reconstructed with Reed-Solomon,
+// concatenated, trimmed to the stored encrypted size and decrypted, then staged
+// under data/downloads/<jobID> until the user picks a destination. The frontend
+// triggers that final copy via Service.FinalizeDownload.
 type Processor struct {
 	sessionProvider  SessionProvider
 	settingsProvider SettingsProvider
 	queue            QueueService
 	uploadRepository UploadRepository
-	client           clients.Client
+	local            *clients.LocalFilesystem
 	jobs             chan int64
 	wg               sync.WaitGroup
 	resumeOnce       sync.Once
@@ -84,16 +82,18 @@ type Processor struct {
 }
 
 // NewProcessor wires the session provider, settings provider, queue, upload
-// repository and storage client into a ready-to-use Processor. Workers are
-// spawned by Start.
+// repository and local filesystem client into a ready-to-use Processor. The
+// local client backs the app's own runtime files (encrypted staging, downloads)
+// and the local/legacy shard paths; S3 clients are created on demand from the
+// configured AWS keys. Workers are spawned by Start.
 func NewProcessor(sessionProvider SessionProvider, settingsProvider SettingsProvider,
-	queue QueueService, uploadRepository UploadRepository, client clients.Client) *Processor {
+	queue QueueService, uploadRepository UploadRepository, local *clients.LocalFilesystem) *Processor {
 	return &Processor{
 		sessionProvider:  sessionProvider,
 		settingsProvider: settingsProvider,
 		queue:            queue,
 		uploadRepository: uploadRepository,
-		client:           client,
+		local:            local,
 		jobs:             make(chan int64, jobChannelSize),
 		queued:           make(map[int64]struct{}),
 	}
@@ -220,7 +220,7 @@ func (p *Processor) processUpload(job *queue.Job) {
 		return
 	}
 
-	plaintext, err := p.client.ReadFile(job.Path)
+	plaintext, err := p.local.ReadFile(job.Path)
 	if err != nil {
 		slog.Error("encrypt file: read", "error", err)
 		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 0)
@@ -235,12 +235,7 @@ func (p *Processor) processUpload(job *queue.Job) {
 	}
 
 	dst := filepath.Join(encryptedDir, fmt.Sprintf("%d.enc", id))
-	if err := p.client.MkdirAll(encryptedDir, 0o700); err != nil {
-		slog.Error("encrypt file: create dir", "error", err)
-		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 0)
-		return
-	}
-	if err := p.client.WriteFile(dst, ciphertext, 0o600); err != nil {
+	if err := p.local.WriteFile(dst, ciphertext, 0o600); err != nil {
 		slog.Error("encrypt file: write", "error", err)
 		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 0)
 		return
@@ -328,10 +323,10 @@ func (p *Processor) processDelete(job *queue.Job) {
 			slog.Error("delete: remove shard", "job", id, "chunk", chunk.ChunkID, "error", err)
 		}
 	}
-	if err := p.client.RemoveAll(legacyDir); err != nil {
+	if err := p.local.RemoveAll(legacyDir); err != nil {
 		slog.Error("delete: clean legacy shard folder", "job", id, "error", err)
 	}
-	if err := p.client.Remove(filepath.Join(encryptedDir, fmt.Sprintf("%d.enc", upload.JobID))); err != nil {
+	if err := p.local.Remove(filepath.Join(encryptedDir, fmt.Sprintf("%d.enc", upload.JobID))); err != nil {
 		slog.Error("delete: remove encrypted blob", "job", id, "error", err)
 	}
 
@@ -420,12 +415,7 @@ func (p *Processor) processDownload(job *queue.Job) {
 		return
 	}
 
-	if err := p.client.MkdirAll(downloadsDir, 0o700); err != nil {
-		slog.Error("download: create staging dir", "error", err)
-		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 90)
-		return
-	}
-	if err := p.client.WriteFile(filepath.Join(downloadsDir, fmt.Sprintf("%d", id)), plaintext, 0o600); err != nil {
+	if err := p.local.WriteFile(filepath.Join(downloadsDir, fmt.Sprintf("%d", id)), plaintext, 0o600); err != nil {
 		slog.Error("download: write staging", "error", err)
 		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 90)
 		return
@@ -549,10 +539,7 @@ func (p *Processor) openShardWriter(
 ) (io.WriteCloser, string, error) {
 	if len(providers) == 0 {
 		dir := filepath.Join(chunksDir, fmt.Sprintf("job_%d", id))
-		if err := p.client.MkdirAll(dir, 0o700); err != nil {
-			return nil, "", fmt.Errorf("create chunk dir: %w", err)
-		}
-		f, err := p.client.OpenWriter(filepath.Join(dir, chunkID))
+		f, err := p.local.OpenWriter(filepath.Join(dir, chunkID))
 		if err != nil {
 			return nil, "", fmt.Errorf("create shard file: %w", err)
 		}
@@ -562,7 +549,7 @@ func (p *Processor) openShardWriter(
 	key := providers[rand.IntN(len(providers))]
 	switch k := key.(type) {
 	case *settings.LocalKey:
-		f, err := openLocalShard(p.client, k, chunkID)
+		f, err := openLocalShard(p.local, k, chunkID)
 		return f, k.GetID(), err
 	case *settings.AWSKey:
 		w, err := openS3Shard(k, chunkID)
@@ -573,15 +560,11 @@ func (p *Processor) openShardWriter(
 }
 
 // openLocalShard opens a new shard file inside the local provider's storage
-// root, which is the picked folder plus the folder name (FolderPath/FolderName),
-// creating the root first if it does not exist. Shards are stored flat in the
-// root (no per-job subfolders); the UUID chunk IDs prevent collisions.
-func openLocalShard(client clients.Client, key *settings.LocalKey, chunkID string) (io.WriteCloser, error) {
-	dir := filepath.Join(key.FolderPath, key.FolderName)
-	if err := client.MkdirAll(dir, 0o700); err != nil {
-		return nil, fmt.Errorf("create local folder: %w", err)
-	}
-	f, err := client.OpenWriter(filepath.Join(dir, chunkID))
+// root, which is the picked folder plus the folder name (FolderPath/FolderName);
+// the root is created automatically by OpenWriter. Shards are stored flat in
+// the root (no per-job subfolders); the UUID chunk IDs prevent collisions.
+func openLocalShard(fs *clients.LocalFilesystem, key *settings.LocalKey, chunkID string) (io.WriteCloser, error) {
+	f, err := fs.OpenWriter(filepath.Join(key.FolderPath, key.FolderName, chunkID))
 	if err != nil {
 		return nil, fmt.Errorf("create local shard: %w", err)
 	}
@@ -639,7 +622,7 @@ func awsKeyForID(s *settings.Settings, storageID string) (*settings.AWSKey, bool
 // point for future providers (GCP, Azure).
 func (p *Processor) shardClient(s *settings.Settings, chunk Chunk, legacyDir string) (clients.Client, string, error) {
 	if chunk.StorageID == "" {
-		return p.client, filepath.Join(legacyDir, chunk.ChunkID), nil
+		return p.local, filepath.Join(legacyDir, chunk.ChunkID), nil
 	}
 
 	prefix, _, _ := strings.Cut(chunk.StorageID, "_")
@@ -649,7 +632,7 @@ func (p *Processor) shardClient(s *settings.Settings, chunk Chunk, legacyDir str
 		if !ok {
 			return nil, "", fmt.Errorf("local provider %q is no longer configured", chunk.StorageID)
 		}
-		return p.client, filepath.Join(folder, chunk.ChunkID), nil
+		return p.local, filepath.Join(folder, chunk.ChunkID), nil
 	case string(settings.AWS):
 		key, ok := awsKeyForID(s, chunk.StorageID)
 		if !ok {

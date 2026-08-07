@@ -76,9 +76,11 @@ func main() {
 	}
 	queueService := queue.NewService(queueRepository)
 
-	// Storage client: the primitive backend the upload feature reads and writes
-	// files through. Local filesystem for now; remote backends (S3, Azure Blob,
-	// GCP) will implement the same clients.Client interface.
+	// Storage client: the local filesystem backend the upload feature reads and
+	// writes its own runtime files (encrypted staging, downloads) and local
+	// shards through. S3 clients for cloud shards are created on demand from the
+	// user's configured AWS keys; both implement the same clients.Client
+	// interface. Remote backends (Azure Blob, GCP) can be added the same way.
 	fileClient := clients.NewLocalFilesystem()
 
 	// Upload service: native file selection + enqueues one job per uploaded
