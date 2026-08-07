@@ -4,23 +4,37 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 
+	"ayo/internal/clients"
 	"ayo/internal/features/settings"
 
 	"github.com/klauspost/reedsolomon"
 )
 
 const (
-	// blockShardSize is the size of one shard within a block. A block carries
-	// dataShards * blockShardSize data bytes, so every shard written by
-	// encodeBlocks has this uniform size, which keeps shard files trivially
-	// readable during reconstruction.
+	// blockShardSize caps the per-block shard slice written by encodeBlocks, so
+	// per-block memory stays bounded at dataShards * blockShardSize bytes. The
+	// actual per-job shard size is computed dynamically (see chunk) and clamped
+	// to [minShardSize, blockShardSize] so chunks stay small for small files.
 	blockShardSize = 1 << 20 // 1 MiB
 
 	// defaultDataShards is used when erasure coding is disabled (0 parity)
 	// or the stored config is unrecognized.
 	defaultDataShards = 6
+
+	// minShardSize is the smallest shard the dynamic shard planner targets. It
+	// caps how many shards a file is split into; tiny files still honor the
+	// config's minimum shard count even if that yields smaller shards.
+	minShardSize = 1 << 10 // 1 KiB
+
+	// maxShardSize caps how large a single shard can grow before the planner
+	// adds more shards. It bounds the chunk count for large files.
+	maxShardSize = 4 << 20 // 4 MiB
+
+	// dynamicThreshold is the shard size above which a file stops using the
+	// config's minimum shard count and starts scaling the shard count up. It is
+	// also the raw file-size trigger for the erasure-disabled case.
+	dynamicThreshold = 16 << 10 // 16 KiB
 )
 
 // shardConfig is the erasure-coding layout for one job.
@@ -35,34 +49,114 @@ func (c shardConfig) totalShards() int {
 	return c.dataShards + c.parityShards
 }
 
-// parseShardConfig turns the user's erasure-coding settings into a shard
-// layout. When erasure coding is disabled the pipeline stays uniform: only data
-// shards are written, no parity.
-func parseShardConfig(s *settings.Settings) shardConfig {
-	data, parity := defaultDataShards, 0
+// baseShardLayout maps the user's erasure-coding settings to the base (data,
+// parity) layout. Erasure coding disabled yields only data shards (no parity);
+// an unrecognized config while enabled falls back to a sensible default rather
+// than failing the job.
+func baseShardLayout(erasure bool, config settings.ErasureCodingMode) (data, parity int) {
+	if !erasure {
+		return defaultDataShards, 0
+	}
 
-	switch s.ErasureCodingConfig {
+	switch config {
 	case settings.EC22:
-		data, parity = 2, 2
+		return 2, 2
 	case settings.EC63:
-		data, parity = 6, 3
+		return 6, 3
 	case settings.EC104:
-		data, parity = 10, 4
+		return 10, 4
 	case settings.EC173:
-		data, parity = 17, 3
+		return 17, 3
 	default:
-		if s.ErasureCoding {
-			// Unrecognized config while erasure coding is on: fall back to a
-			// sensible default rather than failing the whole job.
-			data, parity = 6, 3
-		}
+		return 6, 3
+	}
+}
+
+// computeShardCount decides how many data and parity shards a file of the given
+// size should be split into. The erasure config fixes the parity ratio and the
+// minimum shard count; the file size then scales the shard count up through a
+// ladder (see targetShardSize) so every shard stays within [minShardSize,
+// maxShardSize].
+//
+// Files are split aggressively even when small so a compromised provider only
+// ever holds a small slice of the file: files whose minimum shard count keeps
+// every shard at or under dynamicThreshold keep that count, and larger files
+// are split further toward 16 KiB shards, capped at 4 MiB so the chunk count
+// stays bounded. When erasure coding is disabled, files up to 16 KiB use a
+// fixed 4 data shards and larger files use the same ladder with no parity.
+func computeShardCount(fileSize int64, erasure bool, config settings.ErasureCodingMode) (data, parity int) {
+	if fileSize < 1 {
+		fileSize = 1
 	}
 
-	return shardConfig{
-		dataShards:   data,
-		parityShards: parity,
-		blockSize:    data * blockShardSize,
+	baseData, baseParity := baseShardLayout(erasure, config)
+	minShards := baseData + baseParity
+	if !erasure {
+		minShards = 4
 	}
+
+	trigger := int64(minShards) * dynamicThreshold
+	if !erasure {
+		trigger = dynamicThreshold
+	}
+
+	total := minShards
+	if fileSize > trigger {
+		dynamic := ceilDiv(fileSize, targetShardSize(fileSize))
+		if dynamic < int64(minShards) {
+			dynamic = int64(minShards)
+		}
+		// Never split a file into more shards than the 1 KiB floor allows.
+		if cap := ceilDiv(fileSize, minShardSize); dynamic > cap {
+			dynamic = cap
+		}
+		if dynamic < int64(minShards) {
+			dynamic = int64(minShards)
+		}
+		total = int(dynamic)
+	}
+
+	if !erasure {
+		return total, 0
+	}
+
+	// Allocate parity keeping the config's data:parity ratio, rounding
+	// half-up so e.g. 2+2 stays at ~50%.
+	ratioDen := baseData + baseParity
+	parity = (total*baseParity + ratioDen/2) / ratioDen
+	if parity < 1 {
+		parity = 1
+	}
+	data = total - parity
+	if data < 1 {
+		data = 1
+		parity = total - 1
+	}
+	return data, parity
+}
+
+// targetShardSize returns the laddered per-shard size target for a file of the
+// given size. The ladder scales shard size up with file size: medium files are
+// split into 16 KiB shards for security granularity, while very large files cap
+// at maxShardSize so the total chunk count stays bounded.
+func targetShardSize(fileSize int64) int64 {
+	switch {
+	case fileSize <= 4<<20: // ≤ 4 MiB
+		return dynamicThreshold // 16 KiB
+	case fileSize <= 16<<20: // ≤ 16 MiB
+		return 64 << 10
+	case fileSize <= 64<<20: // ≤ 64 MiB
+		return 256 << 10
+	case fileSize <= 256<<20: // ≤ 256 MiB
+		return 1 << 20 // 1 MiB
+	default:
+		return maxShardSize // 4 MiB
+	}
+}
+
+// ceilDiv returns the ceiling of a/b for positive integers.
+func ceilDiv(a, b int64) int64 {
+	return (a + b - 1) / b
 }
 
 // shardManifest carries everything needed to reconstruct the encrypted file
@@ -135,7 +229,7 @@ func encodeBlocks(enc reedsolomon.Encoder, cfg shardConfig, src io.Reader,
 // for each block, emit shard 0..D-1's slice for that block, then move to the
 // next block. The result is trimmed to the exact encrypted size to remove the
 // final block's zero-padding.
-func reconstructCiphertext(manifest shardManifest, shardPaths []string) ([]byte, error) {
+func reconstructCiphertext(client clients.Client, manifest shardManifest, shardPaths []string) ([]byte, error) {
 	total := manifest.DataShards + manifest.ParityShards
 	if manifest.DataShards <= 0 || total != len(shardPaths) {
 		return nil, fmt.Errorf("invalid layout: expected %d shards, got %d", total, len(shardPaths))
@@ -144,7 +238,7 @@ func reconstructCiphertext(manifest shardManifest, shardPaths []string) ([]byte,
 	shards := make([][]byte, total)
 	present := 0
 	for i, path := range shardPaths {
-		data, err := os.ReadFile(path)
+		data, err := client.ReadFile(path)
 		if err != nil {
 			// Missing shard; leave nil so Reconstruct can fill it from parity.
 			continue

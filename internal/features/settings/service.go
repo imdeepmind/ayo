@@ -1,9 +1,11 @@
 package settings
 
 import (
+	"context"
 	"encoding/json"
 
 	"ayo/internal/features/auth"
+	"ayo/internal/platform/dialog"
 	"ayo/internal/shared/crypto"
 	"ayo/internal/shared/errors"
 
@@ -16,6 +18,7 @@ type SessionProvider interface {
 }
 
 type Service struct {
+	ctx             context.Context
 	sessionProvider SessionProvider
 	repo            Repository
 	validate        *validator.Validate
@@ -27,6 +30,19 @@ func NewService(sessionProvider SessionProvider, repo Repository) *Service {
 		repo:            repo,
 		validate:        validator.New(),
 	}
+}
+
+// Startup is called by Wails on application startup.
+func (s *Service) Startup(ctx context.Context) {
+	s.ctx = ctx
+}
+
+// PickFolder opens the native directory-selection dialog and returns the chosen
+// folder path. An empty string is returned when the user cancels the dialog.
+func (s *Service) PickFolder() (string, error) {
+	return dialog.OpenFolder(s.ctx, dialog.Options{
+		Title: "Choose Local Storage Folder",
+	})
 }
 
 // GetSettings loads, decrypts and returns the current settings for the signed-in
@@ -68,6 +84,10 @@ func (s *Service) UpdateSettings(input UpdateSettingsInput) error {
 	session, err := s.sessionProvider.RequireSession()
 	if err != nil {
 		return err
+	}
+
+	if err := normalizeProviderIDs(input.CloudKeys); err != nil {
+		return errors.AsInternalServerError("update settings: assign provider ids", err)
 	}
 
 	data, err := json.Marshal(input)

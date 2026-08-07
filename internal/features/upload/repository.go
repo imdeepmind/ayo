@@ -70,7 +70,6 @@ func initializeTable(db *sql.DB) error {
 			custom_name    TEXT NOT NULL DEFAULT '',
 			size           INTEGER NOT NULL,
 			tags           TEXT NOT NULL DEFAULT '[]',
-			storage_id     INTEGER NOT NULL DEFAULT 0,
 			encrypted_size INTEGER NOT NULL,
 			data_shards    INTEGER NOT NULL,
 			parity_shards  INTEGER NOT NULL,
@@ -84,7 +83,7 @@ func initializeTable(db *sql.DB) error {
 			file_id     INTEGER NOT NULL,
 			shard_index INTEGER NOT NULL,
 			chunk_id    TEXT NOT NULL UNIQUE,
-			storage_id  INTEGER NOT NULL DEFAULT 0,
+			storage_id  TEXT NOT NULL DEFAULT '',
 			created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (file_id) REFERENCES uploads(id) ON DELETE CASCADE
 		)`,
@@ -143,7 +142,7 @@ func (r *repository) CreateUpload(
 
 // getUpload fetches one upload row by ID.
 func (r *repository) getUpload(ctx context.Context, id int64) (*Upload, error) {
-	query := `SELECT id, job_id, file, custom_name, size, tags, storage_id,
+	query := `SELECT id, job_id, file, custom_name, size, tags,
 		encrypted_size, data_shards, parity_shards, shard_size, block_count,
 		created_at, updated_at FROM uploads WHERE id = ?`
 
@@ -156,7 +155,6 @@ func (r *repository) getUpload(ctx context.Context, id int64) (*Upload, error) {
 		&upload.CustomName,
 		&upload.Size,
 		&tags,
-		&upload.StorageID,
 		&upload.EncryptedSize,
 		&upload.DataShards,
 		&upload.ParityShards,
@@ -175,7 +173,7 @@ func (r *repository) getUpload(ctx context.Context, id int64) (*Upload, error) {
 // getUploadByJob fetches one upload row by its job ID, used to reuse an
 // existing record when a job is reprocessed after a crash.
 func (r *repository) getUploadByJob(ctx context.Context, jobID int64) (*Upload, error) {
-	query := `SELECT id, job_id, file, custom_name, size, tags, storage_id,
+	query := `SELECT id, job_id, file, custom_name, size, tags,
 		encrypted_size, data_shards, parity_shards, shard_size, block_count,
 		created_at, updated_at FROM uploads WHERE job_id = ?`
 
@@ -188,7 +186,6 @@ func (r *repository) getUploadByJob(ctx context.Context, jobID int64) (*Upload, 
 		&upload.CustomName,
 		&upload.Size,
 		&tags,
-		&upload.StorageID,
 		&upload.EncryptedSize,
 		&upload.DataShards,
 		&upload.ParityShards,
@@ -243,7 +240,7 @@ func (r *repository) CreateChunks(ctx context.Context, fileID int64, chunks []Ch
 
 // GetAll returns every stored file, newest first.
 func (r *repository) GetAll(ctx context.Context) ([]*Upload, error) {
-	query := `SELECT id, job_id, file, custom_name, size, tags, storage_id,
+	query := `SELECT id, job_id, file, custom_name, size, tags,
 		encrypted_size, data_shards, parity_shards, shard_size, block_count,
 		created_at, updated_at FROM uploads ORDER BY created_at DESC`
 
@@ -264,7 +261,6 @@ func (r *repository) GetAll(ctx context.Context) ([]*Upload, error) {
 			&upload.CustomName,
 			&upload.Size,
 			&tags,
-			&upload.StorageID,
 			&upload.EncryptedSize,
 			&upload.DataShards,
 			&upload.ParityShards,

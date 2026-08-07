@@ -25,6 +25,17 @@ type Options struct {
 	FileFilterPattern string // glob pattern, e.g. "*.txt"
 }
 
+// OpenFolder opens the native directory-selection dialog and returns the
+// selected directory path. An empty string is returned (with a nil error) when
+// the user cancels the dialog, so callers should check for "" before using the
+// result. The dialog requires the Wails application context, which is typically
+// the one stored by the feature service at Startup.
+func OpenFolder(ctx context.Context, opts Options) (string, error) {
+	return runtime.OpenDirectoryDialog(ctx, runtime.OpenDialogOptions{
+		Title: opts.Title,
+	})
+}
+
 // SaveFile opens the native save-file dialog and returns the selected path.
 //
 // An empty string is returned (with a nil error) when the user cancels the

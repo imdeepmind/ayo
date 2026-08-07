@@ -6,6 +6,14 @@ export function GetSettings() {
   return window['go']['settings']['Service']['GetSettings']();
 }
 
+export function PickFolder() {
+  return window['go']['settings']['Service']['PickFolder']();
+}
+
+export function Startup(arg1) {
+  return window['go']['settings']['Service']['Startup'](arg1);
+}
+
 export function UpdateSettings(arg1) {
   return window['go']['settings']['Service']['UpdateSettings'](arg1);
 }
