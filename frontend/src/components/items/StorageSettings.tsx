@@ -740,7 +740,7 @@ export default function StorageSettings() {
             {/* Save */}
             <div className="pt-2">
               <Button type="button" onClick={handleSaveCustom} disabled={!customEnabled}>
-                💾 Save Custom Storage Settings
+                Save Custom Storage Settings
               </Button>
             </div>
           </div>
@@ -793,7 +793,7 @@ export default function StorageSettings() {
 
             <div className="pt-2">
               <Button type="button" onClick={handleSaveAyo} disabled={!ayoEnabled}>
-                💾 Save Ayo Storage Settings
+                Save Ayo Storage Settings
               </Button>
             </div>
           </div>
