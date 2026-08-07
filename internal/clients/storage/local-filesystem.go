@@ -1,9 +1,12 @@
 package storage
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+
+	"ayo/internal/features/settings"
 )
 
 // LocalFilesystem is the default Client backed by the local OS filesystem. Every
@@ -66,6 +69,21 @@ func (fs *LocalFilesystem) Remove(key string) error {
 // RemoveAll removes key and everything it contains.
 func (fs *LocalFilesystem) RemoveAll(key string) error {
 	return os.RemoveAll(key)
+}
+
+// Validate verifies a local provider's storage folder is present and creatable
+// by creating FolderPath/FolderName (a side effect the shard writes rely on
+// anyway). It is used to check settings before they are saved.
+func (fs *LocalFilesystem) Validate(key *settings.LocalKey) error {
+	if key.FolderName == "" || key.FolderPath == "" {
+		return fmt.Errorf("local provider is incomplete: a folder name and location are required")
+	}
+
+	dir := filepath.Join(key.FolderPath, key.FolderName)
+	if err := fs.MkdirAll(dir, 0o700); err != nil {
+		return fmt.Errorf("unable to create local storage folder %q: %w", dir, err)
+	}
+	return nil
 }
 
 // ensure LocalFilesystem satisfies the Client interface at compile time.

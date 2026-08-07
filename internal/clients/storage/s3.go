@@ -3,13 +3,24 @@ package storage
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
+	"time"
+
+	"ayo/internal/features/settings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go"
 )
+
+// s3PingTimeout bounds how long validating an AWS provider may wait for a
+// bucket response, including SDK retries, so a misconfigured key or region
+// fails fast instead of hanging the settings save.
+const s3PingTimeout = 10 * time.Second
 
 // s3Client is a Client backed by an AWS S3 bucket. Every key is interpreted as
 // an S3 object key in the bucket configured at construction time. It exists so
@@ -74,6 +85,35 @@ func (s *s3Client) Remove(key string) error {
 	})
 	if err != nil {
 		return fmt.Errorf("remove s3 object: %w", err)
+	}
+	return nil
+}
+
+// Validate checks the provider's required fields are set and pings the bucket
+// with a HeadBucket call, confirming the credentials, region and bucket name
+// are correct. A PermanentRedirect is reported as a region misconfiguration
+// since the credentials otherwise resolved. It is used to check settings before
+// they are saved.
+func (s *s3Client) Validate(key *settings.AWSKey) error {
+	if key.AccessKeyID == "" || key.SecretAccessKey == "" || key.Region == "" || key.Bucket == "" {
+		return fmt.Errorf("aws provider is incomplete: access key id, secret access key, region and bucket are required")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), s3PingTimeout)
+	defer cancel()
+
+	if _, err := s.client.HeadBucket(ctx, &s3.HeadBucketInput{
+		Bucket: aws.String(s.bucket),
+	}); err != nil {
+		var apiErr smithy.APIError
+		if errors.As(err, &apiErr) && apiErr.ErrorCode() == "PermanentRedirect" {
+			return fmt.Errorf("bucket %q exists in a region other than %q: check the region setting", s.bucket, key.Region)
+		}
+		slog.Error("validate aws provider", "bucket", s.bucket, "error", err)
+		return fmt.Errorf(
+			"unable to connect to your aws bucket %q: check your access key, secret access key, region and bucket name",
+			s.bucket,
+		)
 	}
 	return nil
 }

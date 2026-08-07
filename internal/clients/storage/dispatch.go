@@ -68,6 +68,22 @@ func ResolveShard(providers []settings.CloudKey, storageID, chunkID, legacyDir s
 	}
 }
 
+// Validate verifies a configured provider is usable before settings are saved.
+// It dispatches to each provider client's own validation (a local folder is
+// created, an AWS bucket is pinged) and returns a user-facing error describing
+// any failure. The switch is the extension point for future providers (Azure,
+// GCP): each adds a case plus a Validate method on its client.
+func Validate(key settings.CloudKey) error {
+	switch k := key.(type) {
+	case *settings.LocalKey:
+		return (&LocalFilesystem{}).Validate(k)
+	case *settings.AWSKey:
+		return newS3(k.Bucket, k.Region, k.AccessKeyID, k.SecretAccessKey).Validate(k)
+	default:
+		return fmt.Errorf("storage provider %q is not supported yet", key.GetProvider())
+	}
+}
+
 // openLocalShard opens a new shard file inside the local provider's storage
 // root, which is the picked folder plus the folder name (FolderPath/FolderName);
 // the root is created automatically by OpenWriter. Shards are stored flat in
