@@ -17,18 +17,28 @@ type SessionProvider interface {
 	RequireSession() (*auth.Session, error)
 }
 
-type Service struct {
-	ctx             context.Context
-	sessionProvider SessionProvider
-	repo            Repository
-	validate        *validator.Validate
+// ProviderValidator validates a configured storage provider is usable before
+// settings are saved (e.g. a local folder is creatable or an AWS bucket is
+// reachable). It is implemented outside this package by the storage client and
+// injected here to keep settings decoupled from the storage implementation.
+type ProviderValidator interface {
+	Validate(key CloudKey) error
 }
 
-func NewService(sessionProvider SessionProvider, repo Repository) *Service {
+type Service struct {
+	ctx               context.Context
+	sessionProvider   SessionProvider
+	providerValidator ProviderValidator
+	repo              Repository
+	validate          *validator.Validate
+}
+
+func NewService(sessionProvider SessionProvider, providerValidator ProviderValidator, repo Repository) *Service {
 	return &Service{
-		sessionProvider: sessionProvider,
-		repo:            repo,
-		validate:        validator.New(),
+		sessionProvider:   sessionProvider,
+		providerValidator: providerValidator,
+		repo:              repo,
+		validate:          validator.New(),
 	}
 }
 
@@ -88,6 +98,15 @@ func (s *Service) UpdateSettings(input UpdateSettingsInput) error {
 
 	if err := normalizeProviderIDs(input.CloudKeys); err != nil {
 		return errors.AsInternalServerError("update settings: assign provider ids", err)
+	}
+
+	// Verify each configured provider is usable before persisting, so a bad
+	// bucket or unwritable folder is reported to the user immediately rather
+	// than failing later during an upload.
+	for _, key := range input.CloudKeys {
+		if err := s.providerValidator.Validate(key); err != nil {
+			return err
+		}
 	}
 
 	data, err := json.Marshal(input)

@@ -157,7 +157,7 @@ export default function Reset() {
               className="mt-2"
               disabled={isSaving}
             >
-              {isSaving ? 'Saving...' : '💾 Download New Recovery Key'}
+              {isSaving ? 'Saving...' : 'Download New Recovery Key'}
             </Button>
           </div>
         ) : (

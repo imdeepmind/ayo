@@ -20,7 +20,7 @@ export default function Header() {
           <Link to="/" className="flex items-baseline gap-1">
             <span className="text-lg font-semibold tracking-tight">ayo</span>
             <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              beta
+              alpha
             </span>
           </Link>
         </div>

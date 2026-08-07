@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"ayo/internal/clients"
+	"ayo/internal/clients/storage"
 	"ayo/internal/features/auth"
 	"ayo/internal/features/recovery"
 	"ayo/internal/features/settings"
@@ -27,6 +27,15 @@ type App struct {
 // NewApp creates a new App application struct
 func NewApp() *App {
 	return &App{}
+}
+
+// storageValidator adapts the storage package's provider validation to the
+// settings service's ProviderValidator interface, keeping settings decoupled
+// from the storage implementation.
+type storageValidator struct{}
+
+func (storageValidator) Validate(key settings.CloudKey) error {
+	return storage.Validate(key)
 }
 
 // startup is called when the app starts. The context is saved
@@ -65,9 +74,10 @@ func main() {
 	recoveryService := recovery.NewService()
 
 	// Settings service: stores per-user settings in the OS keyring, encrypted
-	// with the session master key.
+	// with the session master key. Provider configs are validated through the
+	// storage package before saving.
 	settingsRepository := settings.NewRepository()
-	settingsService := settings.NewService(authService, settingsRepository)
+	settingsService := settings.NewService(authService, storageValidator{}, settingsRepository)
 
 	// Queue service: persistent SQLite-backed job queue shared across features.
 	queueRepository, err := queue.NewRepository(db)
@@ -76,10 +86,12 @@ func main() {
 	}
 	queueService := queue.NewService(queueRepository)
 
-	// Storage client: the primitive backend the upload feature reads and writes
-	// files through. Local filesystem for now; remote backends (S3, Azure Blob,
-	// GCP) will implement the same clients.Client interface.
-	fileClient := clients.NewLocalFilesystem()
+	// Storage client: the local filesystem backend the upload feature reads and
+	// writes its own runtime files (encrypted staging, downloads) and local
+	// shards through. S3 clients for cloud shards are created on demand from the
+	// user's configured AWS keys; both implement the same storage.Client
+	// interface. Remote backends (Azure Blob, GCP) can be added the same way.
+	fileClient := storage.NewLocalFilesystem()
 
 	// Upload service: native file selection + enqueues one job per uploaded
 	// file into the queue. The processor encrypts each file, splits it into

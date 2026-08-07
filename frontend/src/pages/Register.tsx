@@ -152,7 +152,7 @@ export default function Register() {
               className="mt-2"
               disabled={isSaving}
             >
-              {isSaving ? 'Saving...' : '💾 Download Recovery Key'}
+              {isSaving ? 'Saving...' : 'Download Recovery Key'}
             </Button>
           </div>
         ) : (
