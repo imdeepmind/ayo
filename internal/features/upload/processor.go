@@ -28,10 +28,6 @@ const (
 	// encryptedDir is where encrypted files are written. It lives under data/
 	// which is gitignored runtime data.
 	encryptedDir = "data/encrypted"
-	// chunksDir is where Reed-Solomon shards are written, one subfolder per
-	// job. Their reconstruction metadata lives on the uploads table, not in the
-	// chunk folder.
-	chunksDir = "data/chunks"
 	// downloadsDir is where reconstructed download jobs are staged until the
 	// user picks a final destination via the native save dialog. Files are
 	// named by job ID and cleaned up on finalize (or swept at startup).
@@ -51,8 +47,7 @@ const (
 //     written to data/encrypted/<jobID>.enc.
 //  2. The blob is encoded into data + parity shards (the layout comes from the
 //     user's erasure-coding settings). Each shard is uploaded to a randomly
-//     chosen configured provider (a local folder or an S3 bucket); when no
-//     provider is configured it falls back to data/chunks/<jobID>/<uuid>.bin.
+//     chosen configured provider (a local folder or an S3 bucket).
 //  3. An uploads record (carrying the reconstruction metadata) and one chunks
 //     record per shard are persisted, then the job is marked completed.
 //
@@ -82,7 +77,7 @@ type Processor struct {
 // NewProcessor wires the session provider, settings provider, queue, upload
 // repository and local filesystem client into a ready-to-use Processor. The
 // local client backs the app's own runtime files (encrypted staging, downloads)
-// and the local/legacy shard paths; S3 clients are created on demand from the
+// and local provider shard paths; S3 clients are created on demand from the
 // configured AWS keys. Workers are spawned by Start.
 func NewProcessor(sessionProvider SessionProvider, settingsProvider SettingsProvider,
 	queue QueueService, uploadRepository UploadRepository, local *storage.LocalFilesystem) *Processor {
@@ -347,9 +342,8 @@ func (p *Processor) processDelete(job *queue.Job) {
 	if got, err := p.settingsProvider.GetSettings(); err == nil {
 		s = got
 	}
-	legacyDir := filepath.Join(chunksDir, fmt.Sprintf("job_%d", upload.JobID))
 	for _, chunk := range chunks {
-		client, key, err := storage.ResolveShard(s.CloudKeys, chunk.StorageID, chunk.ChunkID, legacyDir)
+		client, key, err := storage.ResolveShard(s.CloudKeys, chunk.StorageID, chunk.ChunkID)
 		if err != nil {
 			slog.Error("delete: resolve shard", "job", id, "chunk", chunk.ChunkID, "error", err)
 			continue
@@ -357,9 +351,6 @@ func (p *Processor) processDelete(job *queue.Job) {
 		if err := client.Remove(key); err != nil {
 			slog.Error("delete: remove shard", "job", id, "chunk", chunk.ChunkID, "error", err)
 		}
-	}
-	if err := p.local.RemoveAll(legacyDir); err != nil {
-		slog.Error("delete: clean legacy shard folder", "job", id, "error", err)
 	}
 	if err := p.local.Remove(filepath.Join(encryptedDir, fmt.Sprintf("%d.enc", upload.JobID))); err != nil {
 		slog.Error("delete: remove encrypted blob", "job", id, "error", err)
@@ -428,10 +419,9 @@ func (p *Processor) processDownload(job *queue.Job) {
 		return
 	}
 
-	legacyDir := filepath.Join(chunksDir, fmt.Sprintf("job_%d", upload.JobID))
 	shardRefs := make([]shardRef, 0, len(chunks))
 	for _, chunk := range chunks {
-		client, key, err := storage.ResolveShard(s.CloudKeys, chunk.StorageID, chunk.ChunkID, legacyDir)
+		client, key, err := storage.ResolveShard(s.CloudKeys, chunk.StorageID, chunk.ChunkID)
 		if err != nil {
 			slog.Error("download: resolve shard", "job", id, "chunk", chunk.ChunkID, "error", err)
 			_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 10)
@@ -541,9 +531,7 @@ func (p *Processor) processDownload(job *queue.Job) {
 // [minShardSize, maxShardSize] even for small files. Each shard is opened
 // through storage.OpenShardWriter, which randomly picks a configured provider
 // and dispatches to that provider's own write function; the provider's ID is
-// recorded on the chunk row so the shard can be read back later. When no
-// provider is configured (e.g. Ayo mode) shards fall back to
-// data/chunks/job_<id>/ with an empty storage ID.
+// recorded on the chunk row so the shard can be read back later.
 //
 // Each shard file is named with a globally unique UUID. It updates job progress
 // from 30% (after encryption) up to 90% as blocks are encoded, and returns the
@@ -593,10 +581,9 @@ func (p *Processor) chunk(id int64, s *settings.Settings, encryptedPath string,
 		}
 	}()
 
-	legacyDir := filepath.Join(chunksDir, fmt.Sprintf("job_%d", id))
 	for i := 0; i < cfg.totalShards(); i++ {
 		chunkID := uuid.NewString() + ".bin"
-		w, storageID, err := storage.OpenShardWriter(s.CloudKeys, chunkID, legacyDir)
+		w, storageID, err := storage.OpenShardWriter(s.CloudKeys, chunkID)
 		if err != nil {
 			return nil, shardManifest{}, fmt.Errorf("open shard %d: %w", i, err)
 		}

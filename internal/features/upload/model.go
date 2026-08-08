@@ -60,8 +60,7 @@ type Upload struct {
 // one row of the `chunks` table. ChunkID is the globally unique shard filename
 // (a UUID); ShardIndex preserves the reconstruction order (data shards 0..D-1,
 // then parity shards). StorageID identifies the provider the shard was uploaded
-// to (e.g. "local_ab12cd34"); it is empty for legacy rows stored under
-// data/chunks.
+// to (e.g. "local_ab12cd34").
 type Chunk struct {
 	ID         int64
 	FileID     int64

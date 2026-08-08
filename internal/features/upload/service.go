@@ -186,6 +186,15 @@ func (s *Service) EnqueueFiles(input EnqueueFilesInput) ([]EnqueuedJob, error) {
 		return nil, err
 	}
 
+	// Uploads require at least one configured storage provider to hold shards.
+	settings, err := s.settingsProvider.GetSettings()
+	if err != nil {
+		return nil, errors.AsInternalServerError("enqueue files: get settings", err)
+	}
+	if len(settings.CloudKeys) == 0 {
+		return nil, errors.ErrNoStorageProvider
+	}
+
 	jobs := make([]EnqueuedJob, 0, len(input.Files))
 	for _, file := range input.Files {
 		customName := file.CustomName
