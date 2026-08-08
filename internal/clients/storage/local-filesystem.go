@@ -32,6 +32,11 @@ func (fs *LocalFilesystem) ReadFile(key string) ([]byte, error) {
 	return os.ReadFile(key)
 }
 
+// OpenReader opens key for streaming read and returns an io.ReadCloser.
+func (fs *LocalFilesystem) OpenReader(key string) (io.ReadCloser, error) {
+	return os.Open(key)
+}
+
 // WriteFile writes data to key with the given mode, truncating any existing
 // file and creating the parent directory if it is missing.
 func (fs *LocalFilesystem) WriteFile(key string, data []byte, mode os.FileMode) error {

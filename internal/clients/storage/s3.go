@@ -64,6 +64,19 @@ func (s *s3Client) ReadFile(key string) ([]byte, error) {
 	return data, nil
 }
 
+// OpenReader opens key for streaming read and returns an io.ReadCloser.
+// The caller must close the returned reader to release resources.
+func (s *s3Client) OpenReader(key string) (io.ReadCloser, error) {
+	out, err := s.client.GetObject(context.Background(), &s3.GetObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("open s3 object for read: %w", err)
+	}
+	return out.Body, nil
+}
+
 // OpenWriter returns a writer that buffers the shard in memory and uploads it
 // with a single PutObject when closed. Shards are bounded by the erasure-coding
 // planner (at most a few MiB), so buffering keeps the operation atomic: either

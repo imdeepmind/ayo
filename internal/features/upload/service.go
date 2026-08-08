@@ -52,6 +52,7 @@ type UploadRepository interface {
 		customName string,
 		size int64,
 		tags []string,
+		formatVersion int,
 		manifest shardManifest,
 	) (*Upload, error)
 	CreateChunks(ctx context.Context, fileID int64, chunks []ChunkInput) error
@@ -106,7 +107,10 @@ func (s *Service) Startup(ctx context.Context) {
 // previous run. Downloads are ephemeral: anything still present at startup
 // (completed but never saved, or mid-flight) is discarded, since the staged
 // bytes are not a persisted record and the user can simply download again.
+//
+// Also cleans up temp encrypted files from download reconstruction.
 func (s *Service) cleanupStaleDownloads() {
+	// Clean up download staging directory.
 	if err := s.local.RemoveAll(downloadsDir); err != nil {
 		slog.Error("startup: clear downloads staging", "error", err)
 	}
@@ -114,6 +118,20 @@ func (s *Service) cleanupStaleDownloads() {
 		slog.Error("startup: create downloads staging", "error", err)
 	}
 
+	// Clean up temp encrypted files from downloads (download_*.enc pattern).
+	// These are intermediate files created during download reconstruction.
+	files, err := filepath.Glob(filepath.Join(encryptedDir, "download_*.enc"))
+	if err != nil {
+		slog.Error("startup: glob download temp files", "error", err)
+	} else {
+		for _, file := range files {
+			if err := s.local.Remove(file); err != nil {
+				slog.Error("startup: remove download temp file", "file", file, "error", err)
+			}
+		}
+	}
+
+	// Delete stale download jobs.
 	jobs, err := s.queueService.GetAll()
 	if err != nil {
 		return

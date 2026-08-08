@@ -19,6 +19,8 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 
@@ -37,6 +39,16 @@ const (
 	TimeCost = 3
 	Memory   = 64 * 1024
 	Threads  = 4
+
+	// ChunkSize is the size of each plaintext chunk for streaming encryption.
+	// Each chunk is encrypted independently with its own derived nonce and
+	// authentication tag. 64KB provides a good balance between memory usage
+	// and performance.
+	ChunkSize = 64 * 1024 // 64 KB
+
+	// FormatVersion identifies the encryption format version. Version 2 uses
+	// chunked streaming encryption; version 1 used single-pass (deprecated).
+	FormatVersion = 2
 )
 
 // GenerateRecoveryKey returns a new random 256-bit recovery key encoded as a
@@ -183,4 +195,176 @@ func DecryptData(key []byte, ciphertext []byte) ([]byte, error) {
 
 	nonce, encryptedData := ciphertext[:nonceSize], ciphertext[nonceSize:]
 	return aead.Open(nil, nonce, encryptedData, nil)
+}
+
+// StreamEncrypt encrypts data from reader to writer in fixed-size chunks,
+// streaming through memory without loading the entire file. Each chunk is
+// encrypted with AES-256-GCM using a derived nonce (base nonce + counter),
+// providing authenticated encryption while supporting arbitrarily large files.
+//
+// The output format is:
+//
+//	[1-byte format version][16-byte salt][12-byte base nonce][chunk1+tag][chunk2+tag]...
+//
+// Each chunk carries its own 16-byte authentication tag. This trades ~28 bytes
+// per 64KB chunk (~0.04% overhead) for the ability to process files larger than
+// available memory.
+//
+// The reader is consumed entirely; the writer receives the full encrypted stream.
+// Both are the caller's responsibility to close.
+func StreamEncrypt(reader io.Reader, writer io.Writer, key []byte) error {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return fmt.Errorf("create cipher: %w", err)
+	}
+
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return fmt.Errorf("create gcm: %w", err)
+	}
+
+	// Generate random base nonce for this file. Each chunk derives its nonce
+	// from this base + chunk counter.
+	baseNonce := make([]byte, aead.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, baseNonce); err != nil {
+		return fmt.Errorf("generate base nonce: %w", err)
+	}
+
+	// Generate salt (currently unused but included for format consistency and
+	// future extensibility, e.g., key derivation per file).
+	salt := make([]byte, SaltSize)
+	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
+		return fmt.Errorf("generate salt: %w", err)
+	}
+
+	// Write header: format version, salt, base nonce.
+	header := []byte{FormatVersion}
+	header = append(header, salt...)
+	header = append(header, baseNonce...)
+	if _, err := writer.Write(header); err != nil {
+		return fmt.Errorf("write header: %w", err)
+	}
+
+	// Encrypt and write chunks.
+	chunk := make([]byte, ChunkSize)
+	var counter uint64
+	for {
+		n, err := io.ReadFull(reader, chunk)
+		if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+			return fmt.Errorf("read chunk: %w", err)
+		}
+		if n == 0 {
+			break
+		}
+
+		// Derive nonce for this chunk from base nonce + counter.
+		chunkNonce := deriveChunkNonce(baseNonce, counter)
+
+		// Encrypt chunk with its derived nonce. The tag is appended by Seal.
+		ciphertext := aead.Seal(nil, chunkNonce, chunk[:n], nil)
+
+		if _, err := writer.Write(ciphertext); err != nil {
+			return fmt.Errorf("write chunk: %w", err)
+		}
+
+		counter++
+
+		// EOF after reading partial chunk means we're done.
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+			break
+		}
+	}
+
+	return nil
+}
+
+// StreamDecrypt decrypts data from reader to writer, reversing StreamEncrypt.
+// It reads the header (format version, salt, base nonce), then decrypts each
+// chunk using the derived nonce (base + counter).
+//
+// The reader must carry data encrypted by StreamEncrypt. The writer receives
+// the decrypted plaintext. Both are the caller's responsibility to close.
+func StreamDecrypt(reader io.Reader, writer io.Writer, key []byte) error {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return fmt.Errorf("create cipher: %w", err)
+	}
+
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return fmt.Errorf("create gcm: %w", err)
+	}
+
+	// Read header: format version, salt, base nonce.
+	header := make([]byte, 1+SaltSize+aead.NonceSize())
+	if _, err := io.ReadFull(reader, header); err != nil {
+		return fmt.Errorf("read header: %w", err)
+	}
+
+	version := header[0]
+	if version != FormatVersion {
+		return fmt.Errorf("unsupported format version %d (expected %d)", version, FormatVersion)
+	}
+
+	// salt := header[1 : 1+SaltSize] // reserved for future use
+	baseNonce := header[1+SaltSize:]
+
+	// Decrypt chunks.
+	// Each encrypted chunk is plaintext + 16-byte tag.
+	ciphertextChunkSize := ChunkSize + aead.Overhead()
+	ciphertextChunk := make([]byte, ciphertextChunkSize)
+	var counter uint64
+
+	for {
+		n, err := io.ReadFull(reader, ciphertextChunk)
+		if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+			return fmt.Errorf("read chunk: %w", err)
+		}
+		if n == 0 {
+			break
+		}
+
+		// Derive nonce for this chunk.
+		chunkNonce := deriveChunkNonce(baseNonce, counter)
+
+		// Decrypt chunk.
+		plaintext, err := aead.Open(nil, chunkNonce, ciphertextChunk[:n], nil)
+		if err != nil {
+			return fmt.Errorf("decrypt chunk %d: %w", counter, err)
+		}
+
+		if _, err := writer.Write(plaintext); err != nil {
+			return fmt.Errorf("write plaintext: %w", err)
+		}
+
+		counter++
+
+		// EOF after reading partial chunk means we're done.
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+			break
+		}
+	}
+
+	return nil
+}
+
+// deriveChunkNonce derives a unique nonce for a chunk by combining the base
+// nonce with a counter. The counter is encoded as an 8-byte big-endian integer
+// and XORed with the last 8 bytes of the base nonce, ensuring each chunk has
+// a distinct nonce while keeping nonce size at 12 bytes (GCM standard).
+//
+// This approach is safe for up to 2^64 chunks per file (> 1 exabyte at 64KB
+// chunks), well beyond practical file sizes.
+func deriveChunkNonce(baseNonce []byte, counter uint64) []byte {
+	nonce := make([]byte, len(baseNonce))
+	copy(nonce, baseNonce)
+
+	// XOR the big-endian counter into the last 8 bytes of the nonce.
+	var counterBytes [8]byte
+	binary.BigEndian.PutUint64(counterBytes[:], counter)
+	for i := 0; i < 8; i++ {
+		nonce[len(nonce)-8+i] ^= counterBytes[i]
+	}
+
+	return nonce
 }
