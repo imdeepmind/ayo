@@ -118,7 +118,7 @@ export default function DatabaseConfig({
               </div>
               <div>
                 <p className="text-sm font-semibold text-sky-900 dark:text-sky-100">
-                  Local storage (recommended)
+                  Local storage
                 </p>
                 <p className="mt-1 text-sm text-sky-800 dark:text-sky-200 leading-relaxed">
                   Your data will be stored locally. The database file will be created automatically
