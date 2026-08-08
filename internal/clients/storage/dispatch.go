@@ -13,17 +13,12 @@ import (
 // OpenShardWriter opens a writer for a new shard named chunkID, picking a
 // configured provider at random and dispatching to that provider's own write
 // path. It returns the open writer and the provider's ID to record on the chunk
-// row. With no providers configured (e.g. Ayo-managed storage) shards are
-// written to legacyDir and get an empty storage ID, preserving the original
-// pipeline behaviour. The switch is the extension point for future providers
+// row. Every upload must have at least one configured provider; without one it
+// returns an error. The switch is the extension point for future providers
 // (Azure, GCP): each adds a case plus its own open<Provider>Shard.
-func OpenShardWriter(providers []settings.CloudKey, chunkID, legacyDir string) (io.WriteCloser, string, error) {
+func OpenShardWriter(providers []settings.CloudKey, chunkID string) (io.WriteCloser, string, error) {
 	if len(providers) == 0 {
-		w, err := (&LocalFilesystem{}).OpenWriter(filepath.Join(legacyDir, chunkID))
-		if err != nil {
-			return nil, "", fmt.Errorf("create shard file: %w", err)
-		}
-		return w, "", nil
+		return nil, "", fmt.Errorf("no storage provider configured")
 	}
 
 	key := providers[rand.IntN(len(providers))]
@@ -41,12 +36,11 @@ func OpenShardWriter(providers []settings.CloudKey, chunkID, legacyDir string) (
 
 // ResolveShard resolves the storage client and object key for one chunk row so
 // it can be read (download) or removed (delete). It dispatches on the provider
-// recorded in the chunk's storage ID; empty storage IDs (legacy/Ayo data)
-// resolve to the local filesystem's legacyDir. The switch is the extension
-// point for future providers (Azure, GCP).
-func ResolveShard(providers []settings.CloudKey, storageID, chunkID, legacyDir string) (Client, string, error) {
+// recorded in the chunk's storage ID. The switch is the extension point for
+// future providers (Azure, GCP).
+func ResolveShard(providers []settings.CloudKey, storageID, chunkID string) (Client, string, error) {
 	if storageID == "" {
-		return &LocalFilesystem{}, filepath.Join(legacyDir, chunkID), nil
+		return nil, "", fmt.Errorf("shard %q has no storage provider recorded", chunkID)
 	}
 
 	prefix, _, _ := strings.Cut(storageID, "_")

@@ -58,6 +58,18 @@ var (
 	ErrJobNotFound = errors.New(
 		"the file entry you are looking for no longer exists",
 	)
+
+	// ErrDatabaseUnavailable means the user's database could not be reached
+	// (e.g. the PostgreSQL server is down or the SQLite file is inaccessible).
+	ErrDatabaseUnavailable = errors.New(
+		"unable to connect to your database. Please check that the database is accessible and try again",
+	)
+
+	// ErrNoStorageProvider means the signed-in user has no storage provider
+	// configured. Uploads require at least one provider to hold shards.
+	ErrNoStorageProvider = errors.New(
+		"no storage provider is configured. Add a provider in Settings > Storage before uploading",
+	)
 )
 
 // InternalServerError is the typed representation of an unexpected failure

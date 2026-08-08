@@ -37,7 +37,14 @@ export default function Login() {
       }
     } catch (err) {
       console.error('Login error:', err);
-      toast.error(String(err) || 'An unexpected error occurred. Please try again.');
+      const message = String(err);
+      if (message.toLowerCase().includes('database')) {
+        toast.error(
+          'Unable to connect to your database. Please check that the database is accessible and try again.'
+        );
+      } else {
+        toast.error(message || 'An unexpected error occurred. Please try again.');
+      }
     }
   };
 

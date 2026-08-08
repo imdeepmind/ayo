@@ -7,13 +7,17 @@ import PageSection from '@/components/bits/Section';
 import AuthCard from '@/components/items/AuthCard';
 import TextInput from '@/components/bits/Input';
 import Button from '@/components/bits/Button';
+import DatabaseConfig, { type DatabaseConfigData } from '@/components/items/DatabaseConfig';
 import { useAuth } from '@/context/AuthContext';
 import { SaveRecoveryKey } from '../../wailsjs/go/recovery/Service';
+import { auth } from '../../wailsjs/go/models';
 import { registerSchema, type RegisterFormData } from '@/lib/validations';
 
 export default function Register() {
   const navigate = useNavigate();
   const { register: registerUser } = useAuth();
+  const [step, setStep] = useState<1 | 2>(1);
+  const [accountData, setAccountData] = useState<RegisterFormData | null>(null);
   const [recoveryKey, setRecoveryKey] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -21,7 +25,6 @@ export default function Register() {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-    getValues,
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
@@ -30,9 +33,33 @@ export default function Register() {
     },
   });
 
-  const onSubmit = async (data: RegisterFormData) => {
+  // Step 1: account details. On success, move to database configuration.
+  const onAccountSubmit = (data: RegisterFormData) => {
+    setAccountData(data);
+    setStep(2);
+  };
+
+  // Step 2: database configuration. Combine with the account details and call
+  // the backend; SQLite paths are auto-generated so Path is left empty.
+  const onDatabaseComplete = async (dbData: DatabaseConfigData) => {
+    if (!accountData) return;
+
     try {
-      const result = await registerUser({ Username: data.username, Password: data.password });
+      const result = await registerUser(
+        new auth.RegisterInput({
+          Username: accountData.username,
+          Password: accountData.password,
+          DBConfig: {
+            Type: dbData.type,
+            Path: '',
+            Host: dbData.host || '',
+            Port: dbData.port || 0,
+            Database: dbData.database || '',
+            Username: dbData.username || '',
+            Password: dbData.password || '',
+          },
+        })
+      );
       if (result) {
         setRecoveryKey(result.RecoveryKey);
         toast.success('Account created successfully! Please download your recovery key.');
@@ -46,11 +73,11 @@ export default function Register() {
   };
 
   const handleDownloadRecoveryKey = async () => {
-    if (!recoveryKey) return;
+    if (!recoveryKey || !accountData) return;
 
     setIsSaving(true);
     try {
-      const username = getValues('username');
+      const username = accountData.username;
       await SaveRecoveryKey(username, recoveryKey);
       toast.success('Recovery key saved successfully! Redirecting to login...');
       navigate('/auth/login');
@@ -62,6 +89,18 @@ export default function Register() {
     }
   };
 
+  const stepIndicator = (
+    <div className="mb-6 flex items-center justify-center gap-2 text-xs font-semibold">
+      <span className={step === 1 ? 'text-sky-600 dark:text-sky-400' : 'text-slate-400'}>
+        1. Account Details
+      </span>
+      <span className="text-slate-300 dark:text-slate-600">—</span>
+      <span className={step === 2 ? 'text-sky-600 dark:text-sky-400' : 'text-slate-400'}>
+        2. Database Configuration
+      </span>
+    </div>
+  );
+
   return (
     <PageSection>
       <AuthCard
@@ -72,7 +111,8 @@ export default function Register() {
             : 'Join ayo and start storing your files securely with end-to-end encryption.'
         }
         footer={
-          !recoveryKey && (
+          !recoveryKey &&
+          step === 1 && (
             <div className="flex items-center justify-center gap-1.5 text-sm text-slate-600 dark:text-slate-400">
               <span>Already have an account?</span>
               <Link
@@ -156,41 +196,51 @@ export default function Register() {
             </Button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            <TextInput
-              id="reg-username"
-              label="Username"
-              type="text"
-              autoComplete="off"
-              placeholder="Choose a username"
-              error={errors.username?.message}
-              {...register('username')}
-            />
+          <>
+            {stepIndicator}
 
-            <TextInput
-              id="reg-password"
-              label="Password"
-              type="password"
-              placeholder="Choose a strong password"
-              error={errors.password?.message}
-              {...register('password')}
-            />
+            {step === 1 && (
+              <form onSubmit={handleSubmit(onAccountSubmit)} className="space-y-5">
+                <TextInput
+                  id="reg-username"
+                  label="Username"
+                  type="text"
+                  autoComplete="off"
+                  placeholder="Choose a username"
+                  error={errors.username?.message}
+                  {...register('username')}
+                />
 
-            <TextInput
-              id="reg-confirm-password"
-              label="Confirm Password"
-              type="password"
-              placeholder="Re-enter your password"
-              error={errors.confirmPassword?.message}
-              {...register('confirmPassword')}
-            />
+                <TextInput
+                  id="reg-password"
+                  label="Password"
+                  type="password"
+                  placeholder="Choose a strong password"
+                  error={errors.password?.message}
+                  {...register('password')}
+                />
 
-            <div className="pt-2">
-              <Button type="submit" fullWidth disabled={isSubmitting}>
-                {isSubmitting ? 'Creating your account...' : 'Create account'}
-              </Button>
-            </div>
-          </form>
+                <TextInput
+                  id="reg-confirm-password"
+                  label="Confirm Password"
+                  type="password"
+                  placeholder="Re-enter your password"
+                  error={errors.confirmPassword?.message}
+                  {...register('confirmPassword')}
+                />
+
+                <div className="pt-2">
+                  <Button type="submit" fullWidth disabled={isSubmitting}>
+                    {isSubmitting ? 'Creating your account...' : 'Continue'}
+                  </Button>
+                </div>
+              </form>
+            )}
+
+            {step === 2 && (
+              <DatabaseConfig onComplete={onDatabaseComplete} onBack={() => setStep(1)} />
+            )}
+          </>
         )}
       </AuthCard>
     </PageSection>

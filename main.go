@@ -4,12 +4,13 @@ import (
 	"context"
 	"fmt"
 
+	dbclient "ayo/internal/clients/db"
 	"ayo/internal/clients/storage"
 	"ayo/internal/features/auth"
+	"ayo/internal/features/dbconfig"
 	"ayo/internal/features/recovery"
 	"ayo/internal/features/settings"
 	"ayo/internal/features/upload"
-	"ayo/internal/platform/database"
 	"ayo/internal/platform/queue"
 
 	"github.com/wailsapp/wails/v2"
@@ -53,22 +54,20 @@ func main() {
 	// Create an instance of the app structure
 	app := NewApp()
 
-	// Open the SQLite database (data/ayo.db). For development simplicity the
-	// path is relative to the current working directory; data/ is gitignored.
-	db, err := database.NewDatabase("data/ayo.db")
-	if err != nil {
-		panic(err)
-	}
+	// There is no global database: each account has its own database (SQLite
+	// file or PostgreSQL server), stored encrypted in the OS keyring and opened
+	// by the auth service on login. The shared connection holder lets the
+	// queue/upload repositories serve whichever user is currently signed in.
+	conn := dbclient.NewConnection()
 
 	// Wire up the internal services. The auth service is the keystone: it owns
-	// the in-memory session and master key, and is injected into the settings
-	// service (which needs the session to gate access and the master key to
-	// encrypt/decrypt stored settings).
-	authRepository, err := auth.NewRepository(db)
-	if err != nil {
-		panic(err)
-	}
-	authService := auth.NewService(authRepository)
+	// the in-memory session, the master key and the active database connection,
+	// and is injected into the settings service (which needs the session to
+	// gate access and the master key to encrypt/decrypt stored settings).
+	// Database credentials are persisted in the OS keyring through the dbconfig
+	// feature.
+	dbconfigRepository := dbconfig.NewRepository()
+	authService := auth.NewService(conn, dbconfigRepository)
 
 	// Recovery service: native save dialogs for downloading the recovery key.
 	recoveryService := recovery.NewService()
@@ -77,14 +76,11 @@ func main() {
 	// with the session master key. Provider configs are validated through the
 	// storage package before saving.
 	settingsRepository := settings.NewRepository()
-	settingsService := settings.NewService(authService, storageValidator{}, settingsRepository)
+	settingsService := settings.NewService(authService, authService, storageValidator{}, settingsRepository)
 
 	// Queue service: persistent SQLite-backed job queue shared across features.
-	queueRepository, err := queue.NewRepository(db)
-	if err != nil {
-		panic(err)
-	}
-	queueService := queue.NewService(queueRepository)
+	// It resolves the signed-in user's database connection per operation.
+	queueService := queue.NewService(conn)
 
 	// Storage client: the local filesystem backend the upload feature reads and
 	// writes its own runtime files (encrypted staging, downloads) and local
@@ -96,18 +92,15 @@ func main() {
 	// Upload service: native file selection + enqueues one job per uploaded
 	// file into the queue. The processor encrypts each file, splits it into
 	// Reed-Solomon shards using the erasure-coding settings, and persists the
-	// stored-file record and its shards to the uploads/chunks tables.
-	uploadRepository, err := upload.NewRepository(db)
-	if err != nil {
-		panic(err)
-	}
-	uploadService := upload.NewService(authService, settingsService, queueService, uploadRepository, fileClient)
+	// stored-file record and its shards to the uploads/chunks tables of the
+	// signed-in user's database.
+	uploadService := upload.NewService(authService, settingsService, queueService, conn, fileClient)
 
 	// Create application with options. Anything passed to Bind is exposed to
 	// the frontend as generated JavaScript bindings under
 	// frontend/wailsjs/go/, so changing a bound method requires a
 	// wails dev / wails build to regenerate them.
-	err = wails.Run(&options.App{
+	err := wails.Run(&options.App{
 		Title:  "ayo",
 		Width:  1100,
 		Height: 768,

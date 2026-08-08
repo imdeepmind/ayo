@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	dbclient "ayo/internal/clients/db"
 	"ayo/internal/clients/storage"
 	"ayo/internal/features/auth"
 	"ayo/internal/features/settings"
@@ -82,7 +83,8 @@ type Service struct {
 }
 
 func NewService(sessionProvider SessionProvider, settingsProvider SettingsProvider,
-	queueService QueueService, repo Repository, local *storage.LocalFilesystem) *Service {
+	queueService QueueService, conn *dbclient.Connection, local *storage.LocalFilesystem) *Service {
+	repo := NewRepository(conn)
 	return &Service{
 		sessionProvider:  sessionProvider,
 		settingsProvider: settingsProvider,
@@ -182,6 +184,15 @@ func (s *Service) EnqueueFiles(input EnqueueFilesInput) ([]EnqueuedJob, error) {
 
 	if _, err := s.sessionProvider.RequireSession(); err != nil {
 		return nil, err
+	}
+
+	// Uploads require at least one configured storage provider to hold shards.
+	settings, err := s.settingsProvider.GetSettings()
+	if err != nil {
+		return nil, errors.AsInternalServerError("enqueue files: get settings", err)
+	}
+	if len(settings.CloudKeys) == 0 {
+		return nil, errors.ErrNoStorageProvider
 	}
 
 	jobs := make([]EnqueuedJob, 0, len(input.Files))

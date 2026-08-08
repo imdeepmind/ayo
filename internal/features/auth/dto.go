@@ -1,10 +1,16 @@
 package auth
 
+import (
+	dbclient "ayo/internal/clients/db"
+)
+
 // RegisterInput is the payload expected when creating a new account. Validation
-// tags are enforced by go-playground/validator in Service.Register.
+// tags are enforced by go-playground/validator in Service.Register; the DB
+// config is validated separately (type-specific fields).
 type RegisterInput struct {
-	Username string `validate:"required,min=3,max=50,lowercase,alpha"`
-	Password string `validate:"required,min=8,password_strength"`
+	Username string          `validate:"required,min=3,max=50,lowercase,alpha"`
+	Password string          `validate:"required,min=8,password_strength"`
+	DBConfig dbclient.Config `json:"DBConfig"`
 }
 
 // LoginInput is the payload expected when signing in an existing account.
