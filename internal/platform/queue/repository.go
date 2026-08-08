@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
+	"sync"
 
+	dbclient "ayo/internal/clients/db"
 	"ayo/internal/shared/errors"
 )
 
@@ -35,37 +37,63 @@ type Repository interface {
 }
 
 type repository struct {
-	db *sql.DB
+	conn       *dbclient.Connection
+	initMu     sync.Mutex
+	initClient *dbclient.Client
 }
 
-// NewRepository opens the queue table (creating it if needed) and returns a
-// ready-to-use repository.
-func NewRepository(db *sql.DB) (Repository, error) {
-	if err := initializeTable(db); err != nil {
-		return nil, errors.NewInternalServerError("initialize queue table", err)
+// NewRepository returns a repository bound to the shared connection holder. The
+// queue table is created lazily on the active client (see resolve), since there
+// is no database connection before a user signs in.
+func NewRepository(conn *dbclient.Connection) Repository {
+	return &repository{conn: conn}
+}
+
+// resolve returns the active client for the current session, creating the
+// feature's tables on it the first time it is seen.
+func (r *repository) resolve() (*dbclient.Client, error) {
+	c, err := r.conn.Current()
+	if err != nil {
+		return nil, err
 	}
-	return &repository{db: db}, nil
+	r.initMu.Lock()
+	defer r.initMu.Unlock()
+	if r.initClient != c {
+		if err := initializeTable(c); err != nil {
+			return nil, err
+		}
+		r.initClient = c
+	}
+	return c, nil
 }
 
 // initializeTable idempotently ensures the queue table exists and has all
 // expected columns. Type is the operation kind (upload/download/delete), stored
 // as TEXT and constrained to the enum values; status and timestamps are stored
-// as TEXT/DATETIME, progress as an INTEGER (0-100), and tags as a JSON-encoded
-// TEXT array.
-func initializeTable(db *sql.DB) error {
+// as TEXT/DATETIME (TIMESTAMP on PostgreSQL), progress as an INTEGER (0-100),
+// and tags as a JSON-encoded TEXT array. The id column and timestamp type
+// branch on the client's dialect.
+func initializeTable(db *dbclient.Client) error {
+	idColumn := "id INTEGER PRIMARY KEY AUTOINCREMENT"
+	timestampType := "DATETIME"
+	if db.IsPostgres() {
+		idColumn = "id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY"
+		timestampType = "TIMESTAMP"
+	}
+
 	query := `CREATE TABLE IF NOT EXISTS queue (
-		id          INTEGER PRIMARY KEY AUTOINCREMENT,
+		` + idColumn + `,
 		type        TEXT NOT NULL DEFAULT 'upload' CHECK (type IN ('upload', 'download', 'delete')),
-		file_id     INTEGER NOT NULL DEFAULT 0,
+		file_id     BIGINT NOT NULL DEFAULT 0,
 		file        TEXT NOT NULL,
 		custom_name TEXT NOT NULL DEFAULT '',
 		path        TEXT NOT NULL,
-		size        INTEGER NOT NULL,
+		size        BIGINT NOT NULL,
 		status      TEXT NOT NULL,
 		progress    INTEGER NOT NULL DEFAULT 0,
 		tags        TEXT NOT NULL DEFAULT '[]',
-		created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-		updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		created_at  ` + timestampType + ` NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		updated_at  ` + timestampType + ` NOT NULL DEFAULT CURRENT_TIMESTAMP
 	)`
 
 	if _, err := db.Exec(query); err != nil {
@@ -85,9 +113,7 @@ func (r *repository) Add(ctx context.Context, job *Job) (*Job, error) {
 	query := `INSERT INTO queue (type, file_id, file, custom_name, path, size, status, progress, tags)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
-	result, err := r.db.ExecContext(
-		ctx,
-		query,
+	args := []any{
 		job.Type,
 		job.FileID,
 		job.File,
@@ -97,12 +123,29 @@ func (r *repository) Add(ctx context.Context, job *Job) (*Job, error) {
 		job.Status,
 		job.Progress,
 		string(tags),
-	)
+	}
+
+	client, err := r.resolve()
+	if err != nil {
+		return nil, err
+	}
+
+	if client.IsPostgres() {
+		// PostgreSQL has no LastInsertId; fetch the assigned ID via RETURNING.
+		var id int64
+		err := client.QueryRowContext(ctx, client.Rebind(query)+" RETURNING id", args...).Scan(&id)
+		if err != nil {
+			return nil, fmt.Errorf("failed to add job: %w", err)
+		}
+		return r.Get(ctx, id)
+	}
+
+	result, err := client.ExecContext(ctx, client.Rebind(query), args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to add job: %w", err)
 	}
 
-	id, err := result.LastInsertId()
+	id, err := client.LastInsertID(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get last insert id: %w", err)
 	}
@@ -115,7 +158,12 @@ func (r *repository) Get(ctx context.Context, id int64) (*Job, error) {
 	query := `SELECT id, type, file_id, file, custom_name, path, size, status, progress, tags,
 		created_at, updated_at FROM queue WHERE id = ?`
 
-	job, err := scanJob(r.db.QueryRowContext(ctx, query, id))
+	client, err := r.resolve()
+	if err != nil {
+		return nil, err
+	}
+
+	job, err := scanJob(client.QueryRowContext(ctx, client.Rebind(query), id))
 	if err != nil {
 		if stderrors.Is(err, sql.ErrNoRows) {
 			return nil, errors.ErrJobNotFound
@@ -131,7 +179,12 @@ func (r *repository) GetAll(ctx context.Context) ([]*Job, error) {
 	query := `SELECT id, type, file_id, file, custom_name, path, size, status, progress, tags,
 		created_at, updated_at FROM queue ORDER BY id ASC`
 
-	rows, err := r.db.QueryContext(ctx, query)
+	client, err := r.resolve()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := client.QueryContext(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list jobs: %w", err)
 	}
@@ -196,7 +249,12 @@ func decodeTags(data string) []string {
 func (r *repository) Update(ctx context.Context, id int64, status string, progress int) error {
 	query := `UPDATE queue SET status = ?, progress = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
 
-	result, err := r.db.ExecContext(ctx, query, status, progress, id)
+	client, err := r.resolve()
+	if err != nil {
+		return err
+	}
+
+	result, err := client.ExecContext(ctx, client.Rebind(query), status, progress, id)
 	if err != nil {
 		return fmt.Errorf("failed to update job: %w", err)
 	}
@@ -219,7 +277,12 @@ func (r *repository) GetIncompleteByType(ctx context.Context, jobType string) ([
 		created_at, updated_at FROM queue
 		WHERE type = ? AND status IN (?, ?) ORDER BY id ASC`
 
-	rows, err := r.db.QueryContext(ctx, query, jobType, StatusPending, StatusProcessing)
+	client, err := r.resolve()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := client.QueryContext(ctx, client.Rebind(query), jobType, StatusPending, StatusProcessing)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list incomplete jobs: %w", err)
 	}
@@ -245,7 +308,12 @@ func (r *repository) GetIncompleteByType(ctx context.Context, jobType string) ([
 func (r *repository) Delete(ctx context.Context, id int64) error {
 	query := `DELETE FROM queue WHERE id = ?`
 
-	result, err := r.db.ExecContext(ctx, query, id)
+	client, err := r.resolve()
+	if err != nil {
+		return err
+	}
+
+	result, err := client.ExecContext(ctx, client.Rebind(query), id)
 	if err != nil {
 		return fmt.Errorf("failed to delete job: %w", err)
 	}

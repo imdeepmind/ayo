@@ -17,6 +17,7 @@ export namespace auth {
 	export class RegisterInput {
 	    Username: string;
 	    Password: string;
+	    DBConfig: db.Config;
 	
 	    static createFrom(source: any = {}) {
 	        return new RegisterInput(source);
@@ -26,7 +27,26 @@ export namespace auth {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.Username = source["Username"];
 	        this.Password = source["Password"];
+	        this.DBConfig = this.convertValues(source["DBConfig"], db.Config);
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class User {
 	    ID: number;
@@ -125,8 +145,71 @@ export namespace auth {
 
 }
 
+export namespace db {
+	
+	export class Client {
+	    Dialect: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Client(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Dialect = source["Dialect"];
+	    }
+	}
+	export class Config {
+	    Type: string;
+	    Path?: string;
+	    Host?: string;
+	    Port?: number;
+	    Database?: string;
+	    Username?: string;
+	    Password?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Config(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Type = source["Type"];
+	        this.Path = source["Path"];
+	        this.Host = source["Host"];
+	        this.Port = source["Port"];
+	        this.Database = source["Database"];
+	        this.Username = source["Username"];
+	        this.Password = source["Password"];
+	    }
+	}
+
+}
+
 export namespace settings {
 	
+	export class DatabaseInfo {
+	    Type: string;
+	    Path?: string;
+	    Host?: string;
+	    Port?: number;
+	    Database?: string;
+	    Username?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DatabaseInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Type = source["Type"];
+	        this.Path = source["Path"];
+	        this.Host = source["Host"];
+	        this.Port = source["Port"];
+	        this.Database = source["Database"];
+	        this.Username = source["Username"];
+	    }
+	}
 	export class Settings {
 	    StorageMode: string;
 	    CloudKeys: any[];

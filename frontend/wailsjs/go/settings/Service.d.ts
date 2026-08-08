@@ -3,6 +3,8 @@
 import {settings} from '../models';
 import {context} from '../models';
 
+export function GetDatabaseInfo():Promise<settings.DatabaseInfo>;
+
 export function GetSettings():Promise<settings.Settings>;
 
 export function PickFolder():Promise<string>;

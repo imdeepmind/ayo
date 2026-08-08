@@ -4,6 +4,7 @@ import (
 	"context"
 	stderrors "errors"
 
+	dbclient "ayo/internal/clients/db"
 	"ayo/internal/shared/errors"
 )
 
@@ -17,8 +18,11 @@ type Service struct {
 	repo Repository
 }
 
-func NewService(repo Repository) *Service {
-	return &Service{repo: repo}
+// NewService wires the shared connection holder into a ready-to-use queue
+// service. The repository resolves the signed-in user's database per operation,
+// so the same service serves whichever user is active.
+func NewService(conn *dbclient.Connection) *Service {
+	return &Service{repo: NewRepository(conn)}
 }
 
 // AddInput describes a file to enqueue. File and Path must be present. Type is
