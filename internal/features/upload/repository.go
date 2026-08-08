@@ -23,6 +23,7 @@ type Repository interface {
 		customName string,
 		size int64,
 		tags []string,
+		formatVersion int,
 		manifest shardManifest,
 	) (*Upload, error)
 	// CreateChunks inserts one row per shard for the given file in a single
@@ -61,6 +62,8 @@ func NewRepository(db *sql.DB) (Repository, error) {
 // across users or uploads. The uploads table also carries the reconstruction
 // metadata (encrypted size, shard layout, block count) that a local manifest
 // used to hold, so a stored file can always be rebuilt from its row.
+//
+// Migration: adds format_version column if it doesn't exist (for existing DBs).
 func initializeTable(db *sql.DB) error {
 	queries := []string{
 		`CREATE TABLE IF NOT EXISTS uploads (
@@ -70,6 +73,7 @@ func initializeTable(db *sql.DB) error {
 			custom_name    TEXT NOT NULL DEFAULT '',
 			size           INTEGER NOT NULL,
 			tags           TEXT NOT NULL DEFAULT '[]',
+			format_version INTEGER NOT NULL DEFAULT 1,
 			encrypted_size INTEGER NOT NULL,
 			data_shards    INTEGER NOT NULL,
 			parity_shards  INTEGER NOT NULL,
@@ -95,6 +99,39 @@ func initializeTable(db *sql.DB) error {
 			return err
 		}
 	}
+
+	// Migration: add format_version column to existing uploads table if missing.
+	// Check if the column exists by querying table_info.
+	var hasFormatVersion bool
+	rows, err := db.Query("PRAGMA table_info(uploads)")
+	if err != nil {
+		return fmt.Errorf("check format_version column: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var cid int
+		var name string
+		var typ string
+		var notNull int
+		var dfltValue sql.NullString
+		var pk int
+		if err := rows.Scan(&cid, &name, &typ, &notNull, &dfltValue, &pk); err != nil {
+			return fmt.Errorf("scan table_info: %w", err)
+		}
+		if name == "format_version" {
+			hasFormatVersion = true
+			break
+		}
+	}
+
+	if !hasFormatVersion {
+		// Add format_version column with default value 1 for existing rows.
+		if _, err := db.Exec("ALTER TABLE uploads ADD COLUMN format_version INTEGER NOT NULL DEFAULT 1"); err != nil {
+			return fmt.Errorf("add format_version column: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -110,6 +147,7 @@ func (r *repository) CreateUpload(
 	customName string,
 	size int64,
 	tags []string,
+	formatVersion int,
 	manifest shardManifest,
 ) (*Upload, error) {
 	encodedTags, err := json.Marshal(tags)
@@ -118,12 +156,12 @@ func (r *repository) CreateUpload(
 	}
 
 	query := `INSERT OR IGNORE INTO uploads
-		(job_id, file, custom_name, size, tags, encrypted_size, data_shards,
+		(job_id, file, custom_name, size, tags, format_version, encrypted_size, data_shards,
 		 parity_shards, shard_size, block_count)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	result, err := r.db.ExecContext(ctx, query, jobID, file, customName, size, string(encodedTags),
-		manifest.EncryptedSize, manifest.DataShards, manifest.ParityShards,
+		formatVersion, manifest.EncryptedSize, manifest.DataShards, manifest.ParityShards,
 		manifest.ShardSize, manifest.BlockCount)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create upload: %w", err)
@@ -142,7 +180,7 @@ func (r *repository) CreateUpload(
 
 // getUpload fetches one upload row by ID.
 func (r *repository) getUpload(ctx context.Context, id int64) (*Upload, error) {
-	query := `SELECT id, job_id, file, custom_name, size, tags,
+	query := `SELECT id, job_id, file, custom_name, size, tags, format_version,
 		encrypted_size, data_shards, parity_shards, shard_size, block_count,
 		created_at, updated_at FROM uploads WHERE id = ?`
 
@@ -155,6 +193,7 @@ func (r *repository) getUpload(ctx context.Context, id int64) (*Upload, error) {
 		&upload.CustomName,
 		&upload.Size,
 		&tags,
+		&upload.FormatVersion,
 		&upload.EncryptedSize,
 		&upload.DataShards,
 		&upload.ParityShards,
@@ -173,7 +212,7 @@ func (r *repository) getUpload(ctx context.Context, id int64) (*Upload, error) {
 // getUploadByJob fetches one upload row by its job ID, used to reuse an
 // existing record when a job is reprocessed after a crash.
 func (r *repository) getUploadByJob(ctx context.Context, jobID int64) (*Upload, error) {
-	query := `SELECT id, job_id, file, custom_name, size, tags,
+	query := `SELECT id, job_id, file, custom_name, size, tags, format_version,
 		encrypted_size, data_shards, parity_shards, shard_size, block_count,
 		created_at, updated_at FROM uploads WHERE job_id = ?`
 
@@ -186,6 +225,7 @@ func (r *repository) getUploadByJob(ctx context.Context, jobID int64) (*Upload, 
 		&upload.CustomName,
 		&upload.Size,
 		&tags,
+		&upload.FormatVersion,
 		&upload.EncryptedSize,
 		&upload.DataShards,
 		&upload.ParityShards,
@@ -240,7 +280,7 @@ func (r *repository) CreateChunks(ctx context.Context, fileID int64, chunks []Ch
 
 // GetAll returns every stored file, newest first.
 func (r *repository) GetAll(ctx context.Context) ([]*Upload, error) {
-	query := `SELECT id, job_id, file, custom_name, size, tags,
+	query := `SELECT id, job_id, file, custom_name, size, tags, format_version,
 		encrypted_size, data_shards, parity_shards, shard_size, block_count,
 		created_at, updated_at FROM uploads ORDER BY created_at DESC`
 
@@ -261,6 +301,7 @@ func (r *repository) GetAll(ctx context.Context) ([]*Upload, error) {
 			&upload.CustomName,
 			&upload.Size,
 			&tags,
+			&upload.FormatVersion,
 			&upload.EncryptedSize,
 			&upload.DataShards,
 			&upload.ParityShards,

@@ -236,10 +236,13 @@ type shardRef struct {
 // for each block, emit shard 0..D-1's slice for that block, then move to the
 // next block. The result is trimmed to the exact encrypted size to remove the
 // final block's zero-padding.
-func reconstructCiphertext(manifest shardManifest, refs []shardRef) ([]byte, error) {
+//
+// The reconstructed data is written to outputWriter as blocks are processed,
+// streaming through memory without building the full file in memory.
+func reconstructCiphertext(manifest shardManifest, refs []shardRef, outputWriter io.Writer) error {
 	total := manifest.DataShards + manifest.ParityShards
 	if manifest.DataShards <= 0 || total != len(refs) {
-		return nil, fmt.Errorf("invalid layout: expected %d shards, got %d", total, len(refs))
+		return fmt.Errorf("invalid layout: expected %d shards, got %d", total, len(refs))
 	}
 
 	shards := make([][]byte, total)
@@ -254,40 +257,57 @@ func reconstructCiphertext(manifest shardManifest, refs []shardRef) ([]byte, err
 		present++
 	}
 	if present < manifest.DataShards {
-		return nil, fmt.Errorf("too few shards to reconstruct: %d present, %d needed", present, manifest.DataShards)
+		return fmt.Errorf("too few shards to reconstruct: %d present, %d needed", present, manifest.DataShards)
 	}
 
 	enc, err := reedsolomon.New(manifest.DataShards, manifest.ParityShards,
 		reedsolomon.WithAutoGoroutines(manifest.ShardSize))
 	if err != nil {
-		return nil, fmt.Errorf("create decoder: %w", err)
+		return fmt.Errorf("create decoder: %w", err)
 	}
 
 	if present < total {
 		if err := enc.Reconstruct(shards); err != nil {
-			return nil, fmt.Errorf("reconstruct shards: %w", err)
+			return fmt.Errorf("reconstruct shards: %w", err)
 		}
 	}
 	ok, err := enc.Verify(shards)
 	if err != nil {
-		return nil, fmt.Errorf("verify shards: %w", err)
+		return fmt.Errorf("verify shards: %w", err)
 	}
 	if !ok {
-		return nil, fmt.Errorf("shard verification failed")
+		return fmt.Errorf("shard verification failed")
 	}
 
-	out := make([]byte, 0, manifest.BlockCount*manifest.DataShards*manifest.ShardSize)
+	// Write blocks to output writer, tracking bytes written to trim final padding.
+	var bytesWritten int64
+	blockData := make([]byte, manifest.DataShards*manifest.ShardSize)
 	for b := 0; b < manifest.BlockCount; b++ {
 		start := b * manifest.ShardSize
+		offset := 0
 		for d := 0; d < manifest.DataShards; d++ {
 			if len(shards[d]) < start+manifest.ShardSize {
-				return nil, fmt.Errorf("shard %d too short for block %d: %d", d, b, len(shards[d]))
+				return fmt.Errorf("shard %d too short for block %d: %d", d, b, len(shards[d]))
 			}
-			out = append(out, shards[d][start:start+manifest.ShardSize]...)
+			copy(blockData[offset:], shards[d][start:start+manifest.ShardSize])
+			offset += manifest.ShardSize
 		}
+
+		// Write full block or trimmed final block.
+		toWrite := int64(len(blockData))
+		if bytesWritten+toWrite > manifest.EncryptedSize {
+			toWrite = manifest.EncryptedSize - bytesWritten
+		}
+
+		n, err := outputWriter.Write(blockData[:toWrite])
+		if err != nil {
+			return fmt.Errorf("write block %d: %w", b, err)
+		}
+		bytesWritten += int64(n)
 	}
-	if int64(len(out)) < manifest.EncryptedSize {
-		return nil, fmt.Errorf("reconstructed data shorter than expected: %d < %d", len(out), manifest.EncryptedSize)
+
+	if bytesWritten < manifest.EncryptedSize {
+		return fmt.Errorf("reconstructed data shorter than expected: %d < %d", bytesWritten, manifest.EncryptedSize)
 	}
-	return out[:manifest.EncryptedSize], nil
+	return nil
 }

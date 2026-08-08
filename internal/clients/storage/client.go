@@ -23,8 +23,15 @@ import (
 // rely on that signal to treat a missing blob/shard gracefully (e.g. a shard to
 // recover from parity).
 type Client interface {
-	// ReadFile returns the full contents of the object at key.
+	// ReadFile returns the full contents of the object at key. Suitable for
+	// small objects (metadata, small shards). For large objects, prefer
+	// OpenReader for streaming.
 	ReadFile(key string) ([]byte, error)
+
+	// OpenReader opens key for streaming read and returns an io.ReadCloser.
+	// Callers must Close it to release resources. Suitable for large objects
+	// where reading the full contents into memory is inefficient.
+	OpenReader(key string) (io.ReadCloser, error)
 
 	// OpenWriter opens key for writing and returns a streaming writer so large
 	// payloads (e.g. Reed-Solomon shards) never need to be fully buffered in

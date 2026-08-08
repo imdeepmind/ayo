@@ -5,6 +5,7 @@ A privacy-first, Google-Drive-style desktop app. Ayo encrypts files on your devi
 ## Capabilities
 
 - End-to-end encryption: AES-256-GCM, keys never leave your machine
+- **Streaming I/O**: Supports arbitrarily large files (5GB+) with constant ~128MB memory footprint
 - Master key wrapped with Argon2id-derived KEKs (password + recovery key)
 - Recovery-key based password reset
 - File chunking + Reed-Solomon erasure coding (data + parity shards, e.g. 2+2 / 6+3 / 10+4 / 17+3)

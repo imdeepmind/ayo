@@ -1,11 +1,11 @@
 package upload
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"sync"
 
@@ -218,26 +218,56 @@ func (p *Processor) processUpload(job *queue.Job) {
 		return
 	}
 
-	plaintext, err := p.local.ReadFile(job.Path)
+	// Open source file for streaming read instead of loading into memory.
+	sourceFile, err := os.Open(job.Path)
 	if err != nil {
-		slog.Error("encrypt file: read", "error", err)
+		slog.Error("encrypt file: open source", "error", err)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 0)
+		return
+	}
+	defer sourceFile.Close()
+
+	// Create encrypted temp file for streaming write.
+	encryptedPath := filepath.Join(encryptedDir, fmt.Sprintf("%d.enc", id))
+	if err := p.local.MkdirAll(filepath.Dir(encryptedPath), 0o700); err != nil {
+		slog.Error("encrypt file: create dir", "error", err)
 		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 0)
 		return
 	}
 
-	ciphertext, err := crypto.EncryptData(session.MasterKey, plaintext)
+	encryptedFile, err := os.OpenFile(encryptedPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
-		slog.Error("encrypt file: encrypt", "error", err)
+		slog.Error("encrypt file: open encrypted", "error", err)
 		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 0)
 		return
 	}
 
-	dst := filepath.Join(encryptedDir, fmt.Sprintf("%d.enc", id))
-	if err := p.local.WriteFile(dst, ciphertext, 0o600); err != nil {
-		slog.Error("encrypt file: write", "error", err)
+	// Stream encrypt: read from source, encrypt in chunks, write to encrypted file.
+	if err := crypto.StreamEncrypt(sourceFile, encryptedFile, session.MasterKey); err != nil {
+		_ = encryptedFile.Close()
+		_ = p.local.Remove(encryptedPath) // Clean up partial file
+		slog.Error("encrypt file: stream encrypt", "error", err)
 		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 0)
 		return
 	}
+
+	if err := encryptedFile.Close(); err != nil {
+		_ = p.local.Remove(encryptedPath)
+		slog.Error("encrypt file: close encrypted", "error", err)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 0)
+		return
+	}
+
+	// Get encrypted file size for the manifest.
+	encryptedInfo, err := p.local.Stat(encryptedPath)
+	if err != nil {
+		slog.Error("encrypt file: stat encrypted", "error", err)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 0)
+		return
+	}
+	encryptedSize := encryptedInfo.Size()
+
+	_ = p.queue.UpdateStatusAndProgress(id, queue.StatusProcessing, 30)
 
 	s, err := p.settingsProvider.GetSettings()
 	if err != nil {
@@ -246,7 +276,7 @@ func (p *Processor) processUpload(job *queue.Job) {
 		return
 	}
 
-	shards, manifest, err := p.chunk(id, s, ciphertext)
+	shards, manifest, err := p.chunk(id, s, encryptedPath, encryptedSize)
 	if err != nil {
 		slog.Error("chunk file", "error", err)
 		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 30)
@@ -260,6 +290,7 @@ func (p *Processor) processUpload(job *queue.Job) {
 		job.CustomName,
 		job.Size,
 		job.Tags,
+		crypto.FormatVersion,
 		manifest,
 	)
 	if err != nil {
@@ -272,6 +303,12 @@ func (p *Processor) processUpload(job *queue.Job) {
 		slog.Error("persist chunks", "error", err)
 		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 90)
 		return
+	}
+
+	// Clean up temp encrypted file after successful upload - shards are now persisted.
+	if err := p.local.Remove(encryptedPath); err != nil {
+		slog.Error("upload: remove temp encrypted file", "job", id, "error", err)
+		// Non-fatal, continue
 	}
 
 	_ = p.queue.UpdateStatusAndProgress(id, queue.StatusCompleted, 100)
@@ -344,6 +381,10 @@ func (p *Processor) processDelete(job *queue.Job) {
 // stages the plaintext under data/downloads/<jobID> so the user can pick a
 // destination. The staged file is finalized (copied + cleaned up) by
 // Service.FinalizeDownload.
+//
+// The process uses streaming I/O: shards are reconstructed to a temp encrypted
+// file, then streamed through decryption to the final staging location, without
+// ever loading the full file into memory.
 func (p *Processor) processDownload(job *queue.Job) {
 	id := job.ID
 	if err := p.queue.UpdateStatusAndProgress(id, queue.StatusProcessing, 0); err != nil {
@@ -361,6 +402,14 @@ func (p *Processor) processDownload(job *queue.Job) {
 	upload, err := p.uploadRepository.GetUpload(context.Background(), job.FileID)
 	if err != nil {
 		slog.Error("download: get stored file", "job", id, "error", err)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 0)
+		return
+	}
+
+	// Reject legacy format version 1 files (non-streaming encryption).
+	if upload.FormatVersion != crypto.FormatVersion {
+		slog.Error("download: unsupported format version", "job", id,
+			"version", upload.FormatVersion, "expected", crypto.FormatVersion)
 		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 0)
 		return
 	}
@@ -391,32 +440,96 @@ func (p *Processor) processDownload(job *queue.Job) {
 		shardRefs = append(shardRefs, shardRef{client: client, key: key})
 	}
 
-	ciphertext, err := reconstructCiphertext(shardManifest{
+	// Create temp encrypted file for reconstruction.
+	tempEncryptedPath := filepath.Join(encryptedDir, fmt.Sprintf("download_%d.enc", id))
+	if err := p.local.MkdirAll(filepath.Dir(tempEncryptedPath), 0o700); err != nil {
+		slog.Error("download: create temp dir", "error", err)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 10)
+		return
+	}
+
+	tempEncryptedFile, err := os.OpenFile(tempEncryptedPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		slog.Error("download: open temp encrypted", "error", err)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 10)
+		return
+	}
+
+	// Reconstruct encrypted file from shards, streaming to temp file.
+	err = reconstructCiphertext(shardManifest{
 		EncryptedSize: upload.EncryptedSize,
 		DataShards:    upload.DataShards,
 		ParityShards:  upload.ParityShards,
 		ShardSize:     upload.ShardSize,
 		BlockCount:    upload.BlockCount,
-	}, shardRefs)
+	}, shardRefs, tempEncryptedFile)
+
 	if err != nil {
+		_ = tempEncryptedFile.Close()
+		_ = p.local.Remove(tempEncryptedPath)
 		slog.Error("download: reconstruct", "job", id, "error", err)
 		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 50)
 		return
 	}
 
-	_ = p.queue.UpdateStatusAndProgress(id, queue.StatusProcessing, 80)
+	if err := tempEncryptedFile.Close(); err != nil {
+		_ = p.local.Remove(tempEncryptedPath)
+		slog.Error("download: close temp encrypted", "error", err)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 50)
+		return
+	}
 
-	plaintext, err := crypto.DecryptData(session.MasterKey, ciphertext)
+	_ = p.queue.UpdateStatusAndProgress(id, queue.StatusProcessing, 60)
+
+	// Open reconstructed encrypted file for reading.
+	encryptedFile, err := os.Open(tempEncryptedPath)
 	if err != nil {
-		slog.Error("download: decrypt", "job", id, "error", err)
+		_ = p.local.Remove(tempEncryptedPath)
+		slog.Error("download: open reconstructed encrypted", "error", err)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 60)
+		return
+	}
+	defer encryptedFile.Close()
+
+	// Create staging file for decrypted output.
+	stagingPath := filepath.Join(downloadsDir, fmt.Sprintf("%d", id))
+	if err := p.local.MkdirAll(filepath.Dir(stagingPath), 0o700); err != nil {
+		_ = p.local.Remove(tempEncryptedPath)
+		slog.Error("download: create staging dir", "error", err)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 60)
+		return
+	}
+
+	stagingFile, err := os.OpenFile(stagingPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		_ = p.local.Remove(tempEncryptedPath)
+		slog.Error("download: open staging", "error", err)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 60)
+		return
+	}
+
+	// Stream decrypt: read encrypted file, decrypt in chunks, write plaintext to staging.
+	if err := crypto.StreamDecrypt(encryptedFile, stagingFile, session.MasterKey); err != nil {
+		_ = stagingFile.Close()
+		_ = p.local.Remove(tempEncryptedPath)
+		_ = p.local.Remove(stagingPath)
+		slog.Error("download: stream decrypt", "job", id, "error", err)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 80)
+		return
+	}
+
+	if err := stagingFile.Close(); err != nil {
+		_ = p.local.Remove(tempEncryptedPath)
+		_ = p.local.Remove(stagingPath)
+		slog.Error("download: close staging", "error", err)
 		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 90)
 		return
 	}
 
-	if err := p.local.WriteFile(filepath.Join(downloadsDir, fmt.Sprintf("%d", id)), plaintext, 0o600); err != nil {
-		slog.Error("download: write staging", "error", err)
-		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 90)
-		return
+	// Clean up temp encrypted file.
+	if err := p.local.Remove(tempEncryptedPath); err != nil {
+		slog.Error("download: remove temp encrypted", "job", id, "error", err)
+		// Non-fatal, continue
 	}
 
 	_ = p.queue.UpdateStatusAndProgress(id, queue.StatusCompleted, 100)
@@ -436,14 +549,18 @@ func (p *Processor) processDownload(job *queue.Job) {
 // from 30% (after encryption) up to 90% as blocks are encoded, and returns the
 // shard records needed to persist the chunks table along with the
 // reconstruction metadata for the uploads table.
-func (p *Processor) chunk(id int64, s *settings.Settings, ciphertext []byte) ([]ChunkInput, shardManifest, error) {
-	dataShards, parityShards := computeShardCount(int64(len(ciphertext)), s.ErasureCoding, s.ErasureCodingConfig)
+//
+// The encrypted file is read in blocks from disk, never loaded fully into memory.
+func (p *Processor) chunk(id int64, s *settings.Settings, encryptedPath string,
+	encryptedSize int64,
+) ([]ChunkInput, shardManifest, error) {
+	dataShards, parityShards := computeShardCount(encryptedSize, s.ErasureCoding, s.ErasureCodingConfig)
 
 	// Size each shard so the data shards carry the whole file (a chunk of
-	// ~len(ciphertext)/dataShards bytes), clamped into [minShardSize,
+	// ~encryptedSize/dataShards bytes), clamped into [minShardSize,
 	// blockShardSize] to keep chunks small for small files and per-block memory
 	// bounded for large ones.
-	shardSize := int(ceilDiv(int64(len(ciphertext)), int64(dataShards)))
+	shardSize := int(ceilDiv(encryptedSize, int64(dataShards)))
 	if shardSize < minShardSize {
 		shardSize = minShardSize
 	}
@@ -492,12 +609,19 @@ func (p *Processor) chunk(id int64, s *settings.Settings, ciphertext []byte) ([]
 		})
 	}
 
-	totalBlocks := (len(ciphertext) + cfg.blockSize - 1) / cfg.blockSize
+	// Open encrypted file for streaming read.
+	encryptedFile, err := os.Open(encryptedPath)
+	if err != nil {
+		return nil, shardManifest{}, fmt.Errorf("open encrypted file: %w", err)
+	}
+	defer encryptedFile.Close()
+
+	totalBlocks := (int(encryptedSize) + cfg.blockSize - 1) / cfg.blockSize
 	if totalBlocks == 0 {
 		totalBlocks = 1
 	}
 
-	blockCount, err := encodeBlocks(enc, cfg, bytes.NewReader(ciphertext), writers, func(done int) error {
+	blockCount, err := encodeBlocks(enc, cfg, encryptedFile, writers, func(done int) error {
 		progress := 30 + 60*done/totalBlocks
 		return p.queue.UpdateStatusAndProgress(id, queue.StatusProcessing, progress)
 	})
@@ -516,7 +640,7 @@ func (p *Processor) chunk(id int64, s *settings.Settings, ciphertext []byte) ([]
 	}
 
 	return shards, shardManifest{
-		EncryptedSize: int64(len(ciphertext)),
+		EncryptedSize: encryptedSize,
 		DataShards:    cfg.dataShards,
 		ParityShards:  cfg.parityShards,
 		ShardSize:     shardSize,
