@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import logo from '@/assets/images/logo.png';
 
 type HeaderProps = {
   searchQuery?: string;
@@ -15,7 +16,7 @@ export default function Header({ searchQuery = '', onSearchChange }: HeaderProps
       <div className="flex items-center justify-between gap-4">
         {/* Logo & Brand */}
         <Link to="/" className="flex items-center shrink-0">
-          <span className="text-2xl font-bold tracking-tight text-primary">ayo</span>
+          <img src={logo} alt="ayo" className="h-12 w-12 rounded-lg" />
         </Link>
 
         {/* Central Search Drive Input (Only visible when logged in) */}
