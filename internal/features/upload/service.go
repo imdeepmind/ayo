@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"ayo/internal/clients/storage"
@@ -357,33 +358,49 @@ func (s *Service) FinalizeDownload(jobID int64) (string, error) {
 	return dest, nil
 }
 
-// GetStoredFiles returns every persisted upload (the drive listing), newest
-// first.
-func (s *Service) GetStoredFiles() ([]StoredFile, error) {
+// GetStoredFiles returns the drive listing. With an empty query it returns every
+// persisted upload, newest first (normal mode); with a non-empty query it
+// returns only files whose name matches the query (search mode).
+func (s *Service) GetStoredFiles(query string) ([]StoredFile, error) {
 	if _, err := s.sessionProvider.RequireSession(); err != nil {
 		return nil, err
 	}
 
-	uploads, err := s.repo.GetAll(context.Background())
+	query = strings.TrimSpace(query)
+	var (
+		uploads []*Upload
+		err     error
+	)
+	if query == "" {
+		uploads, err = s.repo.GetAll(context.Background())
+	} else {
+		uploads, err = s.repo.SearchByName(context.Background(), query)
+	}
 	if err != nil {
 		return nil, errors.AsInternalServerError("get stored files: list", err)
 	}
 
 	stored := make([]StoredFile, 0, len(uploads))
 	for _, u := range uploads {
-		name := u.CustomName
-		if name == "" {
-			name = u.File
-		}
-		stored = append(stored, StoredFile{
-			ID:        u.ID,
-			Name:      name,
-			Size:      u.Size,
-			Tags:      u.Tags,
-			CreatedAt: u.CreatedAt.UTC().Format(time.RFC3339),
-		})
+		stored = append(stored, toStoredFile(u))
 	}
 	return stored, nil
+}
+
+// toStoredFile maps a persisted upload to its frontend-facing listing shape,
+// preferring the user-facing custom name over the original file name.
+func toStoredFile(u *Upload) StoredFile {
+	name := u.CustomName
+	if name == "" {
+		name = u.File
+	}
+	return StoredFile{
+		ID:        u.ID,
+		Name:      name,
+		Size:      u.Size,
+		Tags:      u.Tags,
+		CreatedAt: u.CreatedAt.UTC().Format(time.RFC3339),
+	}
 }
 
 // GetStorageUsed returns the total size in bytes of all stored files, used by

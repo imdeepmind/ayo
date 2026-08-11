@@ -15,7 +15,7 @@ export function GetActiveTransfers():Promise<Array<upload.EnqueuedJob>>;
 
 export function GetStorageUsed():Promise<number>;
 
-export function GetStoredFiles():Promise<Array<upload.StoredFile>>;
+export function GetStoredFiles(arg1:string):Promise<Array<upload.StoredFile>>;
 
 export function PickFiles():Promise<Array<upload.PickedFile>>;
 

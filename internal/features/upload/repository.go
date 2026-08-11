@@ -35,6 +35,9 @@ type Repository interface {
 	GetChunks(ctx context.Context, fileID int64) ([]Chunk, error)
 	// GetAll returns every stored file, newest first.
 	GetAll(ctx context.Context) ([]*Upload, error)
+	// SearchByName returns stored files whose file or custom name contains the
+	// given query (case-insensitive), newest first.
+	SearchByName(ctx context.Context, query string) ([]*Upload, error)
 	// GetUpload fetches one stored file by its upload ID.
 	GetUpload(ctx context.Context, id int64) (*Upload, error)
 	// GetTotalSize returns the sum of all stored file sizes (in bytes).
@@ -419,6 +422,67 @@ func (r *repository) GetAll(ctx context.Context) ([]*Upload, error) {
 	rows, err := client.QueryContext(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list uploads: %w", err)
+	}
+	defer rows.Close()
+
+	var uploads []*Upload
+	for rows.Next() {
+		var upload Upload
+		var tags string
+		if err := rows.Scan(
+			&upload.ID,
+			&upload.JobID,
+			&upload.File,
+			&upload.CustomName,
+			&upload.Size,
+			&tags,
+			&upload.FormatVersion,
+			&upload.EncryptedSize,
+			&upload.DataShards,
+			&upload.ParityShards,
+			&upload.ShardSize,
+			&upload.BlockCount,
+			&upload.CreatedAt,
+			&upload.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan upload: %w", err)
+		}
+		upload.Tags = decodeTags(tags)
+		uploads = append(uploads, &upload)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate uploads: %w", err)
+	}
+	return uploads, nil
+}
+
+// SearchByName returns stored files whose original or custom name contains the
+// query, newest first. SQLite LIKE is case-insensitive for ASCII; PostgreSQL
+// requires ILIKE for the same behaviour.
+func (r *repository) SearchByName(ctx context.Context, query string) ([]*Upload, error) {
+	pattern := "%" + query + "%"
+	base := `SELECT id, job_id, file, custom_name, size, tags, format_version,
+		encrypted_size, data_shards, parity_shards, shard_size, block_count,
+		created_at, updated_at FROM uploads`
+
+	client, err := r.resolve()
+	if err != nil {
+		return nil, err
+	}
+
+	var sql string
+	var args []any
+	if client.IsPostgres() {
+		sql = base + ` WHERE file ILIKE ? OR custom_name ILIKE ? ORDER BY created_at DESC`
+		args = []any{pattern, pattern}
+	} else {
+		sql = base + ` WHERE file LIKE ? OR custom_name LIKE ? ORDER BY created_at DESC`
+		args = []any{pattern, pattern}
+	}
+
+	rows, err := client.QueryContext(ctx, client.Rebind(sql), args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search uploads: %w", err)
 	}
 	defer rows.Close()
 

@@ -27,6 +27,7 @@ type DriveFileTableProps = {
   onDownload: (file: FileItem) => void;
   onDelete: (file: FileItem) => void;
   viewMode?: 'list' | 'grid';
+  emptyMessage?: string;
 };
 
 function formatDate(iso: string): string {
@@ -47,6 +48,7 @@ export default function DriveFileTable({
   onDownload,
   onDelete,
   viewMode = 'list',
+  emptyMessage = 'No files found. Upload your first file to get started.',
 }: DriveFileTableProps) {
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -136,7 +138,7 @@ export default function DriveFileTable({
   if (files.length === 0) {
     return (
       <div className="mt-4 rounded-2xl border border-border bg-background px-4 py-12 text-center text-sm text-text-subtle">
-        No files found. Upload your first file to get started.
+        {emptyMessage}
       </div>
     );
   }

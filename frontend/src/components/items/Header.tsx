@@ -1,15 +1,18 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useSearch } from '@/context/SearchContext';
 import logo from '@/assets/images/logo.png';
 
-type HeaderProps = {
-  searchQuery?: string;
-  onSearchChange?: (value: string) => void;
-};
-
-export default function Header({ searchQuery = '', onSearchChange }: HeaderProps) {
+export default function Header() {
   const { session } = useAuth();
+  const { query, setQuery } = useSearch();
+  const navigate = useNavigate();
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    navigate('/');
+  };
 
   return (
     <header className="w-full shrink-0 bg-background py-6 px-8 md:px-10">
@@ -21,7 +24,7 @@ export default function Header({ searchQuery = '', onSearchChange }: HeaderProps
 
         {/* Central Search Drive Input (Only visible when logged in) */}
         {session ? (
-          <div className="flex-1 max-w-xl mx-6">
+          <form onSubmit={handleSubmit} className="flex-1 max-w-xl mx-6" role="search">
             <div className="relative w-full">
               <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-text-faint">
                 <Search className="h-4 w-4" />
@@ -30,12 +33,12 @@ export default function Header({ searchQuery = '', onSearchChange }: HeaderProps
                 type="search"
                 aria-label="Search Drive"
                 placeholder="Search Drive"
-                value={searchQuery}
-                onChange={(e) => onSearchChange?.(e.target.value)}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
                 className="w-full rounded-full border border-border bg-surface-alt/90 py-3 pl-11 pr-5 text-sm text-text placeholder:text-text-faint outline-none transition focus:bg-surface focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-border-strong dark:bg-surface-alt dark:text-text dark:focus:bg-surface"
               />
             </div>
-          </div>
+          </form>
         ) : (
           <div className="flex-1" />
         )}

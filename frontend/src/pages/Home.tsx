@@ -21,6 +21,7 @@ import { EnqueueDelete, EnqueueDownload, GetStoredFiles } from '../../wailsjs/go
 import { GetHomeOverview } from '../../wailsjs/go/home/Service';
 import { home, upload } from '../../wailsjs/go/models';
 import { useActiveTransfers } from '@/context/ActiveTransfersContext';
+import { useSearch } from '@/context/SearchContext';
 import DriveToolbar from '@/components/items/DriveToolbar';
 import DriveFileTable from '@/components/items/DriveFileTable';
 import EditFileModal from '@/components/items/EditFileModal';
@@ -52,7 +53,8 @@ export default function Home() {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [overview, setOverview] = useState<home.HomeOverview | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery] = useState('');
+  const { query } = useSearch();
+  const isSearching = query.trim().length > 0;
   const [activeCategory] = useState('my-drive');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const { deletes, refresh } = useActiveTransfers();
@@ -69,7 +71,7 @@ export default function Home() {
 
   const loadFiles = useCallback(async () => {
     try {
-      const stored = await GetStoredFiles();
+      const stored = await GetStoredFiles(query);
       setFiles(stored.map(toFileItem));
     } catch (err) {
       console.error('Failed to load stored files:', err);
@@ -77,7 +79,7 @@ export default function Home() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [query]);
 
   const loadOverview = useCallback(async () => {
     try {
@@ -88,9 +90,14 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    loadFiles();
+    if (isSearching) return;
     loadOverview();
-  }, [loadFiles, loadOverview]);
+  }, [isSearching, loadOverview]);
+
+  useEffect(() => {
+    const timer = setTimeout(loadFiles, isSearching ? 250 : 0);
+    return () => clearTimeout(timer);
+  }, [loadFiles, isSearching]);
 
   const wasDeleting = useRef(false);
   const pendingDeleteCount = useRef(0);
@@ -107,29 +114,6 @@ export default function Home() {
     }
   }, [deletes.length, loadFiles, loadOverview]);
 
-  const filteredFiles = useMemo(() => {
-    let result = files;
-
-    // Filter by category
-    if (activeCategory === 'recents') {
-      result = [...result].sort(
-        (a, b) => new Date(b.modifiedAt).getTime() - new Date(a.modifiedAt).getTime()
-      );
-    } else if (activeCategory === 'starred') {
-      result = result.filter((f) => f.tags?.includes('starred'));
-    }
-
-    // Filter by search query
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return result;
-    return result.filter((file) => {
-      const nameMatch = file.name.toLowerCase().includes(query);
-      const typeMatch = file.type.toLowerCase().includes(query);
-      const tagMatch = file.tags?.some((tag) => tag.toLowerCase().includes(query));
-      return nameMatch || typeMatch || tagMatch;
-    });
-  }, [searchQuery, files, activeCategory]);
-
   // Recent files from the backend home overview, newest first.
   const recentFiles = useMemo(() => overview?.RecentFiles ?? [], [overview]);
 
@@ -145,7 +129,7 @@ export default function Home() {
 
   const handleSelectAllChange = (isSelected: boolean) => {
     if (isSelected) {
-      setSelectedFileIds(new Set(filteredFiles.map((f) => f.id)));
+      setSelectedFileIds(new Set(files.map((f) => f.id)));
     } else {
       setSelectedFileIds(new Set());
     }
@@ -260,67 +244,75 @@ export default function Home() {
 
   return (
     <div className="w-full relative space-y-6">
-      <DriveToolbar activeCategory={activeCategory} onUploadClick={() => navigate('/upload')} />
+      {!isSearching && (
+        <DriveToolbar activeCategory={activeCategory} onUploadClick={() => navigate('/upload')} />
+      )}
 
       {/* Stats bar */}
-      <section className="flex w-max overflow-hidden rounded-2xl border border-border bg-background divide-x divide-border">
-        {stats.map((stat) => (
-          <div key={stat.label} className="flex items-center gap-2 px-4 py-3 min-w-0">
-            {stat.icon}
-            <div className="flex items-baseline gap-1.5 min-w-0">
-              <span className="text-sm font-bold text-text truncate">{stat.value}</span>
-              <span className="text-xs font-medium text-text-faint truncate">{stat.label}</span>
+      {!isSearching && (
+        <section className="flex w-max overflow-hidden rounded-2xl border border-border bg-background divide-x divide-border">
+          {stats.map((stat) => (
+            <div key={stat.label} className="flex items-center gap-2 px-4 py-3 min-w-0">
+              {stat.icon}
+              <div className="flex items-baseline gap-1.5 min-w-0">
+                <span className="text-sm font-bold text-text truncate">{stat.value}</span>
+                <span className="text-xs font-medium text-text-faint truncate">{stat.label}</span>
+              </div>
             </div>
-          </div>
-        ))}
-      </section>
+          ))}
+        </section>
+      )}
 
       {/* Recent Files Cards Section */}
-      <section className="space-y-3">
-        <h2 className="text-lg font-bold text-text">Recent Files</h2>
-        {recentFiles.length === 0 ? (
-          <div className="rounded-2xl border border-border bg-background p-6 text-center text-sm text-text-subtle">
-            No recent files yet. Upload your first file to get started.
-          </div>
-        ) : (
-          <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {recentFiles.slice(0, 5).map((file, index) => {
-              const type = getFileType(file.Name);
-              const badge = getCardBadge(file.Name, type);
-              return (
-                <div
-                  key={file.ID}
-                  onClick={() => handleDownloadById(file.ID)}
-                  className={`group cursor-pointer rounded-2xl border border-border bg-background p-3.5 flex flex-col justify-between transition-all hover:bg-surface-hover dark:hover:bg-surface-alt ${
-                    index >= 4 ? 'hidden xl:flex' : index >= 3 ? 'hidden lg:flex' : ''
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div
-                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${badge.bg}`}
-                    >
-                      {badge.icon}
+      {!isSearching && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-bold text-text">Recent Files</h2>
+          {recentFiles.length === 0 ? (
+            <div className="rounded-2xl border border-border bg-background p-6 text-center text-sm text-text-subtle">
+              No recent files yet. Upload your first file to get started.
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {recentFiles.slice(0, 5).map((file, index) => {
+                const type = getFileType(file.Name);
+                const badge = getCardBadge(file.Name, type);
+                return (
+                  <div
+                    key={file.ID}
+                    onClick={() => handleDownloadById(file.ID)}
+                    className={`group cursor-pointer rounded-2xl border border-border bg-background p-3.5 flex flex-col justify-between transition-all hover:bg-surface-hover dark:hover:bg-surface-alt ${
+                      index >= 4 ? 'hidden xl:flex' : index >= 3 ? 'hidden lg:flex' : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div
+                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${badge.bg}`}
+                      >
+                        {badge.icon}
+                      </div>
+                      <span className="min-w-0 text-sm font-semibold text-text truncate">
+                        {file.Name}
+                      </span>
                     </div>
-                    <span className="min-w-0 text-sm font-semibold text-text truncate">
-                      {file.Name}
-                    </span>
-                  </div>
 
-                  <div className="mt-3 flex items-center justify-between text-xs text-text-muted">
-                    <span className="font-semibold">{formatSize(file.Size)}</span>
-                    <span>{formatDateTime(file.UpdatedAt)}</span>
+                    <div className="mt-3 flex items-center justify-between text-xs text-text-muted">
+                      <span className="font-semibold">{formatSize(file.Size)}</span>
+                      <span>{formatDateTime(file.UpdatedAt)}</span>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* All Files Listing Section */}
       <section className="space-y-3 pt-2">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-text">All Files</h2>
+          <h2 className="text-lg font-bold text-text">
+            {isSearching ? 'Search Results' : 'All Files'}
+          </h2>
           <div className="flex items-center gap-1 bg-surface-alt dark:bg-surface-alt p-1 rounded-xl border border-border dark:border-border-strong">
             <button
               type="button"
@@ -354,7 +346,7 @@ export default function Home() {
           </div>
         ) : (
           <DriveFileTable
-            files={filteredFiles}
+            files={files}
             selectedFileIds={selectedFileIds}
             onSelectionChange={handleSelectionChange}
             onSelectAllChange={handleSelectAllChange}
@@ -362,6 +354,11 @@ export default function Home() {
             onDownload={handleDownload}
             onDelete={handleDelete}
             viewMode={viewMode}
+            emptyMessage={
+              isSearching
+                ? 'No files match your search.'
+                : 'No files found. Upload your first file to get started.'
+            }
           />
         )}
       </section>

@@ -16,6 +16,7 @@ import Sidebar from '@/components/items/Sidebar';
 import { ThemeProvider } from '@/theme/ThemeProvider';
 import { AuthProvider } from '@/context/AuthContext';
 import { ActiveTransfersProvider } from '@/context/ActiveTransfersContext';
+import { SearchProvider } from '@/context/SearchContext';
 import ProtectedRoute from '@/components/items/ProtectedRoute';
 import PublicRoute from '@/components/items/PublicRoute';
 
@@ -25,31 +26,36 @@ function App() {
       <ThemeProvider>
         <ActiveTransfersProvider>
           <BrowserRouter>
-            <div className="h-screen w-full overflow-hidden bg-background font-sans text-text flex flex-col">
-              <Header />
-              <div className="flex flex-1 overflow-hidden">
-                <Sidebar />
-                <main className="flex-1 overflow-y-auto p-6 md:p-8">
-                  <Routes>
-                    <Route element={<ProtectedRoute />}>
-                      <Route path="/" element={<Home />} />
-                      <Route path="/settings" element={<Settings />} />
-                      <Route path="/upload" element={<Upload />} />
-                      <Route path="/storage/providers" element={<StorageProviders />} />
-                      <Route path="/storage/database" element={<StorageDatabase />} />
-                      <Route path="/storage/erasure-coding" element={<StorageErasureCoding />} />
-                      <Route path="/security/key-management" element={<SecurityKeyManagement />} />
-                    </Route>
-                    <Route element={<PublicRoute />}>
-                      <Route path="/auth/login" element={<Login />} />
-                      <Route path="/auth/register" element={<Register />} />
-                      <Route path="/auth/reset" element={<Reset />} />
-                    </Route>
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </main>
+            <SearchProvider>
+              <div className="h-screen w-full overflow-hidden bg-background font-sans text-text flex flex-col">
+                <Header />
+                <div className="flex flex-1 overflow-hidden">
+                  <Sidebar />
+                  <main className="flex-1 overflow-y-auto p-6 md:p-8">
+                    <Routes>
+                      <Route element={<ProtectedRoute />}>
+                        <Route path="/" element={<Home />} />
+                        <Route path="/settings" element={<Settings />} />
+                        <Route path="/upload" element={<Upload />} />
+                        <Route path="/storage/providers" element={<StorageProviders />} />
+                        <Route path="/storage/database" element={<StorageDatabase />} />
+                        <Route path="/storage/erasure-coding" element={<StorageErasureCoding />} />
+                        <Route
+                          path="/security/key-management"
+                          element={<SecurityKeyManagement />}
+                        />
+                      </Route>
+                      <Route element={<PublicRoute />}>
+                        <Route path="/auth/login" element={<Login />} />
+                        <Route path="/auth/register" element={<Register />} />
+                        <Route path="/auth/reset" element={<Reset />} />
+                      </Route>
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </main>
+                </div>
               </div>
-            </div>
+            </SearchProvider>
             <Toaster
               position="bottom-right"
               toastOptions={{

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useActiveTransfers } from '@/context/ActiveTransfersContext';
+import { useSearch } from '@/context/SearchContext';
 
 function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? '' : 's'}`;
@@ -24,6 +25,7 @@ const maxVisibleUploads = 3;
 export default function Sidebar() {
   const { session } = useAuth();
   const { uploads, downloads, deletes, overallProgress } = useActiveTransfers();
+  const { clear: clearSearch } = useSearch();
 
   const hasTransfers = uploads.length > 0 || downloads.length > 0 || deletes.length > 0;
   const progress = overallProgress ?? 0;
@@ -49,7 +51,7 @@ export default function Sidebar() {
   return (
     <aside className="w-32 min-w-[15.4rem] h-full bg-gradient-to-b from-sidebar-bg to-sidebar-bg-dark text-sidebar-text rounded-tr-[64px] p-6 flex flex-col justify-between shrink-0 overflow-y-auto hidden md:flex my-0 ml-0 mb-0">
       <div className="flex flex-col gap-2 mt-4">
-        <NavLink to="/" className={({ isActive }) => navClass(isActive)}>
+        <NavLink to="/" onClick={clearSearch} className={({ isActive }) => navClass(isActive)}>
           <HardDrive className="h-4 w-4 shrink-0" />
           <span>My Drive</span>
         </NavLink>
