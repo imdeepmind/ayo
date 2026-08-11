@@ -5,3 +5,7 @@
 export function GetHomeOverview() {
   return window['go']['home']['Service']['GetHomeOverview']();
 }
+
+export function GetStoredFiles(arg1, arg2, arg3) {
+  return window['go']['home']['Service']['GetStoredFiles'](arg1, arg2, arg3);
+}

@@ -26,3 +26,24 @@ type HomeOverview struct {
 	TotalProviders     int
 	ErasureCodingSetup string
 }
+
+// StoredFile is the frontend-facing representation of one row of the `uploads`
+// table, used by the Home/drive screen. Timestamps are strings so the Wails
+// model stays a flat, predictable shape.
+type StoredFile struct {
+	ID        int64
+	Name      string
+	Size      int64
+	Tags      []string
+	CreatedAt string
+}
+
+// StoredFilePage is one page of the drive listing returned by GetStoredFiles.
+// Total is the count of all matching rows (unbounded by page size) so the
+// frontend can render pagination controls.
+type StoredFilePage struct {
+	Files    []StoredFile
+	Total    int64
+	Page     int
+	PageSize int
+}

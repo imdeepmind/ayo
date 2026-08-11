@@ -3,3 +3,5 @@
 import {home} from '../models';
 
 export function GetHomeOverview():Promise<home.HomeOverview>;
+
+export function GetStoredFiles(arg1:string,arg2:number,arg3:number):Promise<home.StoredFilePage>;

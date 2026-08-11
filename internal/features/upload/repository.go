@@ -33,19 +33,6 @@ type Repository interface {
 	// GetChunks returns the shard records for a stored file, ordered by shard
 	// index so they can be read back in reconstruction order.
 	GetChunks(ctx context.Context, fileID int64) ([]Chunk, error)
-	// GetAll returns every stored file, newest first.
-	GetAll(ctx context.Context) ([]*Upload, error)
-	// GetAllPaged returns the stored files for one page of the drive listing,
-	// newest first, with the given page size and offset.
-	GetAllPaged(ctx context.Context, limit, offset int) ([]*Upload, error)
-	// SearchByName returns stored files whose file or custom name contains the
-	// given query (case-insensitive), newest first, for one page of results.
-	SearchByName(ctx context.Context, query string, limit, offset int) ([]*Upload, error)
-	// CountUploads returns the total number of stored files.
-	CountUploads(ctx context.Context) (int64, error)
-	// CountByName returns the number of stored files whose file or custom name
-	// contains the given query (case-insensitive).
-	CountByName(ctx context.Context, query string) (int64, error)
 	// GetUpload fetches one stored file by its upload ID.
 	GetUpload(ctx context.Context, id int64) (*Upload, error)
 	// GetTotalSize returns the sum of all stored file sizes (in bytes).
@@ -63,8 +50,11 @@ type repository struct {
 
 // NewRepository returns a repository bound to the shared connection holder. The
 // uploads/chunks tables are created lazily on the active client (see resolve),
-// since there is no database connection before a user signs in.
-func NewRepository(conn *dbclient.Connection) Repository {
+// since there is no database connection before a user signs in. It returns the
+// concrete type so callers (e.g. main.go) can pass the same instance to
+// services that depend on different slices of it (upload.Repository vs
+// home.UploadRepository).
+func NewRepository(conn *dbclient.Connection) *repository {
 	return &repository{conn: conn}
 }
 

@@ -248,6 +248,63 @@ export namespace home {
 		    return a;
 		}
 	}
+	
+	export class StoredFile {
+	    ID: number;
+	    Name: string;
+	    Size: number;
+	    Tags: string[];
+	    CreatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new StoredFile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Name = source["Name"];
+	        this.Size = source["Size"];
+	        this.Tags = source["Tags"];
+	        this.CreatedAt = source["CreatedAt"];
+	    }
+	}
+	export class StoredFilePage {
+	    Files: StoredFile[];
+	    Total: number;
+	    Page: number;
+	    PageSize: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new StoredFilePage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Files = this.convertValues(source["Files"], StoredFile);
+	        this.Total = source["Total"];
+	        this.Page = source["Page"];
+	        this.PageSize = source["PageSize"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 
 }
 
@@ -407,62 +464,6 @@ export namespace upload {
 	        this.Path = source["Path"];
 	        this.Size = source["Size"];
 	    }
-	}
-	export class StoredFile {
-	    ID: number;
-	    Name: string;
-	    Size: number;
-	    Tags: string[];
-	    CreatedAt: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new StoredFile(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.ID = source["ID"];
-	        this.Name = source["Name"];
-	        this.Size = source["Size"];
-	        this.Tags = source["Tags"];
-	        this.CreatedAt = source["CreatedAt"];
-	    }
-	}
-	export class StoredFilePage {
-	    Files: StoredFile[];
-	    Total: number;
-	    Page: number;
-	    PageSize: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new StoredFilePage(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Files = this.convertValues(source["Files"], StoredFile);
-	        this.Total = source["Total"];
-	        this.Page = source["Page"];
-	        this.PageSize = source["PageSize"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
 	}
 
 }

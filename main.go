@@ -100,8 +100,9 @@ func main() {
 	uploadService := upload.NewService(authService, settingsService, queueService, uploadRepository, fileClient)
 
 	// Home service: read-only aggregation (recent files, storage totals,
-	// provider count, erasure-coding setup) for the Home screen. It shares the
-	// upload repository and reads settings through the settings service.
+	// provider count, erasure-coding setup) plus the paginated drive listing and
+	// search for the Home screen. It shares the upload repository and reads
+	// settings through the settings service.
 	homeService := home.NewService(authService, uploadRepository, settingsService)
 
 	// Create application with options. Anything passed to Bind is exposed to

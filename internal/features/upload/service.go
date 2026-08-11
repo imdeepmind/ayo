@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
-	"strings"
-	"time"
 
 	"ayo/internal/clients/storage"
 	"ayo/internal/features/auth"
@@ -356,84 +354,6 @@ func (s *Service) FinalizeDownload(jobID int64) (string, error) {
 		return "", errors.AsInternalServerError("download: write destination", err)
 	}
 	return dest, nil
-}
-
-// defaultPageSize is the page size used when GetStoredFiles is called with an
-// invalid value.
-const defaultPageSize = 20
-
-// maxPageSize caps the number of rows GetStoredFiles may return per page.
-const maxPageSize = 50
-
-// GetStoredFiles returns one page of the drive listing. With an empty query it
-// returns every persisted upload, newest first (normal mode); with a non-empty
-// query it returns only files whose name matches the query (search mode). The
-// page is bounded by pageSize (clamped to [1, maxPageSize], defaulting to
-// defaultPageSize) and the response carries the total matching row count so the
-// frontend can render pagination controls.
-func (s *Service) GetStoredFiles(query string, page, pageSize int) (StoredFilePage, error) {
-	if _, err := s.sessionProvider.RequireSession(); err != nil {
-		return StoredFilePage{}, err
-	}
-
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 {
-		pageSize = defaultPageSize
-	}
-	if pageSize > maxPageSize {
-		pageSize = maxPageSize
-	}
-	offset := (page - 1) * pageSize
-
-	query = strings.TrimSpace(query)
-	var (
-		uploads []*Upload
-		total   int64
-		err     error
-	)
-	if query == "" {
-		uploads, err = s.repo.GetAllPaged(context.Background(), pageSize, offset)
-		if err == nil {
-			total, err = s.repo.CountUploads(context.Background())
-		}
-	} else {
-		uploads, err = s.repo.SearchByName(context.Background(), query, pageSize, offset)
-		if err == nil {
-			total, err = s.repo.CountByName(context.Background(), query)
-		}
-	}
-	if err != nil {
-		return StoredFilePage{}, errors.AsInternalServerError("get stored files: list", err)
-	}
-
-	stored := make([]StoredFile, 0, len(uploads))
-	for _, u := range uploads {
-		stored = append(stored, toStoredFile(u))
-	}
-	return StoredFilePage{
-		Files:    stored,
-		Total:    total,
-		Page:     page,
-		PageSize: pageSize,
-	}, nil
-}
-
-// toStoredFile maps a persisted upload to its frontend-facing listing shape,
-// preferring the user-facing custom name over the original file name.
-func toStoredFile(u *Upload) StoredFile {
-	name := u.CustomName
-	if name == "" {
-		name = u.File
-	}
-	return StoredFile{
-		ID:        u.ID,
-		Name:      name,
-		Size:      u.Size,
-		Tags:      u.Tags,
-		CreatedAt: u.CreatedAt.UTC().Format(time.RFC3339),
-	}
 }
 
 // GetStorageUsed returns the total size in bytes of all stored files, used by

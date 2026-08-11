@@ -17,9 +17,9 @@ import {
   Grid3x3,
 } from 'lucide-react';
 import { getFileType, formatSize, type FileItem } from '@/lib/files';
-import { EnqueueDelete, EnqueueDownload, GetStoredFiles } from '../../wailsjs/go/upload/Service';
-import { GetHomeOverview } from '../../wailsjs/go/home/Service';
-import { home, upload } from '../../wailsjs/go/models';
+import { EnqueueDelete, EnqueueDownload } from '../../wailsjs/go/upload/Service';
+import { GetHomeOverview, GetStoredFiles } from '../../wailsjs/go/home/Service';
+import { home } from '../../wailsjs/go/models';
 import { useActiveTransfers } from '@/context/ActiveTransfersContext';
 import { useSearch } from '@/context/SearchContext';
 import DriveToolbar from '@/components/items/DriveToolbar';
@@ -29,7 +29,7 @@ import Button from '@/components/bits/Button';
 import ConfirmDialog from '@/components/bits/ConfirmDialog';
 import Pagination from '@/components/bits/Pagination';
 
-function toFileItem(stored: upload.StoredFile): FileItem {
+function toFileItem(stored: home.StoredFile): FileItem {
   return {
     id: String(stored.ID),
     name: stored.Name,

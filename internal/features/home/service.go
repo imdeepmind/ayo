@@ -18,10 +18,22 @@ type SessionProvider interface {
 }
 
 // UploadRepository is the subset of the upload repository that home needs to
-// build the storage summary and recent-files list. It is implemented by
-// upload.NewRepository.
+// build the storage summary, recent-files list and the paginated drive
+// listing/search. It is implemented by upload.NewRepository.
 type UploadRepository interface {
+	// GetAll returns every stored file, newest first.
 	GetAll(ctx context.Context) ([]*upload.Upload, error)
+	// GetAllPaged returns the stored files for one page of the drive listing,
+	// newest first, with the given page size and offset.
+	GetAllPaged(ctx context.Context, limit, offset int) ([]*upload.Upload, error)
+	// SearchByName returns stored files whose file or custom name contains the
+	// given query (case-insensitive), newest first, for one page of results.
+	SearchByName(ctx context.Context, query string, limit, offset int) ([]*upload.Upload, error)
+	// CountUploads returns the total number of stored files.
+	CountUploads(ctx context.Context) (int64, error)
+	// CountByName returns the number of stored files whose file or custom name
+	// contains the given query (case-insensitive).
+	CountByName(ctx context.Context, query string) (int64, error)
 }
 
 // SettingsProvider is the subset of settings.Service that home depends on. It
@@ -97,6 +109,84 @@ func (s *Service) GetHomeOverview() (*HomeOverview, error) {
 	}
 
 	return overview, nil
+}
+
+// defaultPageSize is the page size used when GetStoredFiles is called with an
+// invalid value.
+const defaultPageSize = 20
+
+// maxPageSize caps the number of rows GetStoredFiles may return per page.
+const maxPageSize = 50
+
+// GetStoredFiles returns one page of the drive listing. With an empty query it
+// returns every persisted upload, newest first (normal mode); with a non-empty
+// query it returns only files whose name matches the query (search mode). The
+// page is bounded by pageSize (clamped to [1, maxPageSize], defaulting to
+// defaultPageSize) and the response carries the total matching row count so the
+// frontend can render pagination controls.
+func (s *Service) GetStoredFiles(query string, page, pageSize int) (StoredFilePage, error) {
+	if _, err := s.sessionProvider.RequireSession(); err != nil {
+		return StoredFilePage{}, err
+	}
+
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = defaultPageSize
+	}
+	if pageSize > maxPageSize {
+		pageSize = maxPageSize
+	}
+	offset := (page - 1) * pageSize
+
+	query = strings.TrimSpace(query)
+	var (
+		uploads []*upload.Upload
+		total   int64
+		err     error
+	)
+	if query == "" {
+		uploads, err = s.uploadRepository.GetAllPaged(context.Background(), pageSize, offset)
+		if err == nil {
+			total, err = s.uploadRepository.CountUploads(context.Background())
+		}
+	} else {
+		uploads, err = s.uploadRepository.SearchByName(context.Background(), query, pageSize, offset)
+		if err == nil {
+			total, err = s.uploadRepository.CountByName(context.Background(), query)
+		}
+	}
+	if err != nil {
+		return StoredFilePage{}, errors.AsInternalServerError("get stored files: list", err)
+	}
+
+	stored := make([]StoredFile, 0, len(uploads))
+	for _, u := range uploads {
+		stored = append(stored, toStoredFile(u))
+	}
+	return StoredFilePage{
+		Files:    stored,
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+	}, nil
+}
+
+// toStoredFile maps a persisted upload to its frontend-facing listing shape,
+// preferring the user-facing custom name over the original file name.
+func toStoredFile(u *upload.Upload) StoredFile {
+	name := u.CustomName
+	if name == "" {
+		name = u.File
+	}
+	return StoredFile{
+		ID:        u.ID,
+		Name:      name,
+		Size:      u.Size,
+		Tags:      u.Tags,
+		CreatedAt: u.CreatedAt.UTC().Format(time.RFC3339),
+	}
 }
 
 // fileFormat returns the lowercased file extension without the leading dot,
