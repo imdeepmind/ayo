@@ -4,14 +4,96 @@
 
 @layer base {
   :root {
+    /* ─── Brand / Primary ────────────────────────────────── */
+    --color-primary: #d9083c;
+    /* main brand red */
+    --color-primary-hover: #b80632;
+    /* darker on hover */
+    --color-primary-active: #990429;
+    /* darker on active/press */
+    --color-primary-dark-hover: #c20735;
+    /* hover in dark mode */
+
+    /* ─── Sidebar ────────────────────────────────────────── */
+    --color-sidebar-bg: #d9083c;
+    /* sidebar background */
+    --color-sidebar-text: #ffffff;
+    /* active / bold link */
+    --color-sidebar-text-muted: rgba(254, 202, 202, 0.75);
+    /* inactive links (red-100/75) */
+    --color-sidebar-border: rgba(248, 113, 113, 0.3);
+    /* divider lines (red-400/30) */
+    --color-sidebar-track: rgba(127, 29, 29, 0.4);
+    /* progress track (red-800/40) */
+    --color-sidebar-fill: #ffffff;
+    /* progress bar fill */
+
+    /* ─── Toast ──────────────────────────────────────────── */
     --toast-bg: #ffffff;
     --toast-color: #1e293b;
     --toast-border: #e2e8f0;
+
+    /* ─── Background / Surfaces ──────────────────────────── */
+    --color-bg: #ffffff;
+    /* app background */
+    --color-surface: #ffffff;
+    /* cards / panels / modals / table */
+    --color-surface-alt: #f1f5f9;
+    /* inputs, ghost buttons, subtle fills (slate-100) */
+    --color-surface-hover: #f8fafc;
+    /* hover fills (slate-50) */
+    --color-surface-muted: #e2e8f0;
+    /* tracks, thumbnails, disabled fills (slate-200) */
+
+    /* ─── Text ───────────────────────────────────────────── */
+    --color-text: #0f172a;
+    /* primary text (slate-900) */
+    --color-text-muted: #475569;
+    /* secondary text (slate-600) */
+    --color-text-subtle: #64748b;
+    /* tertiary text (slate-500) */
+    --color-text-faint: #94a3b8;
+    /* faint text (slate-400) */
+
+    /* ─── Borders ────────────────────────────────────────── */
+    --color-border: #e2e8f0;
+    /* default borders (slate-200) */
+    --color-border-strong: #cbd5e1;
+    /* stronger borders (slate-300) */
+    --color-border-input: #e2e8f0;
+    /* form-control borders (slate-200) */
   }
 
   .dark {
-    --toast-bg: #1e293b;
+    /* Brand colors stay the same in dark mode; surfaces/text adapt */
+    --toast-bg: #131415;
     --toast-color: #f1f5f9;
     --toast-border: #334155;
+
+    --color-bg: #131415;
+    --color-surface: #0f172a;
+    /* slate-900 */
+    --color-surface-alt: #1e293b;
+    /* slate-800 */
+    --color-surface-hover: #1e293b;
+    /* slate-800 */
+    --color-surface-muted: #334155;
+    /* slate-700 */
+
+    --color-text: #f1f5f9;
+    /* slate-100 */
+    --color-text-muted: #cbd5e1;
+    /* slate-300 */
+    --color-text-subtle: #94a3b8;
+    /* slate-400 */
+    --color-text-faint: #94a3b8;
+    /* slate-400 */
+
+    --color-border: #1e293b;
+    /* slate-800 */
+    --color-border-strong: #334155;
+    /* slate-700 */
+    --color-border-input: #475569;
+    /* slate-600 */
   }
 }

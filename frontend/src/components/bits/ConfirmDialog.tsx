@@ -29,18 +29,18 @@ export default function ConfirmDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+      <div className="w-full max-w-sm rounded-2xl bg-background p-6 border border-border dark:border-border-strong">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
+          <h2 className="text-lg font-semibold text-text">{title}</h2>
           <button
             onClick={onCancel}
-            className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition dark:hover:bg-slate-700 dark:hover:text-slate-200"
+            className="rounded-full p-1 text-text-faint hover:bg-surface-alt hover:text-text-muted transition dark:hover:bg-surface-hover dark:hover:text-text"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <p className="text-sm text-slate-600 dark:text-slate-300">{message}</p>
+        <p className="text-sm text-text-muted">{message}</p>
 
         <div className="flex justify-end gap-3 pt-6">
           <Button type="button" variant="ghost" onClick={onCancel}>
@@ -51,7 +51,7 @@ export default function ConfirmDialog({
             onClick={onConfirm}
             className={
               destructive
-                ? 'bg-red-500 text-white shadow-md shadow-red-500/40 hover:bg-red-600 active:bg-red-700 focus:ring-red-400'
+                ? 'bg-red-600 text-white hover:bg-red-700 active:bg-red-800 focus:ring-red-500'
                 : undefined
             }
           >

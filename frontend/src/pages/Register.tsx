@@ -91,11 +91,9 @@ export default function Register() {
 
   const stepIndicator = (
     <div className="mb-6 flex items-center justify-center gap-2 text-xs font-semibold">
-      <span className={step === 1 ? 'text-sky-600 dark:text-sky-400' : 'text-slate-400'}>
-        1. Account Details
-      </span>
-      <span className="text-slate-300 dark:text-slate-600">—</span>
-      <span className={step === 2 ? 'text-sky-600 dark:text-sky-400' : 'text-slate-400'}>
+      <span className={step === 1 ? 'text-primary' : 'text-text-faint'}>1. Account Details</span>
+      <span className="text-border-strong">—</span>
+      <span className={step === 2 ? 'text-primary' : 'text-text-faint'}>
         2. Database Configuration
       </span>
     </div>
@@ -113,11 +111,11 @@ export default function Register() {
         footer={
           !recoveryKey &&
           step === 1 && (
-            <div className="flex items-center justify-center gap-1.5 text-sm text-slate-600 dark:text-slate-400">
+            <div className="flex items-center justify-center gap-1.5 text-sm text-text-muted">
               <span>Already have an account?</span>
               <Link
                 to="/auth/login"
-                className="font-semibold text-sky-600 hover:text-sky-500 dark:text-sky-400 dark:hover:text-sky-300 transition-colors"
+                className="font-semibold text-primary hover:text-primary-hover transition-colors"
               >
                 Sign in →
               </Link>
@@ -127,12 +125,12 @@ export default function Register() {
       >
         {recoveryKey ? (
           <div className="space-y-5">
-            <div className="relative overflow-hidden rounded-xl border-2 border-sky-200 dark:border-sky-800 bg-gradient-to-br from-sky-50 to-blue-50 dark:from-sky-950/30 dark:to-blue-950/30 p-5">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-sky-400/10 rounded-full blur-2xl -mr-16 -mt-16" />
+            <div className="relative overflow-hidden rounded-xl border-2 border-primary/20 dark:border-primary/40 bg-gradient-to-br from-primary/5 to-primary/5 dark:from-primary/10 dark:to-primary/10 p-5">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-2xl -mr-16 -mt-16" />
               <div className="relative">
                 <div className="flex items-center gap-2 mb-3">
                   <svg
-                    className="w-5 h-5 text-sky-600 dark:text-sky-400"
+                    className="w-5 h-5 text-primary"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -144,12 +142,10 @@ export default function Register() {
                       d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
                     />
                   </svg>
-                  <p className="text-sm font-semibold text-sky-900 dark:text-sky-100">
-                    Your Recovery Key
-                  </p>
+                  <p className="text-sm font-semibold text-primary">Your Recovery Key</p>
                 </div>
-                <div className="bg-white/80 dark:bg-slate-900/50 rounded-lg p-4 backdrop-blur-sm border border-sky-200/50 dark:border-sky-800/50">
-                  <p className="font-mono text-sm break-all text-slate-900 dark:text-slate-100 leading-relaxed">
+                <div className="bg-background rounded-lg p-4 backdrop-blur-sm border border-primary/20 dark:border-primary/40">
+                  <p className="font-mono text-sm break-all text-text leading-relaxed">
                     {recoveryKey}
                   </p>
                 </div>

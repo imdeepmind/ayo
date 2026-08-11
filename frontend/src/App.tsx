@@ -8,12 +8,12 @@ import NotFound from '@/pages/NotFound';
 import Settings from '@/pages/Settings';
 import Upload from '@/pages/Upload';
 import Header from '@/components/items/Header';
+import Sidebar from '@/components/items/Sidebar';
 import { ThemeProvider } from '@/theme/ThemeProvider';
 import { AuthProvider } from '@/context/AuthContext';
 import { ActiveTransfersProvider } from '@/context/ActiveTransfersContext';
 import ProtectedRoute from '@/components/items/ProtectedRoute';
 import PublicRoute from '@/components/items/PublicRoute';
-import GlobalStatusBar from '@/components/items/GlobalStatusBar';
 
 function App() {
   return (
@@ -21,24 +21,26 @@ function App() {
       <ThemeProvider>
         <ActiveTransfersProvider>
           <BrowserRouter>
-            <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+            <div className="h-screen w-full overflow-hidden bg-background font-sans text-text flex flex-col">
               <Header />
-              <main className="flex-1">
-                <Routes>
-                  <Route element={<ProtectedRoute />}>
-                    <Route path="/" element={<Home />} />
-                    <Route path="/settings" element={<Settings />} />
-                    <Route path="/upload" element={<Upload />} />
-                  </Route>
-                  <Route element={<PublicRoute />}>
-                    <Route path="/auth/login" element={<Login />} />
-                    <Route path="/auth/register" element={<Register />} />
-                    <Route path="/auth/reset" element={<Reset />} />
-                  </Route>
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </main>
-              <GlobalStatusBar />
+              <div className="flex flex-1 overflow-hidden">
+                <Sidebar />
+                <main className="flex-1 overflow-y-auto p-6 md:p-8">
+                  <Routes>
+                    <Route element={<ProtectedRoute />}>
+                      <Route path="/" element={<Home />} />
+                      <Route path="/settings" element={<Settings />} />
+                      <Route path="/upload" element={<Upload />} />
+                    </Route>
+                    <Route element={<PublicRoute />}>
+                      <Route path="/auth/login" element={<Login />} />
+                      <Route path="/auth/register" element={<Register />} />
+                      <Route path="/auth/reset" element={<Reset />} />
+                    </Route>
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </main>
+              </div>
             </div>
             <Toaster
               position="bottom-right"
@@ -51,7 +53,7 @@ function App() {
                 },
                 success: {
                   iconTheme: {
-                    primary: '#10b981',
+                    primary: 'var(--color-primary)',
                     secondary: '#fff',
                   },
                 },

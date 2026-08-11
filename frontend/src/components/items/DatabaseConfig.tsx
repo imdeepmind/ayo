@@ -78,23 +78,21 @@ export default function DatabaseConfig({
   const tabClass = (id: DatabaseType) =>
     `px-5 py-3 text-sm font-semibold transition-all duration-200 border-b-2 flex items-center gap-2 ${
       type === id
-        ? 'border-sky-500 text-sky-600 dark:border-sky-400 dark:text-sky-400'
-        : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 dark:text-slate-400 dark:hover:text-slate-300 dark:hover:border-slate-600'
+        ? 'border-primary text-primary'
+        : 'border-transparent text-text-subtle hover:text-text hover:border-border-strong dark:text-text-subtle dark:hover:text-text dark:hover:border-border-input'
     }`;
 
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-          Database Configuration
-        </h3>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+        <h3 className="text-lg font-bold text-text">Database Configuration</h3>
+        <p className="mt-1 text-sm text-text-muted">
           Choose where your account and encrypted data will be stored.
         </p>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b-2 border-slate-200 dark:border-slate-700">
+      <div className="flex border-b-2 border-border dark:border-border-strong">
         <button type="button" className={tabClass('sqlite')} onClick={() => setType('sqlite')}>
           <Database className="h-4 w-4" />
           SQLite
@@ -109,18 +107,16 @@ export default function DatabaseConfig({
         </button>
       </div>
 
-      <div className="rounded-2xl border-2 border-slate-200 bg-white/90 backdrop-blur-sm p-6 shadow-lg dark:border-slate-700 dark:bg-slate-800/90">
+      <div className="rounded-2xl border-2 border-border bg-background backdrop-blur-sm p-6 shadow-lg dark:border-border-strong">
         {type === 'sqlite' ? (
-          <div className="rounded-xl border-2 border-sky-200 bg-gradient-to-br from-sky-50 to-blue-50 p-5 dark:border-sky-800 dark:from-sky-950/30 dark:to-blue-950/30">
+          <div className="rounded-xl border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-primary/5 p-5 dark:border-primary/40 dark:from-primary/10 dark:to-primary/10">
             <div className="flex gap-3">
-              <div className="rounded-xl bg-sky-100 p-2.5 dark:bg-sky-900/30">
-                <Database className="h-5 w-5 text-sky-600 dark:text-sky-400" />
+              <div className="rounded-xl bg-primary/10 p-2.5 dark:bg-primary/20">
+                <Database className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-sky-900 dark:text-sky-100">
-                  Local storage
-                </p>
-                <p className="mt-1 text-sm text-sky-800 dark:text-sky-200 leading-relaxed">
+                <p className="text-sm font-semibold text-text">Local storage</p>
+                <p className="mt-1 text-sm text-text-muted leading-relaxed">
                   Your data will be stored locally. The database file will be created automatically
                   in the app data directory. No setup required.
                 </p>

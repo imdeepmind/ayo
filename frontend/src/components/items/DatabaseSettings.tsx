@@ -25,13 +25,9 @@ export default function DatabaseSettings() {
     return (
       <div className="space-y-8">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-            Database Settings
-          </h2>
+          <h2 className="text-2xl font-bold text-text">Database Settings</h2>
         </div>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Loading database information...
-        </p>
+        <p className="text-sm text-text-subtle">Loading database information...</p>
       </div>
     );
   }
@@ -41,28 +37,26 @@ export default function DatabaseSettings() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Database Settings</h2>
-        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+        <h2 className="text-2xl font-bold text-text">Database Settings</h2>
+        <p className="mt-2 text-sm text-text-muted">
           Your account data is stored in the database you chose during registration.
         </p>
       </div>
 
-      <div className="rounded-2xl border-2 border-slate-200 bg-white/90 backdrop-blur-sm p-6 shadow-lg dark:border-slate-700 dark:bg-slate-800/90">
+      <div className="rounded-2xl border-2 border-border bg-background backdrop-blur-sm p-6 shadow-lg dark:border-border-strong">
         <div className="flex items-center gap-4">
-          <div className="rounded-xl bg-sky-100 p-3 dark:bg-sky-900/30">
+          <div className="rounded-xl bg-primary/10 p-3 dark:bg-primary/20">
             {isPostgres ? (
-              <Server className="h-6 w-6 text-sky-600 dark:text-sky-400" />
+              <Server className="h-6 w-6 text-primary" />
             ) : (
-              <Database className="h-6 w-6 text-sky-600 dark:text-sky-400" />
+              <Database className="h-6 w-6 text-primary" />
             )}
           </div>
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+            <p className="text-xs font-bold uppercase tracking-wider text-text-faint dark:text-text-subtle">
               Database Type
             </p>
-            <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
-              {isPostgres ? 'PostgreSQL' : 'SQLite'}
-            </p>
+            <p className="text-lg font-bold text-text">{isPostgres ? 'PostgreSQL' : 'SQLite'}</p>
           </div>
         </div>
 
@@ -100,7 +94,7 @@ export default function DatabaseSettings() {
         </div>
       </div>
 
-      <p className="text-xs text-slate-400 dark:text-slate-500">
+      <p className="text-xs text-text-faint dark:text-text-subtle">
         The database choice is permanent and cannot be changed.
       </p>
     </div>
@@ -110,14 +104,10 @@ export default function DatabaseSettings() {
 function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div>
-      <p className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+      <p className="text-xs font-bold uppercase tracking-wider text-text-faint dark:text-text-subtle">
         {label}
       </p>
-      <p
-        className={`mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100 break-all ${
-          mono ? 'font-mono' : ''
-        }`}
-      >
+      <p className={`mt-1 text-sm font-semibold text-text break-all ${mono ? 'font-mono' : ''}`}>
         {value}
       </p>
     </div>

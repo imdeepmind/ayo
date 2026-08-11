@@ -49,12 +49,12 @@ export default function EditFileModal({ isOpen, file, onClose, onSave }: EditFil
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+      <div className="w-full max-w-md rounded-2xl bg-background p-6 border border-border dark:border-border-strong">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Edit File</h2>
+          <h2 className="text-lg font-semibold text-text">Edit File</h2>
           <button
             onClick={onClose}
-            className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition dark:hover:bg-slate-700 dark:hover:text-slate-200"
+            className="rounded-full p-1 text-text-faint hover:bg-surface-alt hover:text-text-muted transition dark:hover:bg-surface-hover dark:hover:text-text"
           >
             <X className="h-5 w-5" />
           </button>
@@ -71,26 +71,24 @@ export default function EditFileModal({ isOpen, file, onClose, onSave }: EditFil
           />
 
           <div className="space-y-3">
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
-              Tags
-            </label>
+            <label className="block text-sm font-medium text-text-muted dark:text-text">Tags</label>
 
             <div className="flex flex-wrap gap-2">
               {tags.length === 0 && (
-                <span className="text-xs text-slate-400 dark:text-slate-500 italic">
+                <span className="text-xs text-text-faint dark:text-text-subtle italic">
                   No tags added
                 </span>
               )}
               {tags.map((tag) => (
                 <span
                   key={tag}
-                  className="inline-flex items-center gap-1 rounded-full bg-sky-100 py-1 pl-2.5 pr-1 text-xs font-semibold text-sky-800 dark:bg-sky-900/40 dark:text-sky-300 border border-sky-200 dark:border-sky-800"
+                  className="inline-flex items-center gap-1 rounded-full bg-primary/10 py-1 pl-2.5 pr-1 text-xs font-semibold text-primary dark:bg-primary/20 dark:text-primary border border-primary/20 dark:border-primary/40"
                 >
                   {tag}
                   <button
                     type="button"
                     onClick={() => handleRemoveTag(tag)}
-                    className="rounded-full p-0.5 hover:bg-sky-200 dark:hover:bg-sky-800 transition"
+                    className="rounded-full p-0.5 hover:bg-primary/20 dark:hover:bg-primary/30 transition"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -101,7 +99,7 @@ export default function EditFileModal({ isOpen, file, onClose, onSave }: EditFil
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                  <TagIcon className="h-4 w-4 text-slate-400" />
+                  <TagIcon className="h-4 w-4 text-text-faint" />
                 </div>
                 <input
                   type="text"
@@ -114,7 +112,7 @@ export default function EditFileModal({ isOpen, file, onClose, onSave }: EditFil
                     }
                   }}
                   placeholder="Add a tag..."
-                  className="block w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 placeholder:text-slate-400"
+                  className="block w-full rounded-lg border border-border-strong py-2 pl-9 pr-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-border-input dark:bg-surface dark:text-text placeholder:text-text-faint"
                 />
               </div>
               <Button type="button" variant="ghost" onClick={handleAddTag} className="px-3">

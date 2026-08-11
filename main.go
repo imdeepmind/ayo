@@ -104,6 +104,7 @@ func main() {
 		Title:  "ayo",
 		Width:  1100,
 		Height: 768,
+		// Frameless: true,
 		AssetServer: &assetserver.Options{
 			// The compiled frontend (frontend/dist) is embedded into the binary
 			// via assets.go.

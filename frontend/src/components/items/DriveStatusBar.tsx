@@ -51,7 +51,7 @@ export default function DriveStatusBar({
   const hiddenUploads = uploads.length - visibleUploads.length;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-10 border-t border-slate-200 bg-white/90 text-xs text-slate-600 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/90 dark:text-slate-300 w-full">
+    <div className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-background text-xs text-text-muted backdrop-blur-sm dark:border-border dark:text-text-muted w-full">
       <div className="mx-auto flex w-full items-center justify-between gap-4 px-4 md:px-8 lg:px-16 py-2">
         <div className="flex items-center gap-3">
           <Link to="/settings" aria-label="Open settings">
@@ -64,46 +64,45 @@ export default function DriveStatusBar({
 
         {hasTransfers ? (
           <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1.5 whitespace-nowrap font-medium text-sky-700 dark:text-sky-300">
+            <span className="flex items-center gap-1.5 whitespace-nowrap font-medium text-primary">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
               {statusText} · {progress}%
             </span>
-            <div className="h-1.5 w-32 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+            <div className="h-1.5 w-32 overflow-hidden rounded-full bg-surface-muted">
               <div
-                className="h-full rounded-full bg-sky-500 transition-[width] duration-500"
+                className="h-full rounded-full bg-primary transition-[width] duration-500"
                 style={{ width: `${progress}%` }}
               />
             </div>
 
             {visibleUploads.length > 0 && (
-              <div className="flex flex-col gap-1 border-l border-slate-200 pl-3 dark:border-slate-700">
+              <div className="flex flex-col gap-1 border-l border-border pl-3 dark:border-border-strong">
                 {visibleUploads.map((item) => (
                   <div key={item.name} className="flex items-center gap-2">
-                    <span
-                      className="max-w-[140px] truncate text-slate-600 dark:text-slate-300"
-                      title={item.name}
-                    >
+                    <span className="max-w-[140px] truncate text-text-muted" title={item.name}>
                       {item.name}
                     </span>
-                    <div className="h-1 w-16 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+                    <div className="h-1 w-16 overflow-hidden rounded-full bg-surface-muted">
                       <div
-                        className="h-full rounded-full bg-sky-500 transition-[width] duration-500"
+                        className="h-full rounded-full bg-primary transition-[width] duration-500"
                         style={{ width: `${Math.min(100, Math.max(0, item.progress))}%` }}
                       />
                     </div>
-                    <span className="w-8 text-right tabular-nums text-slate-500 dark:text-slate-400">
+                    <span className="w-8 text-right tabular-nums text-text-subtle">
                       {item.progress}%
                     </span>
                   </div>
                 ))}
                 {hiddenUploads > 0 && (
-                  <span className="text-slate-400 dark:text-slate-500">+{hiddenUploads} more</span>
+                  <span className="text-text-faint dark:text-text-subtle">
+                    +{hiddenUploads} more
+                  </span>
                 )}
               </div>
             )}
           </div>
         ) : (
-          <span className="hidden sm:block text-slate-400 dark:text-slate-500">
+          <span className="hidden sm:block text-text-faint dark:text-text-subtle">
             {statusText || 'All caught up'}
           </span>
         )}

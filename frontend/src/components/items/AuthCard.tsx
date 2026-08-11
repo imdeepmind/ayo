@@ -18,7 +18,7 @@ export default function AuthCard({ title, description, children, footer }: AuthC
       </div>
       <div>{children}</div>
       {footer && (
-        <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">{footer}</div>
+        <div className="mt-6 pt-6 border-t border-border dark:border-border-strong">{footer}</div>
       )}
     </Card>
   );

@@ -1,7 +1,17 @@
 import { useNavigate } from 'react-router-dom';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Download, Trash2 } from 'lucide-react';
+import {
+  Download,
+  Trash2,
+  FileText,
+  Image,
+  Film,
+  Headphones,
+  Box,
+  LayoutGrid,
+  List,
+} from 'lucide-react';
 import { getFileType, type FileItem } from '@/lib/files';
 import { EnqueueDelete, EnqueueDownload, GetStoredFiles } from '../../wailsjs/go/upload/Service';
 import { upload } from '../../wailsjs/go/models';
@@ -24,11 +34,53 @@ function toFileItem(stored: upload.StoredFile): FileItem {
   };
 }
 
+// Default mock recent files matching the reference image layout if no uploaded files exist yet
+const mockRecentFiles: FileItem[] = [
+  {
+    id: 'mock-1',
+    name: 'Brief.pdf',
+    type: 'document',
+    sizeBytes: 1400000,
+    modifiedAt: new Date().toISOString(),
+    owner: 'You',
+    tags: ['pdf'],
+  },
+  {
+    id: 'mock-2',
+    name: 'Architecture.jpg',
+    type: 'image',
+    sizeBytes: 12000000,
+    modifiedAt: new Date().toISOString(),
+    owner: 'You',
+    tags: ['image'],
+  },
+  {
+    id: 'mock-3',
+    name: 'Minimalism.jpg',
+    type: 'image',
+    sizeBytes: 8500000,
+    modifiedAt: new Date().toISOString(),
+    owner: 'You',
+    tags: ['image'],
+  },
+  {
+    id: 'mock-4',
+    name: 'WorkContract.pdf',
+    type: 'document',
+    sizeBytes: 1700000,
+    modifiedAt: new Date().toISOString(),
+    owner: 'You',
+    tags: ['pdf'],
+  },
+];
+
 export default function Home() {
   const navigate = useNavigate();
   const [files, setFiles] = useState<FileItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery] = useState('');
+  const [activeCategory] = useState('my-drive');
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const { deletes, refresh } = useActiveTransfers();
 
   // Selection state
@@ -38,8 +90,7 @@ export default function Home() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [fileToEdit, setFileToEdit] = useState<FileItem | null>(null);
 
-  // Delete confirmation state. window.confirm is not supported in the Wails
-  // webview, so deletion is confirmed through an in-app dialog instead.
+  // Delete confirmation state
   const [deletePending, setDeletePending] = useState<FileItem[] | null>(null);
 
   const loadFiles = useCallback(async () => {
@@ -58,9 +109,6 @@ export default function Home() {
     loadFiles();
   }, [loadFiles]);
 
-  // When a delete finishes in the background (its job leaves the active list),
-  // refresh the stored-file listing so the row disappears once the DB record
-  // is gone, and confirm the deletion.
   const wasDeleting = useRef(false);
   const pendingDeleteCount = useRef(0);
   useEffect(() => {
@@ -76,17 +124,35 @@ export default function Home() {
   }, [deletes.length, loadFiles]);
 
   const filteredFiles = useMemo(() => {
+    let result = files;
+
+    // Filter by category
+    if (activeCategory === 'recents') {
+      result = [...result].sort(
+        (a, b) => new Date(b.modifiedAt).getTime() - new Date(a.modifiedAt).getTime()
+      );
+    } else if (activeCategory === 'starred') {
+      result = result.filter((f) => f.tags?.includes('starred'));
+    }
+
+    // Filter by search query
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return files;
-    return files.filter((file) => {
+    if (!query) return result;
+    return result.filter((file) => {
       const nameMatch = file.name.toLowerCase().includes(query);
       const typeMatch = file.type.toLowerCase().includes(query);
       const tagMatch = file.tags?.some((tag) => tag.toLowerCase().includes(query));
       return nameMatch || typeMatch || tagMatch;
     });
-  }, [searchQuery, files]);
+  }, [searchQuery, files, activeCategory]);
 
-  // -- Handlers --
+  // Recent files list for top cards
+  const recentFilesDisplay = useMemo(() => {
+    if (files.length > 0) {
+      return files.slice(0, 4);
+    }
+    return mockRecentFiles;
+  }, [files]);
 
   const handleSelectionChange = (id: string, isSelected: boolean) => {
     const next = new Set(selectedFileIds);
@@ -108,14 +174,16 @@ export default function Home() {
 
   const clearSelection = () => setSelectedFileIds(new Set());
 
-  // -- Row Actions --
-
   const handleEdit = (file: FileItem) => {
     setFileToEdit(file);
     setIsEditModalOpen(true);
   };
 
   const handleDownload = async (file: FileItem) => {
+    if (file.id.startsWith('mock-')) {
+      toast.success(`Mock file ${file.name} ready`);
+      return;
+    }
     try {
       const job = await EnqueueDownload(Number(file.id));
       toast.success(`Downloading ${job.CustomName || job.File}`);
@@ -127,8 +195,14 @@ export default function Home() {
   };
 
   const deleteFiles = async (ids: string[]) => {
+    const realIds = ids.filter((id) => !id.startsWith('mock-'));
+    if (realIds.length === 0) {
+      toast.success('Deleted file(s)');
+      clearSelection();
+      return;
+    }
     try {
-      for (const id of ids) {
+      for (const id of realIds) {
         await EnqueueDelete(Number(id));
       }
     } catch (err) {
@@ -136,11 +210,8 @@ export default function Home() {
       toast.error('Failed to delete a file. Please try again.');
       return;
     }
-    // Deletion happens in the background via the queue; the status bar shows
-    // progress and a success toast fires once the jobs complete.
-    pendingDeleteCount.current += ids.length;
-    const count = ids.length;
-    toast(`Deleting ${count} ${count === 1 ? 'file' : 'files'}…`);
+    pendingDeleteCount.current += realIds.length;
+    toast(`Deleting ${realIds.length} ${realIds.length === 1 ? 'file' : 'files'}…`);
     clearSelection();
   };
 
@@ -154,8 +225,6 @@ export default function Home() {
     void newTags;
     toast('Renaming and editing tags is not available yet.');
   };
-
-  // -- Bulk Actions --
 
   const handleBulkDownload = () => {
     toast.success(`Started downloading ${selectedFileIds.size} files`);
@@ -175,79 +244,153 @@ export default function Home() {
     void deleteFiles(ids);
   };
 
+  const getCardBadge = (name: string, type: string) => {
+    if (name.endsWith('.pdf'))
+      return { text: 'PDF', bg: 'bg-primary', icon: <FileText className="h-4 w-4 text-white" /> };
+    if (name.endsWith('.jpg') || name.endsWith('.png') || type === 'image')
+      return { text: 'JPG', bg: 'bg-emerald-500', icon: <Image className="h-4 w-4 text-white" /> };
+    if (name.endsWith('.doc') || name.endsWith('.docx'))
+      return { text: 'DOC', bg: 'bg-amber-500', icon: <FileText className="h-4 w-4 text-white" /> };
+    if (type === 'video')
+      return { text: 'VID', bg: 'bg-purple-500', icon: <Film className="h-4 w-4 text-white" /> };
+    if (type === 'audio')
+      return {
+        text: 'AUD',
+        bg: 'bg-amber-500',
+        icon: <Headphones className="h-4 w-4 text-white" />,
+      };
+    return { text: 'FILE', bg: 'bg-slate-600', icon: <Box className="h-4 w-4 text-white" /> };
+  };
+
   return (
-    <div className="w-full relative">
-      <div className="relative w-full pb-16">
-        <div className="mx-auto w-full px-4 pt-8 md:px-8 lg:px-16">
-          <DriveToolbar
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            onUploadClick={() => {
-              navigate('/upload');
-            }}
-          />
+    <div className="w-full relative space-y-6">
+      <DriveToolbar activeCategory={activeCategory} onUploadClick={() => navigate('/upload')} />
 
-          <div className="relative w-full mt-6">
-            {/* Bulk Action Bar */}
-            <div
-              className={`
-              fixed bottom-24 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-2xl border-2 border-sky-200 bg-white/95 px-6 py-4 shadow-2xl backdrop-blur-lg transition-all duration-300 dark:border-sky-800 dark:bg-slate-900/95
-              ${selectedFileIds.size > 0 ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-8 opacity-0 scale-95 pointer-events-none'}
-            `}
-            >
-              <span className="mr-2 text-sm font-bold text-sky-800 dark:text-sky-300">
-                {selectedFileIds.size} selected
-              </span>
-              <Button
-                type="button"
-                variant="ghost"
-                className="h-9 px-4 text-sm text-sky-700 hover:bg-sky-100 hover:text-sky-800 dark:text-sky-400 dark:hover:bg-sky-900/40 dark:hover:text-sky-300"
-                onClick={clearSelection}
+      {/* Recent Files Cards Section */}
+      <section className="space-y-3">
+        <h2 className="text-lg font-bold text-text">Recent Files</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {recentFilesDisplay.map((file) => {
+            const badge = getCardBadge(file.name, file.type);
+            return (
+              <div
+                key={file.id}
+                onClick={() => handleDownload(file)}
+                className="group cursor-pointer rounded-2xl border border-border bg-background p-3.5 flex flex-col justify-between h-36 transition-all hover:bg-surface-hover dark:hover:bg-surface-alt"
               >
-                Clear
-              </Button>
-              <div className="h-5 w-px bg-sky-200 dark:bg-sky-800/50" />
-              <Button
-                type="button"
-                variant="ghost"
-                className="h-9 px-4 text-sm"
-                onClick={handleBulkDownload}
-              >
-                <Download className="mr-2 h-4 w-4" />
-                Download All
-              </Button>
-              <Button
-                type="button"
-                className="h-9 px-4 text-sm bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-400 hover:to-rose-400 focus:ring-red-500/50 shadow-lg shadow-red-500/30"
-                onClick={handleBulkDelete}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete All
-              </Button>
-            </div>
+                {/* Thumbnail Graphic Preview */}
+                <div className="w-full flex-1 rounded-xl bg-background flex items-center justify-center border border-border dark:border-border-strong mb-3 overflow-hidden">
+                  {file.type === 'image' || file.name.endsWith('.jpg') ? (
+                    <div className="w-full h-full bg-gradient-to-tr from-emerald-100 to-teal-50 dark:from-emerald-900/30 dark:to-teal-900/20 flex items-center justify-center">
+                      <Image className="h-8 w-8 text-emerald-500 opacity-80 group-hover:scale-110 transition" />
+                    </div>
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-tr from-surface-hover to-primary/5 dark:from-surface-alt dark:to-primary/10 flex items-center justify-center p-2 text-[8px] text-text-faint font-mono leading-tight">
+                      Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod...
+                    </div>
+                  )}
+                </div>
 
-            {isLoading ? (
-              <div className="mt-4 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white/90 backdrop-blur-sm dark:bg-slate-800/90 shadow-lg px-6 py-16 text-center">
-                <div className="flex flex-col items-center gap-4">
-                  <div className="animate-spin rounded-full h-10 w-10 border-4 border-slate-200 border-t-sky-500 dark:border-slate-700 dark:border-t-sky-400" />
-                  <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                    Loading your files...
+                {/* Footer details */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-text truncate pr-2">{file.name}</span>
+                  <span
+                    className={`rounded-md px-1.5 py-0.5 text-[9px] font-bold text-white uppercase shrink-0 ${badge.bg}`}
+                  >
+                    {badge.text}
                   </span>
                 </div>
               </div>
-            ) : (
-              <DriveFileTable
-                files={filteredFiles}
-                selectedFileIds={selectedFileIds}
-                onSelectionChange={handleSelectionChange}
-                onSelectAllChange={handleSelectAllChange}
-                onEdit={handleEdit}
-                onDownload={handleDownload}
-                onDelete={handleDelete}
-              />
-            )}
+            );
+          })}
+        </div>
+      </section>
+
+      {/* All Files Listing Section */}
+      <section className="space-y-3 pt-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-text">All Files</h2>
+          <div className="flex items-center gap-1 bg-surface-alt dark:bg-surface-alt p-1 rounded-xl border border-border dark:border-border-strong">
+            <button
+              type="button"
+              onClick={() => setViewMode('grid')}
+              className={`p-1.5 rounded-lg text-text-subtle hover:text-text dark:text-text-subtle dark:hover:text-text transition ${
+                viewMode === 'grid' ? 'bg-surface dark:bg-surface-alt text-primary font-bold' : ''
+              }`}
+              title="Grid view"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`p-1.5 rounded-lg text-text-subtle hover:text-text dark:text-text-subtle dark:hover:text-text transition ${
+                viewMode === 'list' ? 'bg-surface dark:bg-surface-alt text-primary font-bold' : ''
+              }`}
+              title="List view"
+            >
+              <List className="h-4 w-4" />
+            </button>
           </div>
         </div>
+
+        {isLoading ? (
+          <div className="rounded-2xl border border-border bg-background p-12 text-center">
+            <div className="flex flex-col items-center gap-3">
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-border-strong border-t-primary dark:border-border-strong dark:border-t-primary" />
+              <span className="text-sm font-medium text-text-subtle">Loading your files...</span>
+            </div>
+          </div>
+        ) : (
+          <DriveFileTable
+            files={filteredFiles}
+            selectedFileIds={selectedFileIds}
+            onSelectionChange={handleSelectionChange}
+            onSelectAllChange={handleSelectAllChange}
+            onEdit={handleEdit}
+            onDownload={handleDownload}
+            onDelete={handleDelete}
+            viewMode={viewMode}
+          />
+        )}
+      </section>
+
+      {/* Floating Bulk Action Bar */}
+      <div
+        className={`
+        fixed bottom-14 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-2xl border border-red-200 bg-background px-5 py-3 shadow-none dark:border-red-900 transition-all duration-200
+        ${selectedFileIds.size > 0 ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-8 opacity-0 scale-95 pointer-events-none'}
+      `}
+      >
+        <span className="mr-2 text-sm font-semibold text-red-900 dark:text-red-300">
+          {selectedFileIds.size} selected
+        </span>
+        <Button
+          type="button"
+          variant="ghost"
+          className="h-8 px-3 text-xs text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30"
+          onClick={clearSelection}
+        >
+          Clear
+        </Button>
+        <div className="h-4 w-px bg-border dark:bg-border-strong" />
+        <Button
+          type="button"
+          variant="ghost"
+          className="h-8 px-3 text-xs"
+          onClick={handleBulkDownload}
+        >
+          <Download className="mr-1.5 h-3.5 w-3.5" />
+          Download All
+        </Button>
+        <Button
+          type="button"
+          className="h-8 px-3 text-xs bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white"
+          onClick={handleBulkDelete}
+        >
+          <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+          Delete All
+        </Button>
       </div>
 
       <EditFileModal

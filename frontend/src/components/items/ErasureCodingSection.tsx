@@ -69,7 +69,7 @@ export default function ErasureCodingSection({
 }: ErasureCodingSectionProps) {
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl border-2 border-slate-200 bg-white/90 backdrop-blur-sm p-6 shadow-lg dark:border-slate-700 dark:bg-slate-800/90">
+      <div className="rounded-2xl border-2 border-border bg-background backdrop-blur-sm p-6 shadow-lg dark:border-border-strong">
         <Toggle
           id="erasure-coding-toggle"
           label="Erasure Coding"
@@ -81,8 +81,8 @@ export default function ErasureCodingSection({
       </div>
 
       {enabled && !disabled && (
-        <div className="space-y-4 rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-blue-50/30 p-6 dark:border-slate-700 dark:from-slate-900/50 dark:to-blue-950/20">
-          <p className="text-sm font-medium text-slate-700 dark:text-slate-300 leading-relaxed">
+        <div className="space-y-4 rounded-2xl border-2 border-border bg-gradient-to-br from-surface-hover to-surface-alt p-6 dark:border-border-strong dark:from-surface dark:to-surface-alt">
+          <p className="text-sm font-medium text-text-muted dark:text-text leading-relaxed">
             Choose how data is split into data shards + parity shards. Higher parity means more
             fault tolerance but more storage overhead.
           </p>
@@ -94,8 +94,8 @@ export default function ErasureCodingSection({
                 className={`group relative cursor-pointer rounded-2xl border-2 p-5 transition-all duration-200
                   ${
                     selectedConfig === c.value
-                      ? 'border-sky-500 bg-gradient-to-br from-sky-50 to-blue-50 shadow-lg dark:border-sky-400 dark:from-sky-950/40 dark:to-blue-950/40'
-                      : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-md dark:border-slate-700 dark:bg-slate-800/60 dark:hover:border-slate-600'
+                      ? 'border-primary bg-gradient-to-br from-primary/5 to-primary/5 shadow-lg dark:border-primary/40 dark:from-primary/10 dark:to-primary/10'
+                      : 'border-border bg-surface hover:border-border-strong hover:shadow-md dark:border-border-strong dark:bg-surface-alt dark:hover:border-border-input'
                   }
                 `}
               >
@@ -109,14 +109,12 @@ export default function ErasureCodingSection({
                 />
 
                 <div className="flex items-center justify-between">
-                  <span className="text-base font-bold text-slate-900 dark:text-slate-100">
-                    {c.label}
-                  </span>
+                  <span className="text-base font-bold text-text">{c.label}</span>
                   <span
                     className={`h-5 w-5 rounded-full border-2 transition-all duration-200 ${
                       selectedConfig === c.value
-                        ? 'border-sky-500 bg-sky-500 shadow-sm'
-                        : 'border-slate-300 dark:border-slate-600'
+                        ? 'border-primary bg-primary shadow-sm'
+                        : 'border-border-strong dark:border-border-input'
                     }`}
                   >
                     {selectedConfig === c.value && (
@@ -128,22 +126,18 @@ export default function ErasureCodingSection({
                 </div>
 
                 <div className="mt-3 space-y-1.5">
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600 dark:text-slate-400">
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-text-muted">
                     <span className="font-medium">
                       {c.data} data + {c.parity} parity
                     </span>
                     <span>{c.totalShards} shards total</span>
                   </div>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600 dark:text-slate-400">
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-text-muted">
                     <span>Can lose {c.faultTolerance} shards</span>
-                    <span className="font-semibold text-sky-600 dark:text-sky-400">
-                      Overhead: {c.overhead}
-                    </span>
+                    <span className="font-semibold text-primary">Overhead: {c.overhead}</span>
                   </div>
                   {c.note && (
-                    <p className="mt-2 text-xs italic text-slate-500 dark:text-slate-400 leading-relaxed">
-                      {c.note}
-                    </p>
+                    <p className="mt-2 text-xs italic text-text-subtle leading-relaxed">{c.note}</p>
                   )}
                 </div>
               </label>

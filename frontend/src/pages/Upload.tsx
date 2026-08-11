@@ -87,8 +87,8 @@ export default function Upload() {
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-10 md:px-8 pb-32">
       <div className="mb-10">
-        <h1 className="mb-3 text-3xl font-bold text-slate-900 dark:text-slate-100">Upload Files</h1>
-        <p className="text-base text-slate-600 dark:text-slate-400 leading-relaxed">
+        <h1 className="mb-3 text-3xl font-bold text-text">Upload Files</h1>
+        <p className="text-base text-text-muted leading-relaxed">
           Drop files below or click to browse your computer.
         </p>
       </div>
@@ -100,9 +100,7 @@ export default function Upload() {
       {transfers.length > 0 && (
         <div className="mt-12">
           <div className="mb-5">
-            <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-              Active Transfers ({transfers.length})
-            </h2>
+            <h2 className="text-xl font-bold text-text">Active Transfers ({transfers.length})</h2>
           </div>
 
           <div className="flex flex-col gap-4">
@@ -117,9 +115,7 @@ export default function Upload() {
       {files.length > 0 && (
         <div className="mt-12">
           <div className="mb-5 flex items-center justify-between">
-            <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-              Selected Files ({files.length})
-            </h2>
+            <h2 className="text-xl font-bold text-text">Selected Files ({files.length})</h2>
             <Button
               variant="ghost"
               onClick={() => setFiles([])}
