@@ -7,6 +7,10 @@ import Reset from '@/pages/Reset';
 import NotFound from '@/pages/NotFound';
 import Settings from '@/pages/Settings';
 import Upload from '@/pages/Upload';
+import StorageProviders from '@/pages/StorageProviders';
+import StorageDatabase from '@/pages/StorageDatabase';
+import StorageErasureCoding from '@/pages/StorageErasureCoding';
+import SecurityKeyManagement from '@/pages/SecurityKeyManagement';
 import Header from '@/components/items/Header';
 import Sidebar from '@/components/items/Sidebar';
 import { ThemeProvider } from '@/theme/ThemeProvider';
@@ -31,6 +35,10 @@ function App() {
                       <Route path="/" element={<Home />} />
                       <Route path="/settings" element={<Settings />} />
                       <Route path="/upload" element={<Upload />} />
+                      <Route path="/storage/providers" element={<StorageProviders />} />
+                      <Route path="/storage/database" element={<StorageDatabase />} />
+                      <Route path="/storage/erasure-coding" element={<StorageErasureCoding />} />
+                      <Route path="/security/key-management" element={<SecurityKeyManagement />} />
                     </Route>
                     <Route element={<PublicRoute />}>
                       <Route path="/auth/login" element={<Login />} />
