@@ -12,6 +12,7 @@ module.exports = {
         },
         sidebar: {
           bg:    'var(--color-sidebar-bg)',
+          bgDark:'var(--color-sidebar-bg-dark)',
           text:  'var(--color-sidebar-text)',
           muted: 'var(--color-sidebar-text-muted)',
           border:'var(--color-sidebar-border)',

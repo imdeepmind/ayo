@@ -16,7 +16,9 @@
 
     /* ─── Sidebar ────────────────────────────────────────── */
     --color-sidebar-bg: #d9083c;
-    /* sidebar background */
+    /* sidebar background (top of gradient) */
+    --color-sidebar-bg-dark: #4a0114;
+    /* very dark red at bottom of sidebar gradient */
     --color-sidebar-text: #ffffff;
     /* active / bold link */
     --color-sidebar-text-muted: rgba(254, 202, 202, 0.75);

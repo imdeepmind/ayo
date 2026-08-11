@@ -46,15 +46,15 @@ export default function Sidebar() {
   if (!session) return null;
 
   return (
-    <aside className="w-32 min-w-[14rem] h-full bg-sidebar-bg text-sidebar-text rounded-tr-[64px] p-6 flex flex-col justify-between shrink-0 overflow-y-auto hidden md:flex my-0 ml-0 mb-0">
+    <aside className="w-32 min-w-[14rem] h-full bg-gradient-to-b from-sidebar-bg to-sidebar-bg-dark text-sidebar-text rounded-tr-[64px] p-6 flex flex-col justify-between shrink-0 overflow-y-auto hidden md:flex my-0 ml-0 mb-0">
       <div className="flex flex-col gap-2 mt-4">
         <NavLink
           to="/"
           className={({ isActive }) =>
-            `w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+            `w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold transition-all ${
               isActive
-                ? 'text-sidebar-text font-bold'
-                : 'text-sidebar-muted font-normal hover:text-sidebar-text'
+              ? 'text-sidebar-text font-bold bg-red-500/30 rounded-r-[64px]'
+              : 'text-sidebar-muted hover:text-sidebar-text'
             }`
           }
         >
@@ -65,10 +65,10 @@ export default function Sidebar() {
         <NavLink
           to="/upload"
           className={({ isActive }) =>
-            `w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+            `w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold transition-all ${
               isActive
-                ? 'text-sidebar-text font-bold'
-                : 'text-sidebar-muted font-normal hover:text-sidebar-text'
+              ? 'text-sidebar-text font-bold bg-red-500/30 rounded-r-[64px]'
+              : 'text-sidebar-muted hover:text-sidebar-text'
             }`
           }
         >
@@ -79,10 +79,10 @@ export default function Sidebar() {
         <NavLink
           to="/settings"
           className={({ isActive }) =>
-            `w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+            `w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold transition-all ${
               isActive
-                ? 'text-sidebar-text font-bold'
-                : 'text-sidebar-muted font-normal hover:text-sidebar-text'
+              ? 'text-sidebar-text font-bold bg-red-500/30 rounded-r-[64px]'
+              : 'text-sidebar-muted hover:text-sidebar-text'
             }`
           }
         >
