@@ -35,9 +35,17 @@ type Repository interface {
 	GetChunks(ctx context.Context, fileID int64) ([]Chunk, error)
 	// GetAll returns every stored file, newest first.
 	GetAll(ctx context.Context) ([]*Upload, error)
+	// GetAllPaged returns the stored files for one page of the drive listing,
+	// newest first, with the given page size and offset.
+	GetAllPaged(ctx context.Context, limit, offset int) ([]*Upload, error)
 	// SearchByName returns stored files whose file or custom name contains the
-	// given query (case-insensitive), newest first.
-	SearchByName(ctx context.Context, query string) ([]*Upload, error)
+	// given query (case-insensitive), newest first, for one page of results.
+	SearchByName(ctx context.Context, query string, limit, offset int) ([]*Upload, error)
+	// CountUploads returns the total number of stored files.
+	CountUploads(ctx context.Context) (int64, error)
+	// CountByName returns the number of stored files whose file or custom name
+	// contains the given query (case-insensitive).
+	CountByName(ctx context.Context, query string) (int64, error)
 	// GetUpload fetches one stored file by its upload ID.
 	GetUpload(ctx context.Context, id int64) (*Upload, error)
 	// GetTotalSize returns the sum of all stored file sizes (in bytes).
@@ -456,10 +464,103 @@ func (r *repository) GetAll(ctx context.Context) ([]*Upload, error) {
 	return uploads, nil
 }
 
+// GetAllPaged returns one page of stored files, newest first. The page is
+// bounded by the given limit and offset so the drive listing can be paginated.
+func (r *repository) GetAllPaged(ctx context.Context, limit, offset int) ([]*Upload, error) {
+	query := `SELECT id, job_id, file, custom_name, size, tags, format_version,
+		encrypted_size, data_shards, parity_shards, shard_size, block_count,
+		created_at, updated_at FROM uploads ORDER BY created_at DESC LIMIT ? OFFSET ?`
+
+	client, err := r.resolve()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := client.QueryContext(ctx, client.Rebind(query), limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list uploads: %w", err)
+	}
+	defer rows.Close()
+
+	var uploads []*Upload
+	for rows.Next() {
+		var upload Upload
+		var tags string
+		if err := rows.Scan(
+			&upload.ID,
+			&upload.JobID,
+			&upload.File,
+			&upload.CustomName,
+			&upload.Size,
+			&tags,
+			&upload.FormatVersion,
+			&upload.EncryptedSize,
+			&upload.DataShards,
+			&upload.ParityShards,
+			&upload.ShardSize,
+			&upload.BlockCount,
+			&upload.CreatedAt,
+			&upload.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan upload: %w", err)
+		}
+		upload.Tags = decodeTags(tags)
+		uploads = append(uploads, &upload)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate uploads: %w", err)
+	}
+	return uploads, nil
+}
+
+// CountUploads returns the total number of stored files.
+func (r *repository) CountUploads(ctx context.Context) (int64, error) {
+	query := `SELECT COUNT(*) FROM uploads`
+
+	client, err := r.resolve()
+	if err != nil {
+		return 0, err
+	}
+
+	var count int64
+	if err := client.QueryRowContext(ctx, query).Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count uploads: %w", err)
+	}
+	return count, nil
+}
+
+// CountByName returns the number of stored files whose original or custom name
+// contains the query (case-insensitive).
+func (r *repository) CountByName(ctx context.Context, query string) (int64, error) {
+	pattern := "%" + query + "%"
+	base := `SELECT COUNT(*) FROM uploads`
+
+	client, err := r.resolve()
+	if err != nil {
+		return 0, err
+	}
+
+	var sql string
+	var args []any
+	if client.IsPostgres() {
+		sql = base + ` WHERE file ILIKE ? OR custom_name ILIKE ?`
+		args = []any{pattern, pattern}
+	} else {
+		sql = base + ` WHERE file LIKE ? OR custom_name LIKE ?`
+		args = []any{pattern, pattern}
+	}
+
+	var count int64
+	if err := client.QueryRowContext(ctx, client.Rebind(sql), args...).Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count matching uploads: %w", err)
+	}
+	return count, nil
+}
+
 // SearchByName returns stored files whose original or custom name contains the
-// query, newest first. SQLite LIKE is case-insensitive for ASCII; PostgreSQL
-// requires ILIKE for the same behaviour.
-func (r *repository) SearchByName(ctx context.Context, query string) ([]*Upload, error) {
+// query, newest first, for one page of results. SQLite LIKE is
+// case-insensitive for ASCII; PostgreSQL requires ILIKE for the same behaviour.
+func (r *repository) SearchByName(ctx context.Context, query string, limit, offset int) ([]*Upload, error) {
 	pattern := "%" + query + "%"
 	base := `SELECT id, job_id, file, custom_name, size, tags, format_version,
 		encrypted_size, data_shards, parity_shards, shard_size, block_count,
@@ -473,11 +574,11 @@ func (r *repository) SearchByName(ctx context.Context, query string) ([]*Upload,
 	var sql string
 	var args []any
 	if client.IsPostgres() {
-		sql = base + ` WHERE file ILIKE ? OR custom_name ILIKE ? ORDER BY created_at DESC`
-		args = []any{pattern, pattern}
+		sql = base + ` WHERE file ILIKE ? OR custom_name ILIKE ? ORDER BY created_at DESC LIMIT ? OFFSET ?`
+		args = []any{pattern, pattern, limit, offset}
 	} else {
-		sql = base + ` WHERE file LIKE ? OR custom_name LIKE ? ORDER BY created_at DESC`
-		args = []any{pattern, pattern}
+		sql = base + ` WHERE file LIKE ? OR custom_name LIKE ? ORDER BY created_at DESC LIMIT ? OFFSET ?`
+		args = []any{pattern, pattern, limit, offset}
 	}
 
 	rows, err := client.QueryContext(ctx, client.Rebind(sql), args...)

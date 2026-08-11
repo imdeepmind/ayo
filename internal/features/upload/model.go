@@ -88,3 +88,13 @@ type StoredFile struct {
 	Tags      []string
 	CreatedAt string
 }
+
+// StoredFilePage is one page of the drive listing returned by GetStoredFiles.
+// Total is the count of all matching rows (unbounded by page size) so the
+// frontend can render pagination controls.
+type StoredFilePage struct {
+	Files    []StoredFile
+	Total    int64
+	Page     int
+	PageSize int
+}

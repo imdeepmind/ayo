@@ -26,8 +26,8 @@ export function GetStorageUsed() {
   return window['go']['upload']['Service']['GetStorageUsed']();
 }
 
-export function GetStoredFiles(arg1) {
-  return window['go']['upload']['Service']['GetStoredFiles'](arg1);
+export function GetStoredFiles(arg1, arg2, arg3) {
+  return window['go']['upload']['Service']['GetStoredFiles'](arg1, arg2, arg3);
 }
 
 export function PickFiles() {

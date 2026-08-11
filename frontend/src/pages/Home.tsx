@@ -27,6 +27,7 @@ import DriveFileTable from '@/components/items/DriveFileTable';
 import EditFileModal from '@/components/items/EditFileModal';
 import Button from '@/components/bits/Button';
 import ConfirmDialog from '@/components/bits/ConfirmDialog';
+import Pagination from '@/components/bits/Pagination';
 
 function toFileItem(stored: upload.StoredFile): FileItem {
   return {
@@ -57,6 +58,9 @@ export default function Home() {
   const isSearching = query.trim().length > 0;
   const [activeCategory] = useState('my-drive');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalFiles, setTotalFiles] = useState(0);
   const { deletes, refresh } = useActiveTransfers();
 
   // Selection state
@@ -71,15 +75,16 @@ export default function Home() {
 
   const loadFiles = useCallback(async () => {
     try {
-      const stored = await GetStoredFiles(query);
-      setFiles(stored.map(toFileItem));
+      const storedPage = await GetStoredFiles(query, page, pageSize);
+      setFiles(storedPage.Files.map(toFileItem));
+      setTotalFiles(storedPage.Total);
     } catch (err) {
       console.error('Failed to load stored files:', err);
       toast.error('Failed to load files. Please try again.');
     } finally {
       setIsLoading(false);
     }
-  }, [query]);
+  }, [query, page, pageSize]);
 
   const loadOverview = useCallback(async () => {
     try {
@@ -98,6 +103,18 @@ export default function Home() {
     const timer = setTimeout(loadFiles, isSearching ? 250 : 0);
     return () => clearTimeout(timer);
   }, [loadFiles, isSearching]);
+
+  // Start back at the first page whenever the search query changes.
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
+
+  // If the current page ends up empty after a delete, step back one page.
+  useEffect(() => {
+    if (files.length === 0 && totalFiles > 0 && page > 1) {
+      setPage(page - 1);
+    }
+  }, [files.length, totalFiles, page]);
 
   const wasDeleting = useRef(false);
   const pendingDeleteCount = useRef(0);
@@ -136,6 +153,17 @@ export default function Home() {
   };
 
   const clearSelection = () => setSelectedFileIds(new Set());
+
+  const handlePageChange = (nextPage: number) => {
+    setPage(nextPage);
+    clearSelection();
+  };
+
+  const handlePageSizeChange = (nextPageSize: number) => {
+    setPageSize(nextPageSize);
+    setPage(1);
+    clearSelection();
+  };
 
   const handleEdit = (file: FileItem) => {
     setFileToEdit(file);
@@ -361,6 +389,14 @@ export default function Home() {
             }
           />
         )}
+
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={totalFiles}
+          onPageChange={handlePageChange}
+          onPageSizeChange={handlePageSizeChange}
+        />
       </section>
 
       {/* Floating Bulk Action Bar */}
