@@ -1,17 +1,31 @@
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search } from 'lucide-react';
+import { LogOut, Search, Settings } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useSearch } from '@/context/SearchContext';
 import logo from '@/assets/images/logo.png';
 
 export default function Header() {
-  const { session } = useAuth();
-  const { query, setQuery } = useSearch();
+  const { session, logout } = useAuth();
+  const { query, setQuery, clear } = useSearch();
   const navigate = useNavigate();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     navigate('/');
+  };
+
+  const handleAccountSettings = () => {
+    setMenuOpen(false);
+    navigate('/settings', { state: { section: 'account' } });
+  };
+
+  const handleLogout = async () => {
+    setMenuOpen(false);
+    await logout();
+    clear();
+    navigate('/auth/login');
   };
 
   return (
@@ -47,10 +61,52 @@ export default function Header() {
         <div className="flex items-center gap-3 shrink-0">
           {/* User Profile Avatar */}
           {session ? (
-            <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary font-bold text-white text-sm">
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setMenuOpen((o) => !o)}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-primary font-bold text-white text-sm transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                aria-label="Open account menu"
+                aria-expanded={menuOpen}
+              >
                 {session.Username ? session.Username.charAt(0).toUpperCase() : 'U'}
-              </div>
+              </button>
+
+              {menuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setMenuOpen(false)}
+                    aria-hidden="true"
+                  />
+                  <div className="absolute right-0 z-50 mt-3 w-56 overflow-hidden rounded-xl border-2 border-border bg-background shadow-2xl shadow-black/10 dark:border-border-strong">
+                    <div className="border-b-2 border-border px-4 py-3 dark:border-border-strong">
+                      <p className="truncate text-sm font-bold text-text">{session.Username}</p>
+                      <p className="truncate text-xs text-text-faint">
+                        Signed in as {session.Username}
+                      </p>
+                    </div>
+                    <nav className="flex flex-col gap-1 p-1.5">
+                      <button
+                        type="button"
+                        onClick={handleAccountSettings}
+                        className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-text-muted transition hover:bg-surface-hover hover:text-text dark:text-text-muted dark:hover:bg-surface-hover dark:hover:text-text"
+                      >
+                        <Settings className="h-4 w-4 shrink-0" />
+                        Account Settings
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleLogout}
+                        className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-text-muted transition hover:bg-surface-hover hover:text-text dark:text-text-muted dark:hover:bg-surface-hover dark:hover:text-text"
+                      >
+                        <LogOut className="h-4 w-4 shrink-0" />
+                        Logout
+                      </button>
+                    </nav>
+                  </div>
+                </>
+              )}
             </div>
           ) : (
             <Link to="/auth/login" className="text-sm font-semibold text-primary hover:underline">
