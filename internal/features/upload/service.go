@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"time"
 
-	dbclient "ayo/internal/clients/db"
 	"ayo/internal/clients/storage"
 	"ayo/internal/features/auth"
 	"ayo/internal/features/settings"
@@ -83,8 +82,7 @@ type Service struct {
 }
 
 func NewService(sessionProvider SessionProvider, settingsProvider SettingsProvider,
-	queueService QueueService, conn *dbclient.Connection, local *storage.LocalFilesystem) *Service {
-	repo := NewRepository(conn)
+	queueService QueueService, repo Repository, local *storage.LocalFilesystem) *Service {
 	return &Service{
 		sessionProvider:  sessionProvider,
 		settingsProvider: settingsProvider,

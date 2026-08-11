@@ -11,10 +11,15 @@ import {
   Box,
   LayoutGrid,
   List,
+  File,
+  HardDrive,
+  Server,
+  Grid3x3,
 } from 'lucide-react';
-import { getFileType, type FileItem } from '@/lib/files';
+import { getFileType, formatSize, type FileItem } from '@/lib/files';
 import { EnqueueDelete, EnqueueDownload, GetStoredFiles } from '../../wailsjs/go/upload/Service';
-import { upload } from '../../wailsjs/go/models';
+import { GetHomeOverview } from '../../wailsjs/go/home/Service';
+import { home, upload } from '../../wailsjs/go/models';
 import { useActiveTransfers } from '@/context/ActiveTransfersContext';
 import DriveToolbar from '@/components/items/DriveToolbar';
 import DriveFileTable from '@/components/items/DriveFileTable';
@@ -34,49 +39,18 @@ function toFileItem(stored: upload.StoredFile): FileItem {
   };
 }
 
-// Default mock recent files matching the reference image layout if no uploaded files exist yet
-const mockRecentFiles: FileItem[] = [
-  {
-    id: 'mock-1',
-    name: 'Brief.pdf',
-    type: 'document',
-    sizeBytes: 1400000,
-    modifiedAt: new Date().toISOString(),
-    owner: 'You',
-    tags: ['pdf'],
-  },
-  {
-    id: 'mock-2',
-    name: 'Architecture.jpg',
-    type: 'image',
-    sizeBytes: 12000000,
-    modifiedAt: new Date().toISOString(),
-    owner: 'You',
-    tags: ['image'],
-  },
-  {
-    id: 'mock-3',
-    name: 'Minimalism.jpg',
-    type: 'image',
-    sizeBytes: 8500000,
-    modifiedAt: new Date().toISOString(),
-    owner: 'You',
-    tags: ['image'],
-  },
-  {
-    id: 'mock-4',
-    name: 'WorkContract.pdf',
-    type: 'document',
-    sizeBytes: 1700000,
-    modifiedAt: new Date().toISOString(),
-    owner: 'You',
-    tags: ['pdf'],
-  },
-];
+function formatDateTime(iso: string): string {
+  const date = new Date(iso);
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+}
 
 export default function Home() {
   const navigate = useNavigate();
   const [files, setFiles] = useState<FileItem[]>([]);
+  const [overview, setOverview] = useState<home.HomeOverview | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery] = useState('');
   const [activeCategory] = useState('my-drive');
@@ -105,9 +79,18 @@ export default function Home() {
     }
   }, []);
 
+  const loadOverview = useCallback(async () => {
+    try {
+      setOverview(await GetHomeOverview());
+    } catch (err) {
+      console.error('Failed to load home overview:', err);
+    }
+  }, []);
+
   useEffect(() => {
     loadFiles();
-  }, [loadFiles]);
+    loadOverview();
+  }, [loadFiles, loadOverview]);
 
   const wasDeleting = useRef(false);
   const pendingDeleteCount = useRef(0);
@@ -119,9 +102,10 @@ export default function Home() {
       const count = pendingDeleteCount.current;
       pendingDeleteCount.current = 0;
       void loadFiles();
+      void loadOverview();
       toast.success(`File${count === 1 ? '' : 's'} successfully deleted`);
     }
-  }, [deletes.length, loadFiles]);
+  }, [deletes.length, loadFiles, loadOverview]);
 
   const filteredFiles = useMemo(() => {
     let result = files;
@@ -146,13 +130,8 @@ export default function Home() {
     });
   }, [searchQuery, files, activeCategory]);
 
-  // Recent files list for top cards
-  const recentFilesDisplay = useMemo(() => {
-    if (files.length > 0) {
-      return files.slice(0, 4);
-    }
-    return mockRecentFiles;
-  }, [files]);
+  // Recent files from the backend home overview, newest first.
+  const recentFiles = useMemo(() => overview?.RecentFiles ?? [], [overview]);
 
   const handleSelectionChange = (id: string, isSelected: boolean) => {
     const next = new Set(selectedFileIds);
@@ -179,13 +158,9 @@ export default function Home() {
     setIsEditModalOpen(true);
   };
 
-  const handleDownload = async (file: FileItem) => {
-    if (file.id.startsWith('mock-')) {
-      toast.success(`Mock file ${file.name} ready`);
-      return;
-    }
+  const handleDownloadById = async (id: number) => {
     try {
-      const job = await EnqueueDownload(Number(file.id));
+      const job = await EnqueueDownload(id);
       toast.success(`Downloading ${job.CustomName || job.File}`);
       refresh();
     } catch (err) {
@@ -194,15 +169,13 @@ export default function Home() {
     }
   };
 
+  const handleDownload = (file: FileItem) => {
+    void handleDownloadById(Number(file.id));
+  };
+
   const deleteFiles = async (ids: string[]) => {
-    const realIds = ids.filter((id) => !id.startsWith('mock-'));
-    if (realIds.length === 0) {
-      toast.success('Deleted file(s)');
-      clearSelection();
-      return;
-    }
     try {
-      for (const id of realIds) {
+      for (const id of ids) {
         await EnqueueDelete(Number(id));
       }
     } catch (err) {
@@ -210,8 +183,8 @@ export default function Home() {
       toast.error('Failed to delete a file. Please try again.');
       return;
     }
-    pendingDeleteCount.current += realIds.length;
-    toast(`Deleting ${realIds.length} ${realIds.length === 1 ? 'file' : 'files'}…`);
+    pendingDeleteCount.current += ids.length;
+    toast(`Deleting ${ids.length} ${ids.length === 1 ? 'file' : 'files'}…`);
     clearSelection();
   };
 
@@ -262,48 +235,86 @@ export default function Home() {
     return { text: 'FILE', bg: 'bg-slate-600', icon: <Box className="h-4 w-4 text-white" /> };
   };
 
+  const stats = [
+    {
+      label: 'Files',
+      value: String(overview?.TotalFiles ?? 0),
+      icon: <File className="h-3.5 w-3.5 text-text" />,
+    },
+    {
+      label: 'Storage',
+      value: formatSize(overview?.ActualSizeUsed ?? 0),
+      icon: <HardDrive className="h-3.5 w-3.5 text-text" />,
+    },
+    {
+      label: 'Providers',
+      value: String(overview?.TotalProviders ?? 0),
+      icon: <Server className="h-3.5 w-3.5 text-text" />,
+    },
+    {
+      label: 'Erasure Coding',
+      value: overview?.ErasureCodingSetup ?? '0+0',
+      icon: <Grid3x3 className="h-3.5 w-3.5 text-text" />,
+    },
+  ];
+
   return (
     <div className="w-full relative space-y-6">
       <DriveToolbar activeCategory={activeCategory} onUploadClick={() => navigate('/upload')} />
 
+      {/* Stats bar */}
+      <section className="flex w-max overflow-hidden rounded-2xl border border-border bg-background divide-x divide-border">
+        {stats.map((stat) => (
+          <div key={stat.label} className="flex items-center gap-2 px-4 py-3 min-w-0">
+            {stat.icon}
+            <div className="flex items-baseline gap-1.5 min-w-0">
+              <span className="text-sm font-bold text-text truncate">{stat.value}</span>
+              <span className="text-xs font-medium text-text-faint truncate">{stat.label}</span>
+            </div>
+          </div>
+        ))}
+      </section>
+
       {/* Recent Files Cards Section */}
       <section className="space-y-3">
         <h2 className="text-lg font-bold text-text">Recent Files</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {recentFilesDisplay.map((file) => {
-            const badge = getCardBadge(file.name, file.type);
-            return (
-              <div
-                key={file.id}
-                onClick={() => handleDownload(file)}
-                className="group cursor-pointer rounded-2xl border border-border bg-background p-3.5 flex flex-col justify-between h-36 transition-all hover:bg-surface-hover dark:hover:bg-surface-alt"
-              >
-                {/* Thumbnail Graphic Preview */}
-                <div className="w-full flex-1 rounded-xl bg-background flex items-center justify-center border border-border dark:border-border-strong mb-3 overflow-hidden">
-                  {file.type === 'image' || file.name.endsWith('.jpg') ? (
-                    <div className="w-full h-full bg-gradient-to-tr from-emerald-100 to-teal-50 dark:from-emerald-900/30 dark:to-teal-900/20 flex items-center justify-center">
-                      <Image className="h-8 w-8 text-emerald-500 opacity-80 group-hover:scale-110 transition" />
+        {recentFiles.length === 0 ? (
+          <div className="rounded-2xl border border-border bg-background p-6 text-center text-sm text-text-subtle">
+            No recent files yet. Upload your first file to get started.
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {recentFiles.slice(0, 5).map((file, index) => {
+              const type = getFileType(file.Name);
+              const badge = getCardBadge(file.Name, type);
+              return (
+                <div
+                  key={file.ID}
+                  onClick={() => handleDownloadById(file.ID)}
+                  className={`group cursor-pointer rounded-2xl border border-border bg-background p-3.5 flex flex-col justify-between transition-all hover:bg-surface-hover dark:hover:bg-surface-alt ${
+                    index >= 4 ? 'hidden xl:flex' : index >= 3 ? 'hidden lg:flex' : ''
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${badge.bg}`}
+                    >
+                      {badge.icon}
                     </div>
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-tr from-surface-hover to-primary/5 dark:from-surface-alt dark:to-primary/10 flex items-center justify-center p-2 text-[8px] text-text-faint font-mono leading-tight">
-                      Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod...
-                    </div>
-                  )}
-                </div>
+                    <span className="min-w-0 text-sm font-semibold text-text truncate">
+                      {file.Name}
+                    </span>
+                  </div>
 
-                {/* Footer details */}
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-text truncate pr-2">{file.name}</span>
-                  <span
-                    className={`rounded-md px-1.5 py-0.5 text-[9px] font-bold text-white uppercase shrink-0 ${badge.bg}`}
-                  >
-                    {badge.text}
-                  </span>
+                  <div className="mt-3 flex items-center justify-between text-xs text-text-muted">
+                    <span className="font-semibold">{formatSize(file.Size)}</span>
+                    <span>{formatDateTime(file.UpdatedAt)}</span>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       {/* All Files Listing Section */}

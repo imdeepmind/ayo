@@ -186,6 +186,71 @@ export namespace db {
 
 }
 
+export namespace home {
+	
+	export class RecentFile {
+	    ID: number;
+	    Name: string;
+	    Format: string;
+	    Size: number;
+	    UpdatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RecentFile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Name = source["Name"];
+	        this.Format = source["Format"];
+	        this.Size = source["Size"];
+	        this.UpdatedAt = source["UpdatedAt"];
+	    }
+	}
+	export class HomeOverview {
+	    RecentFiles: RecentFile[];
+	    TotalFiles: number;
+	    TotalSizeUsed: number;
+	    ActualSizeUsed: number;
+	    TotalProviders: number;
+	    ErasureCodingSetup: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new HomeOverview(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.RecentFiles = this.convertValues(source["RecentFiles"], RecentFile);
+	        this.TotalFiles = source["TotalFiles"];
+	        this.TotalSizeUsed = source["TotalSizeUsed"];
+	        this.ActualSizeUsed = source["ActualSizeUsed"];
+	        this.TotalProviders = source["TotalProviders"];
+	        this.ErasureCodingSetup = source["ErasureCodingSetup"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
 export namespace settings {
 	
 	export class DatabaseInfo {

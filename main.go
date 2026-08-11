@@ -8,6 +8,7 @@ import (
 	"ayo/internal/clients/storage"
 	"ayo/internal/features/auth"
 	"ayo/internal/features/dbconfig"
+	"ayo/internal/features/home"
 	"ayo/internal/features/recovery"
 	"ayo/internal/features/settings"
 	"ayo/internal/features/upload"
@@ -93,8 +94,15 @@ func main() {
 	// file into the queue. The processor encrypts each file, splits it into
 	// Reed-Solomon shards using the erasure-coding settings, and persists the
 	// stored-file record and its shards to the uploads/chunks tables of the
-	// signed-in user's database.
-	uploadService := upload.NewService(authService, settingsService, queueService, conn, fileClient)
+	// signed-in user's database. The repository is created once here and shared
+	// with the home service so both read from the same per-session connection.
+	uploadRepository := upload.NewRepository(conn)
+	uploadService := upload.NewService(authService, settingsService, queueService, uploadRepository, fileClient)
+
+	// Home service: read-only aggregation (recent files, storage totals,
+	// provider count, erasure-coding setup) for the Home screen. It shares the
+	// upload repository and reads settings through the settings service.
+	homeService := home.NewService(authService, uploadRepository, settingsService)
 
 	// Create application with options. Anything passed to Bind is exposed to
 	// the frontend as generated JavaScript bindings under
@@ -144,6 +152,7 @@ func main() {
 			recoveryService,
 			settingsService,
 			uploadService,
+			homeService,
 		},
 	})
 
