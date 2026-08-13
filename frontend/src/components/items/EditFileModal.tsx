@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Tag as TagIcon } from 'lucide-react';
 import type { FileItem } from '@/lib/files';
+import { getFileTypeChip, tagChipClass } from '@/lib/files';
 import TextInput from '@/components/bits/Input';
 import Button from '@/components/bits/Button';
 
@@ -51,7 +52,14 @@ export default function EditFileModal({ isOpen, file, onClose, onSave }: EditFil
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="w-full max-w-md rounded-2xl bg-background p-6 border border-border dark:border-border-strong">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-semibold text-text">Edit File</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-text">Edit File</h2>
+            <span
+              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${getFileTypeChip(file.name, file.type).chip}`}
+            >
+              {getFileTypeChip(file.name, file.type).label}
+            </span>
+          </div>
           <button
             onClick={onClose}
             className="rounded-full p-1 text-text-faint hover:bg-surface-alt hover:text-text-muted transition dark:hover:bg-surface-hover dark:hover:text-text"
@@ -82,13 +90,13 @@ export default function EditFileModal({ isOpen, file, onClose, onSave }: EditFil
               {tags.map((tag) => (
                 <span
                   key={tag}
-                  className="inline-flex items-center gap-1 rounded-full bg-primary/10 py-1 pl-2.5 pr-1 text-xs font-semibold text-primary dark:bg-primary/20 dark:text-primary border border-primary/20 dark:border-primary/40"
+                  className={`inline-flex items-center gap-1 rounded-full py-0.5 pl-2 pr-1 text-xs font-semibold ${tagChipClass}`}
                 >
                   {tag}
                   <button
                     type="button"
                     onClick={() => handleRemoveTag(tag)}
-                    className="rounded-full p-0.5 hover:bg-primary/20 dark:hover:bg-primary/30 transition"
+                    className="rounded-full p-0.5 transition hover:bg-rose-200/70 dark:hover:bg-rose-800/60"
                   >
                     <X className="h-3 w-3" />
                   </button>

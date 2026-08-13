@@ -1,6 +1,6 @@
 import { X, HardDrive, Layers, Folder, Tags as TagIcon } from 'lucide-react';
 import type { FileItem } from '@/lib/files';
-import { formatSize } from '@/lib/files';
+import { formatSize, getFileTypeChip, tagChipClass } from '@/lib/files';
 import type { home } from '../../../wailsjs/go/models';
 import awsLogo from '@/assets/images/providers/aws.svg';
 import azureLogo from '@/assets/images/providers/azure.svg';
@@ -85,6 +85,16 @@ export default function FileDetailsModal({
             <div className="divide-y divide-border dark:divide-border-strong">
               <InfoRow label="Original File Name" value={details.OriginalName || '—'} />
               <InfoRow label="Custom Name" value={details.CustomName || '—'} />
+              <InfoRow
+                label="Type"
+                value={
+                  <span
+                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${getFileTypeChip(file.name, file.type).chip}`}
+                  >
+                    {getFileTypeChip(file.name, file.type).label}
+                  </span>
+                }
+              />
               <InfoRow label="Size" value={formatSize(details.Size)} />
               <InfoRow label="Stored Size (with erasure)" value={formatSize(details.StoredSize)} />
               <InfoRow
@@ -118,7 +128,7 @@ export default function FileDetailsModal({
                   details.Tags.map((tag) => (
                     <span
                       key={tag}
-                      className="inline-flex items-center rounded-full bg-primary/10 py-1 pl-2.5 pr-2.5 text-xs font-semibold text-primary dark:bg-primary/20 dark:text-primary border border-primary/20 dark:border-primary/40"
+                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${tagChipClass}`}
                     >
                       {tag}
                     </span>

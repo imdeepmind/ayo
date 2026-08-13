@@ -1,5 +1,54 @@
 export type FileItemType = 'document' | 'image' | 'video' | 'audio' | 'archive' | 'other';
 
+export type FileTypeChip = {
+  label: string;
+  chip: string;
+};
+
+const fileTypeChipMap: Record<FileItemType, FileTypeChip> = {
+  image: {
+    label: 'Image',
+    chip: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200',
+  },
+  video: {
+    label: 'Video',
+    chip: 'bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-200',
+  },
+  audio: {
+    label: 'Audio',
+    chip: 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200',
+  },
+  archive: {
+    label: 'Folder',
+    chip: 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-200',
+  },
+  document: {
+    label: 'PDF',
+    chip: 'bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-200',
+  },
+  other: {
+    label: 'PDF',
+    chip: 'bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-200',
+  },
+};
+
+// getFileTypeChip resolves the display label and chip color classes for a file,
+// honoring the same per-name overrides used by the drive table.
+export function getFileTypeChip(name: string, type: FileItemType): FileTypeChip {
+  const lower = name.toLowerCase();
+  const base = fileTypeChipMap[type];
+  let label = base.label;
+  if (lower.endsWith('.pdf')) label = 'PDF';
+  else if (lower.endsWith('.jpg') || lower.endsWith('.png')) label = 'Image';
+  else if (lower.endsWith('.doc') || lower.endsWith('.docx')) label = 'Folder';
+  return { label, chip: base.chip };
+}
+
+// tagChipClass is the color-coded chip style used for file tags, matching the
+// file type chip design.
+export const tagChipClass =
+  'bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-200';
+
 export interface FileItem {
   id: string;
   name: string;

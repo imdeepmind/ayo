@@ -15,7 +15,7 @@ import {
   FileText,
 } from 'lucide-react';
 import type { FileItem } from '@/lib/files';
-import { formatSize } from '@/lib/files';
+import { formatSize, getFileTypeChip } from '@/lib/files';
 
 export type SortField = 'name' | 'size' | 'date';
 export type SortDirection = 'asc' | 'desc';
@@ -147,37 +147,27 @@ export default function DriveFileTable({
       case 'image':
         return {
           bg: 'bg-emerald-500',
-          text: 'PDF',
           icon: <Image className="h-4 w-4 text-white" />,
-          label: 'Image',
         };
       case 'video':
         return {
           bg: 'bg-purple-500',
-          text: 'VID',
           icon: <Film className="h-4 w-4 text-white" />,
-          label: 'Video',
         };
       case 'audio':
         return {
           bg: 'bg-amber-500',
-          text: 'AUD',
           icon: <Headphones className="h-4 w-4 text-white" />,
-          label: 'Audio',
         };
       case 'archive':
         return {
           bg: 'bg-slate-600',
-          text: 'ZIP',
           icon: <Box className="h-4 w-4 text-white" />,
-          label: 'Folder',
         };
       default:
         return {
           bg: 'bg-primary',
-          text: 'PDF',
           icon: <FileText className="h-4 w-4 text-white" />,
-          label: 'PDF',
         };
     }
   };
@@ -225,9 +215,6 @@ export default function DriveFileTable({
               >
                 Size {renderSortIcon('size')}
               </th>
-              <th className="px-4 py-3.5 font-medium whitespace-nowrap hidden md:table-cell w-28 text-text-faint">
-                Type
-              </th>
               <th className="px-4 py-3.5 font-medium text-right w-28 text-text-faint">Actions</th>
             </tr>
           </thead>
@@ -235,13 +222,7 @@ export default function DriveFileTable({
             {files.map((file) => {
               const badge = getBadgeStyle(file.type);
               const isSelected = selectedFileIds.has(file.id);
-              const displayType = file.name.endsWith('.pdf')
-                ? 'PDF'
-                : file.name.endsWith('.jpg') || file.name.endsWith('.png')
-                  ? 'Image'
-                  : file.name.endsWith('.doc') || file.name.endsWith('.docx')
-                    ? 'Folder'
-                    : badge.label;
+              const chip = getFileTypeChip(file.name, file.type);
 
               return (
                 <tr
@@ -258,14 +239,21 @@ export default function DriveFileTable({
                       className="h-4 w-4 rounded border-border-strong text-primary focus:ring-primary dark:border-border-input dark:bg-surface-alt"
                     />
                   </td>
-                  <td className="px-4 py-3.5 text-text max-w-xs">
+                  <td className="px-4 py-3.5 text-text max-w-sm">
                     <div className="flex items-center gap-3">
                       <div
                         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${badge.bg}`}
                       >
                         {badge.icon}
                       </div>
-                      <span className="font-semibold text-text truncate">{file.name}</span>
+                      <div className="flex min-w-0 flex-col">
+                        <span className="font-semibold text-text truncate">{file.name}</span>
+                        <span
+                          className={`mt-0.5 inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-semibold ${chip.chip}`}
+                        >
+                          {chip.label}
+                        </span>
+                      </div>
                     </div>
                   </td>
                   <td className="px-4 py-3.5 text-text-muted hidden lg:table-cell text-sm font-medium whitespace-nowrap">
@@ -273,9 +261,6 @@ export default function DriveFileTable({
                   </td>
                   <td className="px-4 py-3.5 text-text-muted hidden sm:table-cell text-sm font-semibold whitespace-nowrap">
                     {formatSize(file.sizeBytes)}
-                  </td>
-                  <td className="px-4 py-3.5 text-text-muted hidden md:table-cell text-sm font-medium whitespace-nowrap">
-                    {displayType}
                   </td>
                   <td className="px-4 py-3.5 text-right">
                     <RowActions
