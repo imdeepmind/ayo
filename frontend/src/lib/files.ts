@@ -46,8 +46,7 @@ export function getFileTypeChip(name: string, type: FileItemType): FileTypeChip 
 
 // tagChipClass is the color-coded chip style used for file tags, matching the
 // file type chip design.
-export const tagChipClass =
-  'bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-200';
+export const tagChipClass = 'bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-200';
 
 export interface FileItem {
   id: string;
