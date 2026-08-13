@@ -204,6 +204,11 @@ export default function Home() {
     setDeletePending([file]);
   };
 
+  const handleView = (file: FileItem) => {
+    void file;
+    toast('Viewing is not available yet.');
+  };
+
   const saveEdit = (id: string, newName: string, newTags: string[]) => {
     void id;
     void newName;
@@ -378,6 +383,7 @@ export default function Home() {
             selectedFileIds={selectedFileIds}
             onSelectionChange={handleSelectionChange}
             onSelectAllChange={handleSelectAllChange}
+            onView={handleView}
             onEdit={handleEdit}
             onDownload={handleDownload}
             onDelete={handleDelete}

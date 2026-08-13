@@ -3,6 +3,8 @@ import {
   Download,
   Trash2,
   Edit2,
+  Eye,
+  MoreHorizontal,
   Image,
   Film,
   Headphones,
@@ -23,12 +25,80 @@ type DriveFileTableProps = {
   selectedFileIds: Set<string>;
   onSelectionChange: (id: string, isSelected: boolean) => void;
   onSelectAllChange: (isSelected: boolean) => void;
+  onView: (file: FileItem) => void;
   onEdit: (file: FileItem) => void;
   onDownload: (file: FileItem) => void;
   onDelete: (file: FileItem) => void;
   viewMode?: 'list' | 'grid';
   emptyMessage?: string;
 };
+
+type RowActionsProps = {
+  file: FileItem;
+  isOpen: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  onView: (file: FileItem) => void;
+  onEdit: (file: FileItem) => void;
+  onDownload: (file: FileItem) => void;
+  onDelete: (file: FileItem) => void;
+};
+
+function RowActions({
+  file,
+  isOpen,
+  onToggle,
+  onClose,
+  onView,
+  onEdit,
+  onDownload,
+  onDelete,
+}: RowActionsProps) {
+  const menuItemClass =
+    'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-text transition hover:bg-surface-muted/60 dark:hover:bg-surface-alt';
+
+  return (
+    <div className="relative flex items-center justify-end gap-1">
+      <button
+        onClick={() => onDownload(file)}
+        className="rounded-lg p-1.5 text-text-faint hover:bg-surface-alt hover:text-emerald-600 dark:hover:bg-surface-alt transition"
+        title="Download file"
+      >
+        <Download className="h-4 w-4" />
+      </button>
+      <button
+        onClick={onToggle}
+        className="rounded-lg p-1.5 text-text-faint hover:bg-surface-alt hover:text-text dark:hover:bg-surface-alt transition"
+        title="More actions"
+      >
+        <MoreHorizontal className="h-4 w-4" />
+      </button>
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={onClose} />
+          <div className="absolute right-0 top-full z-50 mt-1 min-w-[150px] rounded-xl border border-border bg-background p-1 shadow-lg dark:bg-surface">
+            <button type="button" className={menuItemClass} onClick={() => onView(file)}>
+              <Eye className="h-4 w-4 text-text-faint" />
+              View
+            </button>
+            <button type="button" className={menuItemClass} onClick={() => onEdit(file)}>
+              <Edit2 className="h-4 w-4 text-text-faint" />
+              Edit
+            </button>
+            <button
+              type="button"
+              className={`${menuItemClass} text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-900/30`}
+              onClick={() => onDelete(file)}
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 function formatDate(iso: string): string {
   const date = new Date(iso);
@@ -44,6 +114,7 @@ export default function DriveFileTable({
   selectedFileIds,
   onSelectionChange,
   onSelectAllChange,
+  onView,
   onEdit,
   onDownload,
   onDelete,
@@ -52,6 +123,7 @@ export default function DriveFileTable({
 }: DriveFileTableProps) {
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -191,20 +263,18 @@ export default function DriveFileTable({
                   <p className="text-xs text-text-faint mt-0.5">{formatSize(file.sizeBytes)}</p>
                 </div>
                 <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition">
-                  <button
-                    onClick={() => onDownload(file)}
-                    className="p-1.5 rounded-lg text-text-faint hover:bg-surface-muted/60 hover:text-primary dark:hover:bg-surface-hover"
-                    title="Download"
-                  >
-                    <Download className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => onDelete(file)}
-                    className="p-1.5 rounded-lg text-text-faint hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-900/30"
-                    title="Delete"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <RowActions
+                    file={file}
+                    isOpen={openMenuId === file.id}
+                    onToggle={() =>
+                      setOpenMenuId(openMenuId === file.id ? null : file.id)
+                    }
+                    onClose={() => setOpenMenuId(null)}
+                    onView={onView}
+                    onEdit={onEdit}
+                    onDownload={onDownload}
+                    onDelete={onDelete}
+                  />
                 </div>
               </div>
             </div>
@@ -302,29 +372,18 @@ export default function DriveFileTable({
                     {displayType}
                   </td>
                   <td className="px-4 py-3.5 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <button
-                        onClick={() => onEdit(file)}
-                        className="rounded-lg p-1.5 text-text-faint hover:bg-surface-alt hover:text-primary dark:hover:bg-surface-alt transition"
-                        title="Edit file"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => onDownload(file)}
-                        className="rounded-lg p-1.5 text-text-faint hover:bg-surface-alt hover:text-emerald-600 dark:hover:bg-surface-alt transition"
-                        title="Download file"
-                      >
-                        <Download className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => onDelete(file)}
-                        className="rounded-lg p-1.5 text-text-faint hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-900/40 transition"
-                        title="Delete file"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
+                    <RowActions
+                      file={file}
+                      isOpen={openMenuId === file.id}
+                      onToggle={() =>
+                        setOpenMenuId(openMenuId === file.id ? null : file.id)
+                      }
+                      onClose={() => setOpenMenuId(null)}
+                      onView={onView}
+                      onEdit={onEdit}
+                      onDownload={onDownload}
+                      onDelete={onDelete}
+                    />
                   </td>
                 </tr>
               );
