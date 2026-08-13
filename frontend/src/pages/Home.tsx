@@ -9,8 +9,6 @@ import {
   Film,
   Headphones,
   Box,
-  LayoutGrid,
-  List,
   File,
   HardDrive,
   Server,
@@ -67,7 +65,6 @@ export default function Home() {
   const { query } = useSearch();
   const isSearching = query.trim().length > 0;
   const [activeCategory] = useState('my-drive');
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [totalFiles, setTotalFiles] = useState(0);
@@ -384,33 +381,9 @@ export default function Home() {
 
       {/* All Files Listing Section */}
       <section className="space-y-3 pt-2">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-text">
-            {isSearching ? 'Search Results' : 'All Files'}
-          </h2>
-          <div className="flex items-center gap-1 bg-surface-alt dark:bg-surface-alt p-1 rounded-xl border border-border dark:border-border-strong">
-            <button
-              type="button"
-              onClick={() => setViewMode('grid')}
-              className={`p-1.5 rounded-lg text-text-subtle hover:text-text dark:text-text-subtle dark:hover:text-text transition ${
-                viewMode === 'grid' ? 'bg-surface dark:bg-surface-alt text-primary font-bold' : ''
-              }`}
-              title="Grid view"
-            >
-              <LayoutGrid className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('list')}
-              className={`p-1.5 rounded-lg text-text-subtle hover:text-text dark:text-text-subtle dark:hover:text-text transition ${
-                viewMode === 'list' ? 'bg-surface dark:bg-surface-alt text-primary font-bold' : ''
-              }`}
-              title="List view"
-            >
-              <List className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
+        <h2 className="text-lg font-bold text-text">
+          {isSearching ? 'Search Results' : 'All Files'}
+        </h2>
 
         {isLoading ? (
           <div className="rounded-2xl border border-border bg-background p-12 text-center">
@@ -432,7 +405,6 @@ export default function Home() {
             sortField={sortField}
             sortDirection={sortDirection}
             onSortChange={handleSortChange}
-            viewMode={viewMode}
             emptyMessage={
               isSearching
                 ? 'No files match your search.'

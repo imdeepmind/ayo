@@ -32,7 +32,6 @@ type DriveFileTableProps = {
   sortField: SortField;
   sortDirection: SortDirection;
   onSortChange: (field: SortField) => void;
-  viewMode?: 'list' | 'grid';
   emptyMessage?: string;
 };
 
@@ -124,7 +123,6 @@ export default function DriveFileTable({
   sortField,
   sortDirection,
   onSortChange,
-  viewMode = 'list',
   emptyMessage = 'No files found. Upload your first file to get started.',
 }: DriveFileTableProps) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -188,73 +186,6 @@ export default function DriveFileTable({
     return (
       <div className="mt-4 rounded-2xl border border-border bg-background px-4 py-12 text-center text-sm text-text-subtle">
         {emptyMessage}
-      </div>
-    );
-  }
-
-  if (viewMode === 'grid') {
-    return (
-      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {files.map((file) => {
-          const badge = getBadgeStyle(file.type);
-          const isSelected = selectedFileIds.has(file.id);
-
-          return (
-            <div
-              key={file.id}
-              className={`group relative flex flex-col justify-between rounded-2xl border border-border bg-background p-4 transition-all hover:bg-surface-hover dark:hover:bg-surface-alt ${
-                isSelected ? 'ring-2 ring-primary/60 bg-primary/5' : ''
-              }`}
-            >
-              <div className="flex items-start justify-between">
-                <input
-                  type="checkbox"
-                  checked={isSelected}
-                  onChange={(e) => onSelectionChange(file.id, e.target.checked)}
-                  className="h-4 w-4 rounded border-border-strong text-primary focus:ring-primary dark:border-border-input dark:bg-surface-alt"
-                />
-                <span
-                  className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase text-white ${badge.bg}`}
-                >
-                  {file.name.endsWith('.pdf')
-                    ? 'PDF'
-                    : file.name.endsWith('.jpg') || file.name.endsWith('.png')
-                      ? 'JPG'
-                      : file.name.endsWith('.doc') || file.name.endsWith('.docx')
-                        ? 'DOC'
-                        : badge.label}
-                </span>
-              </div>
-
-              <div className="my-4 flex items-center justify-center h-24 rounded-xl bg-surface-alt dark:bg-surface-alt">
-                <div
-                  className={`flex h-10 w-10 items-center justify-center rounded-lg ${badge.bg}`}
-                >
-                  {badge.icon}
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="min-w-0 pr-2">
-                  <p className="text-sm font-semibold text-text truncate">{file.name}</p>
-                  <p className="text-xs text-text-faint mt-0.5">{formatSize(file.sizeBytes)}</p>
-                </div>
-                <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition">
-                  <RowActions
-                    file={file}
-                    isOpen={openMenuId === file.id}
-                    onToggle={() => setOpenMenuId(openMenuId === file.id ? null : file.id)}
-                    onClose={() => setOpenMenuId(null)}
-                    onView={onView}
-                    onEdit={onEdit}
-                    onDownload={onDownload}
-                    onDelete={onDelete}
-                  />
-                </div>
-              </div>
-            </div>
-          );
-        })}
       </div>
     );
   }
