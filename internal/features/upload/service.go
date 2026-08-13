@@ -356,20 +356,6 @@ func (s *Service) FinalizeDownload(jobID int64) (string, error) {
 	return dest, nil
 }
 
-// GetStorageUsed returns the total size in bytes of all stored files, used by
-// the global status bar.
-func (s *Service) GetStorageUsed() (int64, error) {
-	if _, err := s.sessionProvider.RequireSession(); err != nil {
-		return 0, err
-	}
-
-	total, err := s.repo.GetTotalSize(context.Background())
-	if err != nil {
-		return 0, errors.AsInternalServerError("get storage used", err)
-	}
-	return total, nil
-}
-
 // EnqueueDelete queues a background delete of the stored file with the given
 // upload ID and returns immediately. The processor wipes the file's on-disk
 // chunks and then removes its database rows; the delete job's queue record is

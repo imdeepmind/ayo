@@ -94,16 +94,18 @@ func main() {
 	// file into the queue. The processor encrypts each file, splits it into
 	// Reed-Solomon shards using the erasure-coding settings, and persists the
 	// stored-file record and its shards to the uploads/chunks tables of the
-	// signed-in user's database. The repository is created once here and shared
-	// with the home service so both read from the same per-session connection.
+	// signed-in user's database.
 	uploadRepository := upload.NewRepository(conn)
 	uploadService := upload.NewService(authService, settingsService, queueService, uploadRepository, fileClient)
 
-	// Home service: read-only aggregation (recent files, storage totals,
-	// provider count, erasure-coding setup) plus the paginated drive listing and
-	// search for the Home screen. It shares the upload repository and reads
-	// settings through the settings service.
-	homeService := home.NewService(authService, uploadRepository, settingsService)
+	// Home service: aggregation (recent files, storage totals, provider count,
+	// erasure-coding setup), the paginated drive listing/search, the edit action
+	// and storage-usage read for the Home screen. It owns the read-side queries
+	// of the uploads/chunks tables and delegates the shared reads (GetUpload,
+	// GetChunks) to the upload repository, so the data layer is implemented
+	// exactly once, and reads settings through the settings service.
+	homeRepository := home.NewRepository(conn, uploadRepository)
+	homeService := home.NewService(authService, homeRepository, settingsService)
 
 	// Create application with options. Anything passed to Bind is exposed to
 	// the frontend as generated JavaScript bindings under

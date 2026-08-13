@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { getFileType, formatSize, type FileItem } from '@/lib/files';
 import { EnqueueDelete, EnqueueDownload } from '../../wailsjs/go/upload/Service';
-import { GetFileDetails, GetHomeOverview, GetStoredFiles } from '../../wailsjs/go/home/Service';
+import { GetFileDetails, GetHomeOverview, GetStoredFiles, UpdateFile } from '../../wailsjs/go/home/Service';
 import { home } from '../../wailsjs/go/models';
 import { useActiveTransfers } from '@/context/ActiveTransfersContext';
 import { useSearch } from '@/context/SearchContext';
@@ -223,11 +223,15 @@ export default function Home() {
     }
   };
 
-  const saveEdit = (id: string, newName: string, newTags: string[]) => {
-    void id;
-    void newName;
-    void newTags;
-    toast('Renaming and editing tags is not available yet.');
+  const saveEdit = async (id: string, newName: string, newTags: string[]) => {
+    try {
+      await UpdateFile(Number(id), newName.trim(), newTags);
+      toast.success('File updated successfully');
+      await Promise.all([loadFiles(), loadOverview()]);
+    } catch (err) {
+      console.error('Failed to update file:', err);
+      toast.error('Failed to update file. Please try again.');
+    }
   };
 
   const handleBulkDownload = () => {

@@ -19,10 +19,19 @@ type SessionProvider interface {
 	RequireSession() (*auth.Session, error)
 }
 
-// UploadRepository is the subset of the upload repository that home needs to
-// build the storage summary, recent-files list and the paginated drive
-// listing/search. It is implemented by upload.NewRepository.
-type UploadRepository interface {
+// SettingsProvider is the subset of settings.Service that home depends on. It
+// supplies the configured storage providers and the erasure-coding layout.
+type SettingsProvider interface {
+	GetSettings() (*settings.Settings, error)
+}
+
+// Repository is the slice of the shared uploads/chunks persistence that the
+// Home screen needs: the dashboard reads, the storage totals and the edit
+// write. It is implemented by the home feature's repository, which owns the
+// read-side queries and delegates the reads shared with the upload flows
+// (GetUpload, GetChunks) to the upload feature's repository, the single owner
+// of the uploads/chunks tables.
+type Repository interface {
 	// GetAll returns every stored file, newest first.
 	GetAll(ctx context.Context) ([]*upload.Upload, error)
 	// GetAllPaged returns the stored files for one page of the drive listing,
@@ -36,32 +45,31 @@ type UploadRepository interface {
 	// CountByName returns the number of stored files whose file or custom name
 	// contains the given query (case-insensitive).
 	CountByName(ctx context.Context, query string) (int64, error)
+	// GetTotalSize returns the sum of all stored file sizes in bytes.
+	GetTotalSize(ctx context.Context) (int64, error)
 	// GetUpload fetches one stored file by its upload ID.
 	GetUpload(ctx context.Context, id int64) (*upload.Upload, error)
 	// GetChunks returns the shard records for a stored file, ordered by shard
 	// index so the distinct providers holding it can be derived.
 	GetChunks(ctx context.Context, fileID int64) ([]upload.Chunk, error)
+	// UpdateFile sets the user-facing custom name and tags of a stored file,
+	// bumping its updated_at timestamp.
+	UpdateFile(ctx context.Context, id int64, name string, tags []string) error
 }
 
-// SettingsProvider is the subset of settings.Service that home depends on. It
-// supplies the configured storage providers and the erasure-coding layout.
-type SettingsProvider interface {
-	GetSettings() (*settings.Settings, error)
-}
-
-// Service aggregates read-only Home-screen data from the upload repository and
-// the signed-in user's settings. It is bound to the frontend via Wails.
+// Service aggregates Home-screen data from the shared upload repository and the
+// signed-in user's settings. It is bound to the frontend via Wails.
 type Service struct {
 	sessionProvider  SessionProvider
-	uploadRepository UploadRepository
+	repository       Repository
 	settingsProvider SettingsProvider
 }
 
-func NewService(sessionProvider SessionProvider, uploadRepository UploadRepository,
+func NewService(sessionProvider SessionProvider, repository Repository,
 	settingsProvider SettingsProvider) *Service {
 	return &Service{
 		sessionProvider:  sessionProvider,
-		uploadRepository: uploadRepository,
+		repository:       repository,
 		settingsProvider: settingsProvider,
 	}
 }
@@ -73,7 +81,7 @@ func (s *Service) GetHomeOverview() (*HomeOverview, error) {
 		return nil, err
 	}
 
-	uploads, err := s.uploadRepository.GetAll(context.Background())
+	uploads, err := s.repository.GetAll(context.Background())
 	if err != nil {
 		return nil, errors.AsInternalServerError("get home overview: list uploads", err)
 	}
@@ -118,6 +126,20 @@ func (s *Service) GetHomeOverview() (*HomeOverview, error) {
 	return overview, nil
 }
 
+// GetStorageUsed returns the total size in bytes of all stored files, used by
+// the global status bar.
+func (s *Service) GetStorageUsed() (int64, error) {
+	if _, err := s.sessionProvider.RequireSession(); err != nil {
+		return 0, err
+	}
+
+	total, err := s.repository.GetTotalSize(context.Background())
+	if err != nil {
+		return 0, errors.AsInternalServerError("get storage used", err)
+	}
+	return total, nil
+}
+
 // defaultPageSize is the page size used when GetStoredFiles is called with an
 // invalid value.
 const defaultPageSize = 20
@@ -154,14 +176,14 @@ func (s *Service) GetStoredFiles(query string, page, pageSize int) (StoredFilePa
 		err     error
 	)
 	if query == "" {
-		uploads, err = s.uploadRepository.GetAllPaged(context.Background(), pageSize, offset)
+		uploads, err = s.repository.GetAllPaged(context.Background(), pageSize, offset)
 		if err == nil {
-			total, err = s.uploadRepository.CountUploads(context.Background())
+			total, err = s.repository.CountUploads(context.Background())
 		}
 	} else {
-		uploads, err = s.uploadRepository.SearchByName(context.Background(), query, pageSize, offset)
+		uploads, err = s.repository.SearchByName(context.Background(), query, pageSize, offset)
 		if err == nil {
-			total, err = s.uploadRepository.CountByName(context.Background(), query)
+			total, err = s.repository.CountByName(context.Background(), query)
 		}
 	}
 	if err != nil {
@@ -214,7 +236,7 @@ func (s *Service) GetFileDetails(id int64) (*FileDetails, error) {
 		return nil, err
 	}
 
-	upload, err := s.uploadRepository.GetUpload(context.Background(), id)
+	upload, err := s.repository.GetUpload(context.Background(), id)
 	if err != nil {
 		if stderrors.Is(err, sql.ErrNoRows) {
 			return nil, errors.ErrJobNotFound
@@ -222,7 +244,7 @@ func (s *Service) GetFileDetails(id int64) (*FileDetails, error) {
 		return nil, errors.AsInternalServerError("get file details: get upload", err)
 	}
 
-	chunks, err := s.uploadRepository.GetChunks(context.Background(), id)
+	chunks, err := s.repository.GetChunks(context.Background(), id)
 	if err != nil {
 		return nil, errors.AsInternalServerError("get file details: get chunks", err)
 	}
@@ -245,6 +267,33 @@ func (s *Service) GetFileDetails(id int64) (*FileDetails, error) {
 		CreatedAt:    upload.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:    upload.UpdatedAt.UTC().Format(time.RFC3339),
 	}, nil
+}
+
+// UpdateFile sets a new custom name and tag list for a stored file. Only the
+// user-facing custom name and tags are editable; the original file name and the
+// stored shards stay untouched. It returns the refreshed listing shape so
+// callers can update in place, though the frontend typically reloads the drive
+// listing afterwards.
+func (s *Service) UpdateFile(id int64, name string, tags []string) (*StoredFile, error) {
+	if _, err := s.sessionProvider.RequireSession(); err != nil {
+		return nil, err
+	}
+
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, errors.ErrInvalidInput
+	}
+
+	if err := s.repository.UpdateFile(context.Background(), id, name, tags); err != nil {
+		return nil, errors.AsInternalServerError("update file: persist", err)
+	}
+
+	upload, err := s.repository.GetUpload(context.Background(), id)
+	if err != nil {
+		return nil, errors.AsInternalServerError("update file: get upload", err)
+	}
+	file := toStoredFile(upload)
+	return &file, nil
 }
 
 // distinctProviders resolves the unique provider IDs referenced by a file's

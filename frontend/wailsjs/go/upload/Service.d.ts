@@ -13,8 +13,6 @@ export function FinalizeDownload(arg1:number):Promise<string>;
 
 export function GetActiveTransfers():Promise<Array<upload.EnqueuedJob>>;
 
-export function GetStorageUsed():Promise<number>;
-
 export function PickFiles():Promise<Array<upload.PickedFile>>;
 
 export function Startup(arg1:context.Context):Promise<void>;

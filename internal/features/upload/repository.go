@@ -35,8 +35,6 @@ type Repository interface {
 	GetChunks(ctx context.Context, fileID int64) ([]Chunk, error)
 	// GetUpload fetches one stored file by its upload ID.
 	GetUpload(ctx context.Context, id int64) (*Upload, error)
-	// GetTotalSize returns the sum of all stored file sizes (in bytes).
-	GetTotalSize(ctx context.Context) (int64, error)
 	// DeleteUpload removes a stored file by its upload ID. Its chunk rows are
 	// removed by the chunks → uploads foreign key cascade.
 	DeleteUpload(ctx context.Context, id int64) error
@@ -68,7 +66,7 @@ func (r *repository) resolve() (*dbclient.Client, error) {
 	r.initMu.Lock()
 	defer r.initMu.Unlock()
 	if r.initClient != c {
-		if err := initializeTable(c); err != nil {
+		if err := InitializeSchema(c); err != nil {
 			return nil, err
 		}
 		r.initClient = c
@@ -76,17 +74,20 @@ func (r *repository) resolve() (*dbclient.Client, error) {
 	return c, nil
 }
 
-// initializeTable idempotently ensures the uploads and chunks tables exist.
-// chunks.file_id references uploads.id (via the foreign_keys pragma on SQLite /
-// a native FK on PostgreSQL), and chunks.chunk_id is globally unique so shard
-// names can never collide even across users or uploads. The uploads table also
-// carries the reconstruction metadata (encrypted size, shard layout, block
-// count) that a local manifest used to hold, so a stored file can always be
-// rebuilt from its row. The DDL branches on the client's dialect (AUTOINCREMENT
-// vs IDENTITY, DATETIME vs TIMESTAMP, BIGINT for size columns).
+// InitializeSchema idempotently ensures the uploads and chunks tables exist.
+// The upload feature owns the shared schema (it is the writer); the home
+// feature bootstraps the same tables through this function so both read and
+// write the same storage without duplicating the DDL. chunks.file_id references
+// uploads.id (via the foreign_keys pragma on SQLite / a native FK on
+// PostgreSQL), and chunks.chunk_id is globally unique so shard names can never
+// collide even across users or uploads. The uploads table also carries the
+// reconstruction metadata (encrypted size, shard layout, block count) that a
+// local manifest used to hold, so a stored file can always be rebuilt from its
+// row. The DDL branches on the client's dialect (AUTOINCREMENT vs IDENTITY,
+// DATETIME vs TIMESTAMP, BIGINT for size columns).
 //
 // Migration: adds format_version column if it doesn't exist (for existing DBs).
-func initializeTable(db *dbclient.Client) error {
+func InitializeSchema(db *dbclient.Client) error {
 	var queries []string
 
 	if db.IsPostgres() {
@@ -230,9 +231,9 @@ func (r *repository) CreateUpload(
 	formatVersion int,
 	manifest shardManifest,
 ) (*Upload, error) {
-	encodedTags, err := json.Marshal(tags)
+	encodedTags, err := EncodeTags(tags)
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode tags: %w", err)
+		return nil, err
 	}
 
 	query := `INSERT OR IGNORE INTO uploads
@@ -257,7 +258,7 @@ func (r *repository) CreateUpload(
 
 		var id int64
 		err := client.QueryRowContext(ctx, client.Rebind(query), jobID, file, customName, size,
-			string(encodedTags), formatVersion, manifest.EncryptedSize, manifest.DataShards,
+			encodedTags, formatVersion, manifest.EncryptedSize, manifest.DataShards,
 			manifest.ParityShards, manifest.ShardSize, manifest.BlockCount).Scan(&id)
 		if err == sql.ErrNoRows {
 			return r.getUploadByJob(ctx, jobID)
@@ -269,7 +270,7 @@ func (r *repository) CreateUpload(
 	}
 
 	result, err := client.ExecContext(ctx, client.Rebind(query), jobID, file, customName, size,
-		string(encodedTags), formatVersion, manifest.EncryptedSize, manifest.DataShards,
+		encodedTags, formatVersion, manifest.EncryptedSize, manifest.DataShards,
 		manifest.ParityShards, manifest.ShardSize, manifest.BlockCount)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create upload: %w", err)
@@ -357,6 +358,18 @@ func (r *repository) getUploadByJob(ctx context.Context, jobID int64) (*Upload, 
 	}
 	upload.Tags = decodeTags(tags)
 	return &upload, nil
+}
+
+// EncodeTags serializes a tag list to its JSON column representation.
+func EncodeTags(tags []string) (string, error) {
+	if tags == nil {
+		tags = []string{}
+	}
+	encoded, err := json.Marshal(tags)
+	if err != nil {
+		return "", fmt.Errorf("failed to encode tags: %w", err)
+	}
+	return string(encoded), nil
 }
 
 // decodeTags parses a JSON-encoded tag list. Malformed or empty values fall
@@ -628,6 +641,28 @@ func (r *repository) GetTotalSize(ctx context.Context) (int64, error) {
 		return 0, fmt.Errorf("failed to sum upload sizes: %w", err)
 	}
 	return total, nil
+}
+
+// UpdateFile sets the user-facing custom name and tags of a stored file. The
+// original file name and the stored shards are left untouched; updated_at is
+// refreshed so the change is reflected in the stored file's timestamps.
+func (r *repository) UpdateFile(ctx context.Context, id int64, name string, tags []string) error {
+	encodedTags, err := EncodeTags(tags)
+	if err != nil {
+		return err
+	}
+
+	query := `UPDATE uploads SET custom_name = ?, tags = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+
+	client, err := r.resolve()
+	if err != nil {
+		return err
+	}
+
+	if _, err := client.ExecContext(ctx, client.Rebind(query), name, encodedTags, id); err != nil {
+		return fmt.Errorf("failed to update file: %w", err)
+	}
+	return nil
 }
 
 // DeleteUpload removes a stored file by its upload ID. Its chunk rows are

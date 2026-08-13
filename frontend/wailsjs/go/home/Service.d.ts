@@ -6,4 +6,8 @@ export function GetFileDetails(arg1:number):Promise<home.FileDetails>;
 
 export function GetHomeOverview():Promise<home.HomeOverview>;
 
+export function GetStorageUsed():Promise<number>;
+
 export function GetStoredFiles(arg1:string,arg2:number,arg3:number):Promise<home.StoredFilePage>;
+
+export function UpdateFile(arg1:number,arg2:string,arg3:Array<string>):Promise<home.StoredFile>;

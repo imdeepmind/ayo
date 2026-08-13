@@ -10,6 +10,14 @@ export function GetHomeOverview() {
   return window['go']['home']['Service']['GetHomeOverview']();
 }
 
+export function GetStorageUsed() {
+  return window['go']['home']['Service']['GetStorageUsed']();
+}
+
 export function GetStoredFiles(arg1, arg2, arg3) {
   return window['go']['home']['Service']['GetStoredFiles'](arg1, arg2, arg3);
+}
+
+export function UpdateFile(arg1, arg2, arg3) {
+  return window['go']['home']['Service']['UpdateFile'](arg1, arg2, arg3);
 }

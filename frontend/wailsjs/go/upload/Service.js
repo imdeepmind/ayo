@@ -22,10 +22,6 @@ export function GetActiveTransfers() {
   return window['go']['upload']['Service']['GetActiveTransfers']();
 }
 
-export function GetStorageUsed() {
-  return window['go']['upload']['Service']['GetStorageUsed']();
-}
-
 export function PickFiles() {
   return window['go']['upload']['Service']['PickFiles']();
 }

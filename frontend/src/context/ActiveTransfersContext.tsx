@@ -8,11 +8,8 @@ import {
   useState,
 } from 'react';
 import toast from 'react-hot-toast';
-import {
-  FinalizeDownload,
-  GetActiveTransfers,
-  GetStorageUsed,
-} from '../../wailsjs/go/upload/Service';
+import { FinalizeDownload, GetActiveTransfers } from '../../wailsjs/go/upload/Service';
+import { GetStorageUsed } from '../../wailsjs/go/home/Service';
 import { upload } from '../../wailsjs/go/models';
 import { useAuth } from '@/context/AuthContext';
 
