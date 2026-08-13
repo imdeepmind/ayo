@@ -45,10 +45,6 @@ const (
 	// authentication tag. 64KB provides a good balance between memory usage
 	// and performance.
 	ChunkSize = 64 * 1024 // 64 KB
-
-	// FormatVersion identifies the encryption format version. Version 2 uses
-	// chunked streaming encryption; version 1 used single-pass (deprecated).
-	FormatVersion = 2
 )
 
 // GenerateRecoveryKey returns a new random 256-bit recovery key encoded as a
@@ -204,7 +200,7 @@ func DecryptData(key []byte, ciphertext []byte) ([]byte, error) {
 //
 // The output format is:
 //
-//	[1-byte format version][16-byte salt][12-byte base nonce][chunk1+tag][chunk2+tag]...
+//	[16-byte salt][12-byte base nonce][chunk1+tag][chunk2+tag]...
 //
 // Each chunk carries its own 16-byte authentication tag. This trades ~28 bytes
 // per 64KB chunk (~0.04% overhead) for the ability to process files larger than
@@ -237,10 +233,8 @@ func StreamEncrypt(reader io.Reader, writer io.Writer, key []byte) error {
 		return fmt.Errorf("generate salt: %w", err)
 	}
 
-	// Write header: format version, salt, base nonce.
-	header := []byte{FormatVersion}
-	header = append(header, salt...)
-	header = append(header, baseNonce...)
+	// Write header: salt, base nonce.
+	header := append(salt, baseNonce...)
 	if _, err := writer.Write(header); err != nil {
 		return fmt.Errorf("write header: %w", err)
 	}
@@ -279,8 +273,8 @@ func StreamEncrypt(reader io.Reader, writer io.Writer, key []byte) error {
 }
 
 // StreamDecrypt decrypts data from reader to writer, reversing StreamEncrypt.
-// It reads the header (format version, salt, base nonce), then decrypts each
-// chunk using the derived nonce (base + counter).
+// It reads the header (salt, base nonce), then decrypts each chunk using the
+// derived nonce (base + counter).
 //
 // The reader must carry data encrypted by StreamEncrypt. The writer receives
 // the decrypted plaintext. Both are the caller's responsibility to close.
@@ -295,19 +289,14 @@ func StreamDecrypt(reader io.Reader, writer io.Writer, key []byte) error {
 		return fmt.Errorf("create gcm: %w", err)
 	}
 
-	// Read header: format version, salt, base nonce.
-	header := make([]byte, 1+SaltSize+aead.NonceSize())
+	// Read header: salt, base nonce.
+	header := make([]byte, SaltSize+aead.NonceSize())
 	if _, err := io.ReadFull(reader, header); err != nil {
 		return fmt.Errorf("read header: %w", err)
 	}
 
-	version := header[0]
-	if version != FormatVersion {
-		return fmt.Errorf("unsupported format version %d (expected %d)", version, FormatVersion)
-	}
-
-	// salt := header[1 : 1+SaltSize] // reserved for future use
-	baseNonce := header[1+SaltSize:]
+	// salt := header[:SaltSize] // reserved for future use
+	baseNonce := header[SaltSize:]
 
 	// Decrypt chunks.
 	// Each encrypted chunk is plaintext + 16-byte tag.

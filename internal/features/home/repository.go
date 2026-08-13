@@ -53,7 +53,7 @@ func (r *repository) resolve() (*dbclient.Client, error) {
 
 // GetAll returns every stored file, newest first.
 func (r *repository) GetAll(ctx context.Context) ([]*upload.Upload, error) {
-	query := `SELECT id, job_id, file, custom_name, size, tags, format_version,
+	query := `SELECT id, job_id, file, custom_name, size, tags,
 		encrypted_size, data_shards, parity_shards, shard_size, block_count,
 		created_at, updated_at FROM uploads ORDER BY created_at DESC`
 
@@ -79,7 +79,6 @@ func (r *repository) GetAll(ctx context.Context) ([]*upload.Upload, error) {
 			&upload.CustomName,
 			&upload.Size,
 			&tags,
-			&upload.FormatVersion,
 			&upload.EncryptedSize,
 			&upload.DataShards,
 			&upload.ParityShards,
@@ -102,7 +101,7 @@ func (r *repository) GetAll(ctx context.Context) ([]*upload.Upload, error) {
 // GetAllPaged returns one page of stored files, newest first. The page is
 // bounded by the given limit and offset so the drive listing can be paginated.
 func (r *repository) GetAllPaged(ctx context.Context, limit, offset int) ([]*upload.Upload, error) {
-	query := `SELECT id, job_id, file, custom_name, size, tags, format_version,
+	query := `SELECT id, job_id, file, custom_name, size, tags,
 		encrypted_size, data_shards, parity_shards, shard_size, block_count,
 		created_at, updated_at FROM uploads ORDER BY created_at DESC LIMIT ? OFFSET ?`
 
@@ -128,7 +127,6 @@ func (r *repository) GetAllPaged(ctx context.Context, limit, offset int) ([]*upl
 			&upload.CustomName,
 			&upload.Size,
 			&tags,
-			&upload.FormatVersion,
 			&upload.EncryptedSize,
 			&upload.DataShards,
 			&upload.ParityShards,
@@ -197,7 +195,7 @@ func (r *repository) CountByName(ctx context.Context, query string) (int64, erro
 // case-insensitive for ASCII; PostgreSQL requires ILIKE for the same behaviour.
 func (r *repository) SearchByName(ctx context.Context, query string, limit, offset int) ([]*upload.Upload, error) {
 	pattern := "%" + query + "%"
-	base := `SELECT id, job_id, file, custom_name, size, tags, format_version,
+	base := `SELECT id, job_id, file, custom_name, size, tags,
 		encrypted_size, data_shards, parity_shards, shard_size, block_count,
 		created_at, updated_at FROM uploads`
 
@@ -233,7 +231,6 @@ func (r *repository) SearchByName(ctx context.Context, query string, limit, offs
 			&upload.CustomName,
 			&upload.Size,
 			&tags,
-			&upload.FormatVersion,
 			&upload.EncryptedSize,
 			&upload.DataShards,
 			&upload.ParityShards,

@@ -285,7 +285,6 @@ func (p *Processor) processUpload(job *queue.Job) {
 		job.CustomName,
 		job.Size,
 		job.Tags,
-		crypto.FormatVersion,
 		manifest,
 	)
 	if err != nil {
@@ -393,14 +392,6 @@ func (p *Processor) processDownload(job *queue.Job) {
 	upload, err := p.uploadRepository.GetUpload(context.Background(), job.FileID)
 	if err != nil {
 		slog.Error("download: get stored file", "job", id, "error", err)
-		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 0)
-		return
-	}
-
-	// Reject legacy format version 1 files (non-streaming encryption).
-	if upload.FormatVersion != crypto.FormatVersion {
-		slog.Error("download: unsupported format version", "job", id,
-			"version", upload.FormatVersion, "expected", crypto.FormatVersion)
 		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 0)
 		return
 	}

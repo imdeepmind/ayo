@@ -24,7 +24,6 @@ type Repository interface {
 		customName string,
 		size int64,
 		tags []string,
-		formatVersion int,
 		manifest shardManifest,
 	) (*Upload, error)
 	// CreateChunks inserts one row per shard for the given file in a single
@@ -85,8 +84,6 @@ func (r *repository) resolve() (*dbclient.Client, error) {
 // local manifest used to hold, so a stored file can always be rebuilt from its
 // row. The DDL branches on the client's dialect (AUTOINCREMENT vs IDENTITY,
 // DATETIME vs TIMESTAMP, BIGINT for size columns).
-//
-// Migration: adds format_version column if it doesn't exist (for existing DBs).
 func InitializeSchema(db *dbclient.Client) error {
 	var queries []string
 
@@ -99,7 +96,6 @@ func InitializeSchema(db *dbclient.Client) error {
 				custom_name    TEXT NOT NULL DEFAULT '',
 				size           BIGINT NOT NULL,
 				tags           TEXT NOT NULL DEFAULT '[]',
-				format_version INTEGER NOT NULL DEFAULT 1,
 				encrypted_size BIGINT NOT NULL,
 				data_shards    INTEGER NOT NULL,
 				parity_shards  INTEGER NOT NULL,
@@ -128,7 +124,6 @@ func InitializeSchema(db *dbclient.Client) error {
 				custom_name    TEXT NOT NULL DEFAULT '',
 				size           INTEGER NOT NULL,
 				tags           TEXT NOT NULL DEFAULT '[]',
-				format_version INTEGER NOT NULL DEFAULT 1,
 				encrypted_size INTEGER NOT NULL,
 				data_shards    INTEGER NOT NULL,
 				parity_shards  INTEGER NOT NULL,
@@ -156,64 +151,7 @@ func InitializeSchema(db *dbclient.Client) error {
 		}
 	}
 
-	// Migration: add format_version column to existing uploads table if missing.
-	hasFormatVersion, err := hasFormatVersionColumn(db)
-	if err != nil {
-		return err
-	}
-	if !hasFormatVersion {
-		alter := "ALTER TABLE uploads ADD COLUMN format_version INTEGER NOT NULL DEFAULT 1"
-		if db.IsPostgres() {
-			// IF NOT EXISTS guards against races on PostgreSQL.
-			alter = "ALTER TABLE uploads ADD COLUMN IF NOT EXISTS format_version INTEGER NOT NULL DEFAULT 1"
-		}
-		if _, err := db.Exec(alter); err != nil {
-			return fmt.Errorf("add format_version column: %w", err)
-		}
-	}
-
 	return nil
-}
-
-// hasFormatVersionColumn reports whether the uploads table already carries the
-// format_version column. SQLite inspects its table_info pragma; PostgreSQL
-// queries information_schema.
-func hasFormatVersionColumn(db *dbclient.Client) (bool, error) {
-	if db.IsPostgres() {
-		query := `SELECT column_name FROM information_schema.columns
-			WHERE table_name = 'uploads' AND column_name = 'format_version'`
-		var column string
-		err := db.QueryRow(query).Scan(&column)
-		if err == sql.ErrNoRows {
-			return false, nil
-		}
-		if err != nil {
-			return false, fmt.Errorf("check format_version column: %w", err)
-		}
-		return true, nil
-	}
-
-	rows, err := db.Query("PRAGMA table_info(uploads)")
-	if err != nil {
-		return false, fmt.Errorf("check format_version column: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var cid int
-		var name string
-		var typ string
-		var notNull int
-		var dfltValue sql.NullString
-		var pk int
-		if err := rows.Scan(&cid, &name, &typ, &notNull, &dfltValue, &pk); err != nil {
-			return false, fmt.Errorf("scan table_info: %w", err)
-		}
-		if name == "format_version" {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 // CreateUpload inserts a stored-file record and returns it populated with its
@@ -228,7 +166,6 @@ func (r *repository) CreateUpload(
 	customName string,
 	size int64,
 	tags []string,
-	formatVersion int,
 	manifest shardManifest,
 ) (*Upload, error) {
 	encodedTags, err := EncodeTags(tags)
@@ -237,9 +174,9 @@ func (r *repository) CreateUpload(
 	}
 
 	query := `INSERT OR IGNORE INTO uploads
-		(job_id, file, custom_name, size, tags, format_version, encrypted_size, data_shards,
+		(job_id, file, custom_name, size, tags, encrypted_size, data_shards,
 		 parity_shards, shard_size, block_count)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	client, err := r.resolve()
 	if err != nil {
@@ -250,15 +187,15 @@ func (r *repository) CreateUpload(
 		// PostgreSQL has no INSERT OR IGNORE or LastInsertId; use an upsert that
 		// does nothing on conflict and return the row ID directly.
 		query = `INSERT INTO uploads
-			(job_id, file, custom_name, size, tags, format_version, encrypted_size, data_shards,
+			(job_id, file, custom_name, size, tags, encrypted_size, data_shards,
 			 parity_shards, shard_size, block_count)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT (job_id) DO NOTHING
 			RETURNING id`
 
 		var id int64
 		err := client.QueryRowContext(ctx, client.Rebind(query), jobID, file, customName, size,
-			encodedTags, formatVersion, manifest.EncryptedSize, manifest.DataShards,
+			encodedTags, manifest.EncryptedSize, manifest.DataShards,
 			manifest.ParityShards, manifest.ShardSize, manifest.BlockCount).Scan(&id)
 		if err == sql.ErrNoRows {
 			return r.getUploadByJob(ctx, jobID)
@@ -270,7 +207,7 @@ func (r *repository) CreateUpload(
 	}
 
 	result, err := client.ExecContext(ctx, client.Rebind(query), jobID, file, customName, size,
-		encodedTags, formatVersion, manifest.EncryptedSize, manifest.DataShards,
+		encodedTags, manifest.EncryptedSize, manifest.DataShards,
 		manifest.ParityShards, manifest.ShardSize, manifest.BlockCount)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create upload: %w", err)
@@ -289,7 +226,7 @@ func (r *repository) CreateUpload(
 
 // getUpload fetches one upload row by ID.
 func (r *repository) getUpload(ctx context.Context, id int64) (*Upload, error) {
-	query := `SELECT id, job_id, file, custom_name, size, tags, format_version,
+	query := `SELECT id, job_id, file, custom_name, size, tags,
 		encrypted_size, data_shards, parity_shards, shard_size, block_count,
 		created_at, updated_at FROM uploads WHERE id = ?`
 
@@ -307,7 +244,6 @@ func (r *repository) getUpload(ctx context.Context, id int64) (*Upload, error) {
 		&upload.CustomName,
 		&upload.Size,
 		&tags,
-		&upload.FormatVersion,
 		&upload.EncryptedSize,
 		&upload.DataShards,
 		&upload.ParityShards,
@@ -326,7 +262,7 @@ func (r *repository) getUpload(ctx context.Context, id int64) (*Upload, error) {
 // getUploadByJob fetches one upload row by its job ID, used to reuse an
 // existing record when a job is reprocessed after a crash.
 func (r *repository) getUploadByJob(ctx context.Context, jobID int64) (*Upload, error) {
-	query := `SELECT id, job_id, file, custom_name, size, tags, format_version,
+	query := `SELECT id, job_id, file, custom_name, size, tags,
 		encrypted_size, data_shards, parity_shards, shard_size, block_count,
 		created_at, updated_at FROM uploads WHERE job_id = ?`
 
@@ -344,7 +280,6 @@ func (r *repository) getUploadByJob(ctx context.Context, jobID int64) (*Upload, 
 		&upload.CustomName,
 		&upload.Size,
 		&tags,
-		&upload.FormatVersion,
 		&upload.EncryptedSize,
 		&upload.DataShards,
 		&upload.ParityShards,
@@ -421,7 +356,7 @@ func (r *repository) CreateChunks(ctx context.Context, fileID int64, chunks []Ch
 
 // GetAll returns every stored file, newest first.
 func (r *repository) GetAll(ctx context.Context) ([]*Upload, error) {
-	query := `SELECT id, job_id, file, custom_name, size, tags, format_version,
+	query := `SELECT id, job_id, file, custom_name, size, tags,
 		encrypted_size, data_shards, parity_shards, shard_size, block_count,
 		created_at, updated_at FROM uploads ORDER BY created_at DESC`
 
@@ -447,7 +382,6 @@ func (r *repository) GetAll(ctx context.Context) ([]*Upload, error) {
 			&upload.CustomName,
 			&upload.Size,
 			&tags,
-			&upload.FormatVersion,
 			&upload.EncryptedSize,
 			&upload.DataShards,
 			&upload.ParityShards,
@@ -470,7 +404,7 @@ func (r *repository) GetAll(ctx context.Context) ([]*Upload, error) {
 // GetAllPaged returns one page of stored files, newest first. The page is
 // bounded by the given limit and offset so the drive listing can be paginated.
 func (r *repository) GetAllPaged(ctx context.Context, limit, offset int) ([]*Upload, error) {
-	query := `SELECT id, job_id, file, custom_name, size, tags, format_version,
+	query := `SELECT id, job_id, file, custom_name, size, tags,
 		encrypted_size, data_shards, parity_shards, shard_size, block_count,
 		created_at, updated_at FROM uploads ORDER BY created_at DESC LIMIT ? OFFSET ?`
 
@@ -496,7 +430,6 @@ func (r *repository) GetAllPaged(ctx context.Context, limit, offset int) ([]*Upl
 			&upload.CustomName,
 			&upload.Size,
 			&tags,
-			&upload.FormatVersion,
 			&upload.EncryptedSize,
 			&upload.DataShards,
 			&upload.ParityShards,
@@ -565,7 +498,7 @@ func (r *repository) CountByName(ctx context.Context, query string) (int64, erro
 // case-insensitive for ASCII; PostgreSQL requires ILIKE for the same behaviour.
 func (r *repository) SearchByName(ctx context.Context, query string, limit, offset int) ([]*Upload, error) {
 	pattern := "%" + query + "%"
-	base := `SELECT id, job_id, file, custom_name, size, tags, format_version,
+	base := `SELECT id, job_id, file, custom_name, size, tags,
 		encrypted_size, data_shards, parity_shards, shard_size, block_count,
 		created_at, updated_at FROM uploads`
 
@@ -601,7 +534,6 @@ func (r *repository) SearchByName(ctx context.Context, query string, limit, offs
 			&upload.CustomName,
 			&upload.Size,
 			&tags,
-			&upload.FormatVersion,
 			&upload.EncryptedSize,
 			&upload.DataShards,
 			&upload.ParityShards,

@@ -51,7 +51,6 @@ type UploadRepository interface {
 		customName string,
 		size int64,
 		tags []string,
-		formatVersion int,
 		manifest shardManifest,
 	) (*Upload, error)
 	CreateChunks(ctx context.Context, fileID int64, chunks []ChunkInput) error
