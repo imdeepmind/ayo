@@ -2,6 +2,8 @@ package home
 
 import (
 	"context"
+	"database/sql"
+	stderrors "errors"
 	"path/filepath"
 	"strings"
 	"time"
@@ -34,6 +36,11 @@ type UploadRepository interface {
 	// CountByName returns the number of stored files whose file or custom name
 	// contains the given query (case-insensitive).
 	CountByName(ctx context.Context, query string) (int64, error)
+	// GetUpload fetches one stored file by its upload ID.
+	GetUpload(ctx context.Context, id int64) (*upload.Upload, error)
+	// GetChunks returns the shard records for a stored file, ordered by shard
+	// index so the distinct providers holding it can be derived.
+	GetChunks(ctx context.Context, fileID int64) ([]upload.Chunk, error)
 }
 
 // SettingsProvider is the subset of settings.Service that home depends on. It
@@ -197,4 +204,112 @@ func fileFormat(name string) string {
 		return "file"
 	}
 	return ext
+}
+
+// GetFileDetails returns the full detail view of one stored file: the original
+// and custom names, the original/encrypted/stored sizes, tags, the
+// erasure-coding layout and the distinct providers that hold its shards.
+func (s *Service) GetFileDetails(id int64) (*FileDetails, error) {
+	if _, err := s.sessionProvider.RequireSession(); err != nil {
+		return nil, err
+	}
+
+	upload, err := s.uploadRepository.GetUpload(context.Background(), id)
+	if err != nil {
+		if stderrors.Is(err, sql.ErrNoRows) {
+			return nil, errors.ErrJobNotFound
+		}
+		return nil, errors.AsInternalServerError("get file details: get upload", err)
+	}
+
+	chunks, err := s.uploadRepository.GetChunks(context.Background(), id)
+	if err != nil {
+		return nil, errors.AsInternalServerError("get file details: get chunks", err)
+	}
+
+	userSettings, err := s.settingsProvider.GetSettings()
+	if err != nil {
+		return nil, errors.AsInternalServerError("get file details: get settings", err)
+	}
+
+	return &FileDetails{
+		ID:           upload.ID,
+		OriginalName: upload.File,
+		CustomName:   upload.CustomName,
+		Size:         upload.Size,
+		StoredSize:   int64(upload.ShardSize) * int64(upload.DataShards+upload.ParityShards) * int64(upload.BlockCount),
+		Tags:         upload.Tags,
+		DataShards:   upload.DataShards,
+		ParityShards: upload.ParityShards,
+		Providers:    distinctProviders(chunks, userSettings.CloudKeys),
+		CreatedAt:    upload.CreatedAt.UTC().Format(time.RFC3339),
+		UpdatedAt:    upload.UpdatedAt.UTC().Format(time.RFC3339),
+	}, nil
+}
+
+// distinctProviders resolves the unique provider IDs referenced by a file's
+// shards into their frontend-facing details, in shard order. Providers that
+// are no longer configured are skipped so the view only lists known backends.
+func distinctProviders(chunks []upload.Chunk, keys []settings.CloudKey) []ProviderDetails {
+	keyByID := make(map[string]settings.CloudKey, len(keys))
+	for _, key := range keys {
+		keyByID[key.GetID()] = key
+	}
+
+	seen := make(map[string]struct{})
+	var providers []ProviderDetails
+	for _, chunk := range chunks {
+		if chunk.StorageID == "" {
+			continue
+		}
+		if _, ok := seen[chunk.StorageID]; ok {
+			continue
+		}
+		seen[chunk.StorageID] = struct{}{}
+
+		key, ok := keyByID[chunk.StorageID]
+		if !ok {
+			continue
+		}
+		providers = append(providers, ProviderDetails{
+			ID:       key.GetID(),
+			Type:     string(key.GetProvider()),
+			Name:     providerLabel(key.GetProvider()),
+			Resource: providerResource(key),
+		})
+	}
+	return providers
+}
+
+// providerLabel maps a provider type to its user-facing name.
+func providerLabel(t settings.Provider) string {
+	switch t {
+	case settings.AWS:
+		return "AWS S3"
+	case settings.Azure:
+		return "Azure Blob"
+	case settings.GCP:
+		return "Google Cloud"
+	case settings.Local:
+		return "Local System"
+	default:
+		return string(t)
+	}
+}
+
+// providerResource returns the user-named bucket/container/folder a provider
+// maps to, used to tell apart multiple providers of the same type.
+func providerResource(key settings.CloudKey) string {
+	switch k := key.(type) {
+	case *settings.AWSKey:
+		return k.Bucket
+	case *settings.AzureKey:
+		return k.ContainerName
+	case *settings.GCPKey:
+		return k.Bucket
+	case *settings.LocalKey:
+		return k.FolderName
+	default:
+		return ""
+	}
 }

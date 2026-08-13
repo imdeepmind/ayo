@@ -47,3 +47,35 @@ type StoredFilePage struct {
 	Page     int
 	PageSize int
 }
+
+// ProviderDetails describes one storage provider that holds shards of a stored
+// file. Type lets the frontend render the provider logo; ID uniquely
+// identifies the provider instance (e.g. "aws_ab12cd34"); Name is the
+// human-friendly label and Resource the bucket/container/folder it maps to, so
+// two providers of the same type stay distinguishable.
+type ProviderDetails struct {
+	ID       string
+	Type     string
+	Name     string
+	Resource string
+}
+
+// FileDetails is the frontend-facing detail view of one stored file, returned
+// by GetFileDetails. It surfaces the original name, the original and
+// erasure-coded stored sizes (the latter grows due to redundancy), the
+// encryption layout and the distinct providers the file's shards were
+// distributed across. Timestamps are RFC3339 strings so the Wails model stays
+// a flat, predictable shape.
+type FileDetails struct {
+	ID           int64
+	OriginalName string
+	CustomName   string
+	Size         int64
+	StoredSize   int64
+	Tags         []string
+	DataShards   int
+	ParityShards int
+	Providers    []ProviderDetails
+	CreatedAt    string
+	UpdatedAt    string
+}

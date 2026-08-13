@@ -18,13 +18,14 @@ import {
 } from 'lucide-react';
 import { getFileType, formatSize, type FileItem } from '@/lib/files';
 import { EnqueueDelete, EnqueueDownload } from '../../wailsjs/go/upload/Service';
-import { GetHomeOverview, GetStoredFiles } from '../../wailsjs/go/home/Service';
+import { GetFileDetails, GetHomeOverview, GetStoredFiles } from '../../wailsjs/go/home/Service';
 import { home } from '../../wailsjs/go/models';
 import { useActiveTransfers } from '@/context/ActiveTransfersContext';
 import { useSearch } from '@/context/SearchContext';
 import DriveToolbar from '@/components/items/DriveToolbar';
 import DriveFileTable from '@/components/items/DriveFileTable';
 import EditFileModal from '@/components/items/EditFileModal';
+import FileDetailsModal from '@/components/items/FileDetailsModal';
 import Button from '@/components/bits/Button';
 import ConfirmDialog from '@/components/bits/ConfirmDialog';
 import Pagination from '@/components/bits/Pagination';
@@ -69,6 +70,12 @@ export default function Home() {
   // Editing state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [fileToEdit, setFileToEdit] = useState<FileItem | null>(null);
+
+  // Details modal state
+  const [detailsModal, setDetailsModal] = useState<{
+    file: FileItem;
+    details: home.FileDetails | null;
+  } | null>(null);
 
   // Delete confirmation state
   const [deletePending, setDeletePending] = useState<FileItem[] | null>(null);
@@ -204,9 +211,16 @@ export default function Home() {
     setDeletePending([file]);
   };
 
-  const handleView = (file: FileItem) => {
-    void file;
-    toast('Viewing is not available yet.');
+  const handleView = async (file: FileItem) => {
+    setDetailsModal({ file, details: null });
+    try {
+      const details = await GetFileDetails(Number(file.id));
+      setDetailsModal((cur) => (cur && cur.file.id === file.id ? { file, details } : cur));
+    } catch (err) {
+      console.error('Failed to load file details:', err);
+      toast.error('Failed to load file details. Please try again.');
+      setDetailsModal(null);
+    }
   };
 
   const saveEdit = (id: string, newName: string, newTags: string[]) => {
@@ -451,6 +465,13 @@ export default function Home() {
           setFileToEdit(null);
         }}
         onSave={saveEdit}
+      />
+
+      <FileDetailsModal
+        isOpen={detailsModal !== null}
+        file={detailsModal?.file ?? null}
+        details={detailsModal?.details ?? null}
+        onClose={() => setDetailsModal(null)}
       />
 
       <ConfirmDialog

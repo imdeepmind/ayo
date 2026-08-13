@@ -266,9 +266,7 @@ export default function DriveFileTable({
                   <RowActions
                     file={file}
                     isOpen={openMenuId === file.id}
-                    onToggle={() =>
-                      setOpenMenuId(openMenuId === file.id ? null : file.id)
-                    }
+                    onToggle={() => setOpenMenuId(openMenuId === file.id ? null : file.id)}
                     onClose={() => setOpenMenuId(null)}
                     onView={onView}
                     onEdit={onEdit}
@@ -375,9 +373,7 @@ export default function DriveFileTable({
                     <RowActions
                       file={file}
                       isOpen={openMenuId === file.id}
-                      onToggle={() =>
-                        setOpenMenuId(openMenuId === file.id ? null : file.id)
-                      }
+                      onToggle={() => setOpenMenuId(openMenuId === file.id ? null : file.id)}
                       onClose={() => setOpenMenuId(null)}
                       onView={onView}
                       onEdit={onEdit}
