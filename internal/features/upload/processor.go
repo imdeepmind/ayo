@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"ayo/internal/clients/storage"
@@ -262,19 +263,23 @@ func (p *Processor) processUpload(job *queue.Job) {
 	}
 	encryptedSize := encryptedInfo.Size()
 
-	_ = p.queue.UpdateStatusAndProgress(id, queue.StatusProcessing, 30)
+	_ = p.queue.UpdateStatusAndProgress(id, queue.StatusProcessing, 5)
 
 	s, err := p.settingsProvider.GetSettings()
 	if err != nil {
 		slog.Error("chunk file: get settings", "error", err)
-		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 30)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 5)
 		return
 	}
 
-	shards, manifest, err := p.chunk(id, s, encryptedPath, encryptedSize)
+	shards, manifest, err := p.chunk(s, encryptedPath, encryptedSize,
+		func(done, total int64) error {
+			return p.queue.UpdateStatusAndProgress(id, queue.StatusProcessing, int(5+85*done/total))
+		},
+	)
 	if err != nil {
 		slog.Error("chunk file", "error", err)
-		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 30)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 5)
 		return
 	}
 
@@ -400,14 +405,14 @@ func (p *Processor) processDownload(job *queue.Job) {
 	chunks, err := p.uploadRepository.GetChunks(context.Background(), upload.ID)
 	if err != nil {
 		slog.Error("download: get shards", "job", id, "error", err)
-		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 10)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 5)
 		return
 	}
 
 	s, err := p.settingsProvider.GetSettings()
 	if err != nil {
 		slog.Error("download: get settings", "job", id, "error", err)
-		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 10)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 5)
 		return
 	}
 
@@ -416,7 +421,7 @@ func (p *Processor) processDownload(job *queue.Job) {
 		client, key, err := storage.ResolveShard(s.CloudKeys, chunk.StorageID, chunk.ChunkID)
 		if err != nil {
 			slog.Error("download: resolve shard", "job", id, "chunk", chunk.ChunkID, "error", err)
-			_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 10)
+			_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 5)
 			return
 		}
 		shardRefs = append(shardRefs, shardRef{client: client, key: key})
@@ -426,49 +431,53 @@ func (p *Processor) processDownload(job *queue.Job) {
 	tempEncryptedPath := filepath.Join(encryptedDir, fmt.Sprintf("download_%d.enc", id))
 	if err := p.local.MkdirAll(filepath.Dir(tempEncryptedPath), 0o700); err != nil {
 		slog.Error("download: create temp dir", "error", err)
-		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 10)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 5)
 		return
 	}
 
 	tempEncryptedFile, err := os.OpenFile(tempEncryptedPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
 		slog.Error("download: open temp encrypted", "error", err)
-		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 10)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 5)
 		return
 	}
 
-	// Reconstruct encrypted file from shards, streaming to temp file.
+	// Reconstruct encrypted file from shards, streaming to temp file. Progress
+	// from 5% up to 85% follows bytes downloaded from providers (the slow part);
+	// local reconstruction and decryption finish the remaining few percent.
 	err = reconstructCiphertext(shardManifest{
 		EncryptedSize: upload.EncryptedSize,
 		DataShards:    upload.DataShards,
 		ParityShards:  upload.ParityShards,
 		ShardSize:     upload.ShardSize,
 		BlockCount:    upload.BlockCount,
-	}, shardRefs, tempEncryptedFile)
+	}, shardRefs, tempEncryptedFile, func(done, total int64) error {
+		return p.queue.UpdateStatusAndProgress(id, queue.StatusProcessing, int(5+80*done/total))
+	})
 
 	if err != nil {
 		_ = tempEncryptedFile.Close()
 		_ = p.local.Remove(tempEncryptedPath)
 		slog.Error("download: reconstruct", "job", id, "error", err)
-		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 50)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 85)
 		return
 	}
 
 	if err := tempEncryptedFile.Close(); err != nil {
 		_ = p.local.Remove(tempEncryptedPath)
 		slog.Error("download: close temp encrypted", "error", err)
-		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 50)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 85)
 		return
 	}
 
-	_ = p.queue.UpdateStatusAndProgress(id, queue.StatusProcessing, 60)
+	_ = p.queue.UpdateStatusAndProgress(id, queue.StatusProcessing, 85)
 
 	// Open reconstructed encrypted file for reading.
 	encryptedFile, err := os.Open(tempEncryptedPath)
 	if err != nil {
 		_ = p.local.Remove(tempEncryptedPath)
 		slog.Error("download: open reconstructed encrypted", "error", err)
-		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 60)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 85)
 		return
 	}
 	defer encryptedFile.Close()
@@ -478,7 +487,7 @@ func (p *Processor) processDownload(job *queue.Job) {
 	if err := p.local.MkdirAll(filepath.Dir(stagingPath), 0o700); err != nil {
 		_ = p.local.Remove(tempEncryptedPath)
 		slog.Error("download: create staging dir", "error", err)
-		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 60)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 85)
 		return
 	}
 
@@ -486,7 +495,7 @@ func (p *Processor) processDownload(job *queue.Job) {
 	if err != nil {
 		_ = p.local.Remove(tempEncryptedPath)
 		slog.Error("download: open staging", "error", err)
-		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 60)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 85)
 		return
 	}
 
@@ -496,7 +505,7 @@ func (p *Processor) processDownload(job *queue.Job) {
 		_ = p.local.Remove(tempEncryptedPath)
 		_ = p.local.Remove(stagingPath)
 		slog.Error("download: stream decrypt", "job", id, "error", err)
-		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 80)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 90)
 		return
 	}
 
@@ -504,7 +513,7 @@ func (p *Processor) processDownload(job *queue.Job) {
 		_ = p.local.Remove(tempEncryptedPath)
 		_ = p.local.Remove(stagingPath)
 		slog.Error("download: close staging", "error", err)
-		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 90)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 95)
 		return
 	}
 
@@ -526,13 +535,15 @@ func (p *Processor) processDownload(job *queue.Job) {
 // recorded on the chunk row so the shard can be read back later.
 //
 // Each shard file is named with a globally unique UUID. It updates job progress
-// from 30% (after encryption) up to 90% as blocks are encoded, and returns the
-// shard records needed to persist the chunks table along with the
-// reconstruction metadata for the uploads table.
+// from 5% (after encryption) up to 90% in proportion to bytes committed to
+// providers: local shards commit as blocks are encoded (fast), remote shards
+// (e.g. S3) commit when their writer is closed, which is where the slow network
+// upload happens. It returns the shard records needed to persist the chunks
+// table along with the reconstruction metadata for the uploads table.
 //
 // The encrypted file is read in blocks from disk, never loaded fully into memory.
-func (p *Processor) chunk(id int64, s *settings.Settings, encryptedPath string,
-	encryptedSize int64,
+func (p *Processor) chunk(s *settings.Settings, encryptedPath string,
+	encryptedSize int64, onProgress func(done, total int64) error,
 ) ([]ChunkInput, shardManifest, error) {
 	dataShards, parityShards := computeShardCount(encryptedSize, s.ErasureCoding, s.ErasureCodingConfig)
 
@@ -588,6 +599,18 @@ func (p *Processor) chunk(id int64, s *settings.Settings, encryptedPath string,
 		})
 	}
 
+	// Progress tracks bytes committed to providers. Local shards commit during
+	// encoding (fast); remote shards (e.g. S3) buffer writes and only commit
+	// when their writer is closed, which is where the slow network upload
+	// happens. The total is the exact per-shard byte volume, so progress moves
+	// in proportion to actual provider I/O.
+	localShardCount := 0
+	for _, shard := range shards {
+		if strings.HasPrefix(shard.StorageID, string(settings.Local)) {
+			localShardCount++
+		}
+	}
+
 	// Open encrypted file for streaming read.
 	encryptedFile, err := os.Open(encryptedPath)
 	if err != nil {
@@ -600,9 +623,19 @@ func (p *Processor) chunk(id int64, s *settings.Settings, encryptedPath string,
 		totalBlocks = 1
 	}
 
+	totalBytes := int64(cfg.totalShards()) * int64(shardSize) * int64(totalBlocks)
+	var remoteCommitted int64
+	report := func(committed int64) error {
+		if onProgress == nil {
+			return nil
+		}
+		return onProgress(committed, totalBytes)
+	}
+
 	blockCount, err := encodeBlocks(enc, cfg, encryptedFile, writers, func(done int) error {
-		progress := 30 + 60*done/totalBlocks
-		return p.queue.UpdateStatusAndProgress(id, queue.StatusProcessing, progress)
+		// Each encoded block commits one shard-size slice to every local shard.
+		localCommitted := int64(localShardCount) * int64(shardSize) * int64(done)
+		return report(localCommitted + remoteCommitted)
 	})
 	if err != nil {
 		return nil, shardManifest{}, fmt.Errorf("encode blocks: %w", err)
@@ -610,12 +643,19 @@ func (p *Processor) chunk(id int64, s *settings.Settings, encryptedPath string,
 
 	// Close every shard writer now so provider uploads (e.g. the S3 PutObject)
 	// happen while the job can still be marked failed. A close error must fail
-	// the job rather than being swallowed by the deferred cleanup.
+	// the job rather than being swallowed by the deferred cleanup. Each remote
+	// shard's bytes count toward progress only once its upload completes.
 	for i := range closers {
 		if err := closers[i].Close(); err != nil {
 			return nil, shardManifest{}, fmt.Errorf("close shard %d: %w", i, err)
 		}
 		closers[i] = nil
+		if !strings.HasPrefix(shards[i].StorageID, string(settings.Local)) {
+			remoteCommitted += int64(shardSize) * int64(blockCount)
+			if err := report(int64(localShardCount)*int64(shardSize)*int64(blockCount) + remoteCommitted); err != nil {
+				return nil, shardManifest{}, fmt.Errorf("report progress: %w", err)
+			}
+		}
 	}
 
 	return shards, shardManifest{
