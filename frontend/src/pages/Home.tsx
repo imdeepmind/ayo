@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
   Download,
@@ -68,7 +68,7 @@ export default function Home() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [totalFiles, setTotalFiles] = useState(0);
-  const { deletes, refresh } = useActiveTransfers();
+  const { refresh, trackJobs, deleteCompletedCount } = useActiveTransfers();
 
   // Selection state
   const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
@@ -129,20 +129,13 @@ export default function Home() {
     }
   }, [files.length, totalFiles, page]);
 
-  const wasDeleting = useRef(false);
-  const pendingDeleteCount = useRef(0);
+  // Reload the drive listing whenever a tracked delete completes, so the
+  // removed files disappear from the table.
   useEffect(() => {
-    if (deletes.length > 0) {
-      wasDeleting.current = true;
-    } else if (wasDeleting.current) {
-      wasDeleting.current = false;
-      const count = pendingDeleteCount.current;
-      pendingDeleteCount.current = 0;
-      void loadFiles();
-      void loadOverview();
-      toast.success(`File${count === 1 ? '' : 's'} successfully deleted`);
-    }
-  }, [deletes.length, loadFiles, loadOverview]);
+    if (deleteCompletedCount === 0) return;
+    void loadFiles();
+    void loadOverview();
+  }, [deleteCompletedCount, loadFiles, loadOverview]);
 
   // Recent files from the backend home overview, newest first.
   const recentFiles = useMemo(() => overview?.RecentFiles ?? [], [overview]);
@@ -185,7 +178,8 @@ export default function Home() {
 
   const handleDownloadById = async (id: number) => {
     try {
-      await DownloadFiles([id]);
+      const jobs = await DownloadFiles([id]);
+      trackJobs(jobs);
       toast.success('Download started');
       refresh();
     } catch (err) {
@@ -200,13 +194,13 @@ export default function Home() {
 
   const deleteFiles = async (ids: string[]) => {
     try {
-      await DeleteFiles(ids.map(Number));
+      const jobs = await DeleteFiles(ids.map(Number));
+      trackJobs(jobs);
     } catch (err) {
       console.error('Failed to delete file:', err);
       toast.error('Failed to delete a file. Please try again.');
       return;
     }
-    pendingDeleteCount.current += ids.length;
     toast(`Deleting ${ids.length} ${ids.length === 1 ? 'file' : 'files'}…`);
     clearSelection();
   };
@@ -242,7 +236,8 @@ export default function Home() {
     const ids = [...selectedFileIds];
     if (ids.length === 0) return;
     try {
-      await DownloadFiles(ids.map(Number));
+      const jobs = await DownloadFiles(ids.map(Number));
+      trackJobs(jobs);
       toast.success(`Downloading ${ids.length} files`);
       refresh();
     } catch (err) {

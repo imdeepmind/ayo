@@ -22,6 +22,10 @@ export function GetActiveTransfers() {
   return window['go']['upload']['Service']['GetActiveTransfers']();
 }
 
+export function GetJobStatus(arg1) {
+  return window['go']['upload']['Service']['GetJobStatus'](arg1);
+}
+
 export function PickFiles() {
   return window['go']['upload']['Service']['PickFiles']();
 }

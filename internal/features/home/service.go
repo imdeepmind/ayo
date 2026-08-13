@@ -307,45 +307,52 @@ func (s *Service) UpdateFile(id int64, name string, tags []string) (*StoredFile,
 }
 
 // DownloadFiles queues a background download for each of the given upload IDs
-// and returns immediately. Each id becomes one download job, reconstructed and
-// staged by the upload feature's processor; FinalizeDownload shows the save
-// dialog once a job completes. A single call is used for both single-file and
-// multi-select downloads from the drive listing.
-func (s *Service) DownloadFiles(ids []int64) error {
+// and returns the created jobs so the frontend can track each one to
+// completion. Each id becomes one download job, reconstructed and staged by the
+// upload feature's processor; FinalizeDownload shows the save dialog once a job
+// completes. A single call is used for both single-file and multi-select
+// downloads from the drive listing.
+func (s *Service) DownloadFiles(ids []int64) ([]upload.EnqueuedJob, error) {
 	if _, err := s.sessionProvider.RequireSession(); err != nil {
-		return err
+		return nil, err
 	}
 	if len(ids) == 0 {
-		return errors.ErrInvalidInput
+		return nil, errors.ErrInvalidInput
 	}
 
+	jobs := make([]upload.EnqueuedJob, 0, len(ids))
 	for _, id := range ids {
-		if _, err := s.uploadEnqueuer.EnqueueDownload(id); err != nil {
-			return errors.AsInternalServerError("download files: enqueue", err)
+		job, err := s.uploadEnqueuer.EnqueueDownload(id)
+		if err != nil {
+			return nil, errors.AsInternalServerError("download files: enqueue", err)
 		}
+		jobs = append(jobs, job)
 	}
-	return nil
+	return jobs, nil
 }
 
 // DeleteFiles queues a background delete for each of the given upload IDs and
-// returns immediately. Each id becomes one delete job; the upload feature's
-// processor wipes the file's on-disk chunks and removes its database rows. A
-// single call is used for both single-file and multi-select deletes from the
-// drive listing.
-func (s *Service) DeleteFiles(ids []int64) error {
+// returns the created jobs so the frontend can track each one to completion.
+// Each id becomes one delete job; the upload feature's processor wipes the
+// file's on-disk chunks and removes its database rows. A single call is used
+// for both single-file and multi-select deletes from the drive listing.
+func (s *Service) DeleteFiles(ids []int64) ([]upload.EnqueuedJob, error) {
 	if _, err := s.sessionProvider.RequireSession(); err != nil {
-		return err
+		return nil, err
 	}
 	if len(ids) == 0 {
-		return errors.ErrInvalidInput
+		return nil, errors.ErrInvalidInput
 	}
 
+	jobs := make([]upload.EnqueuedJob, 0, len(ids))
 	for _, id := range ids {
-		if _, err := s.uploadEnqueuer.EnqueueDelete(id); err != nil {
-			return errors.AsInternalServerError("delete files: enqueue", err)
+		job, err := s.uploadEnqueuer.EnqueueDelete(id)
+		if err != nil {
+			return nil, errors.AsInternalServerError("delete files: enqueue", err)
 		}
+		jobs = append(jobs, job)
 	}
-	return nil
+	return jobs, nil
 }
 
 // distinctProviders resolves the unique provider IDs referenced by a file's

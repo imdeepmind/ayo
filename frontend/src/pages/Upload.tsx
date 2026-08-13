@@ -13,7 +13,7 @@ export default function Upload() {
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [isPicking, setIsPicking] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const { transfers, refresh } = useActiveTransfers();
+  const { transfers, refresh, trackJobs } = useActiveTransfers();
 
   const pickFiles = async () => {
     if (isPicking) return;
@@ -74,6 +74,7 @@ export default function Upload() {
         })
       );
       toast.success(`Queued ${jobs.length} ${jobs.length === 1 ? 'file' : 'files'} for upload`);
+      trackJobs(jobs);
       setFiles([]); // Clear queue after upload
       refresh();
     } catch (err) {

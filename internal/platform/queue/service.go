@@ -102,11 +102,13 @@ func (s *Service) Get(id int64) (*Job, error) {
 	return job, nil
 }
 
-// GetAll returns every queued job, oldest first.
-func (s *Service) GetAll() ([]*Job, error) {
-	jobs, err := s.repo.GetAll(context.Background())
+// GetActive returns the jobs currently in flight (pending or processing),
+// oldest first. Finished jobs remain in the table as audit history but are not
+// returned here.
+func (s *Service) GetActive() ([]*Job, error) {
+	jobs, err := s.repo.GetActive(context.Background())
 	if err != nil {
-		return nil, errors.AsInternalServerError("get all jobs", err)
+		return nil, errors.AsInternalServerError("get active jobs", err)
 	}
 	return jobs, nil
 }
@@ -147,15 +149,4 @@ func (s *Service) MarkCompleted(id int64) error {
 // MarkFailed sets a job to failed while keeping its current progress.
 func (s *Service) MarkFailed(id int64, progress int) error {
 	return s.UpdateStatusAndProgress(id, StatusFailed, progress)
-}
-
-// Delete removes the job with the given ID, or ErrJobNotFound.
-func (s *Service) Delete(id int64) error {
-	if err := s.repo.Delete(context.Background(), id); err != nil {
-		if stderrors.Is(err, errors.ErrJobNotFound) {
-			return err
-		}
-		return errors.AsInternalServerError("delete job", err)
-	}
-	return nil
 }
