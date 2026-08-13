@@ -17,9 +17,7 @@ function getPageItems(current: number, totalPages: number): Array<number | '...'
   }
 
   const candidates = new Set<number>([1, totalPages, current - 1, current, current + 1]);
-  const sorted = [...candidates]
-    .filter((p) => p >= 1 && p <= totalPages)
-    .sort((a, b) => a - b);
+  const sorted = [...candidates].filter((p) => p >= 1 && p <= totalPages).sort((a, b) => a - b);
 
   const items: Array<number | '...'> = [];
   let previous = 0;
@@ -103,7 +101,7 @@ export default function Pagination({
             >
               {item}
             </button>
-          ),
+          )
         )}
 
         <button

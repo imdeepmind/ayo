@@ -25,6 +25,14 @@ type SettingsProvider interface {
 	GetSettings() (*settings.Settings, error)
 }
 
+// UploadEnqueuer is the subset of upload.Service that home uses to start
+// background download and delete jobs. The upload feature owns the queue and
+// processor; home only orchestrates the batch and delegates each id.
+type UploadEnqueuer interface {
+	EnqueueDownload(storageID int64) (upload.EnqueuedJob, error)
+	EnqueueDelete(storageID int64) (upload.EnqueuedJob, error)
+}
+
 // Repository is the slice of the shared uploads/chunks persistence that the
 // Home screen needs: the dashboard reads, the storage totals and the edit
 // write. It is implemented by the home feature's repository, which owns the
@@ -63,14 +71,16 @@ type Service struct {
 	sessionProvider  SessionProvider
 	repository       Repository
 	settingsProvider SettingsProvider
+	uploadEnqueuer   UploadEnqueuer
 }
 
 func NewService(sessionProvider SessionProvider, repository Repository,
-	settingsProvider SettingsProvider) *Service {
+	settingsProvider SettingsProvider, uploadEnqueuer UploadEnqueuer) *Service {
 	return &Service{
 		sessionProvider:  sessionProvider,
 		repository:       repository,
 		settingsProvider: settingsProvider,
+		uploadEnqueuer:   uploadEnqueuer,
 	}
 }
 
@@ -294,6 +304,48 @@ func (s *Service) UpdateFile(id int64, name string, tags []string) (*StoredFile,
 	}
 	file := toStoredFile(upload)
 	return &file, nil
+}
+
+// DownloadFiles queues a background download for each of the given upload IDs
+// and returns immediately. Each id becomes one download job, reconstructed and
+// staged by the upload feature's processor; FinalizeDownload shows the save
+// dialog once a job completes. A single call is used for both single-file and
+// multi-select downloads from the drive listing.
+func (s *Service) DownloadFiles(ids []int64) error {
+	if _, err := s.sessionProvider.RequireSession(); err != nil {
+		return err
+	}
+	if len(ids) == 0 {
+		return errors.ErrInvalidInput
+	}
+
+	for _, id := range ids {
+		if _, err := s.uploadEnqueuer.EnqueueDownload(id); err != nil {
+			return errors.AsInternalServerError("download files: enqueue", err)
+		}
+	}
+	return nil
+}
+
+// DeleteFiles queues a background delete for each of the given upload IDs and
+// returns immediately. Each id becomes one delete job; the upload feature's
+// processor wipes the file's on-disk chunks and removes its database rows. A
+// single call is used for both single-file and multi-select deletes from the
+// drive listing.
+func (s *Service) DeleteFiles(ids []int64) error {
+	if _, err := s.sessionProvider.RequireSession(); err != nil {
+		return err
+	}
+	if len(ids) == 0 {
+		return errors.ErrInvalidInput
+	}
+
+	for _, id := range ids {
+		if _, err := s.uploadEnqueuer.EnqueueDelete(id); err != nil {
+			return errors.AsInternalServerError("delete files: enqueue", err)
+		}
+	}
+	return nil
 }
 
 // distinctProviders resolves the unique provider IDs referenced by a file's

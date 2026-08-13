@@ -351,7 +351,8 @@ func (p *Processor) processDelete(job *queue.Job) {
 			slog.Error("delete: remove shard", "job", id, "chunk", chunk.ChunkID, "error", err)
 		}
 	}
-	if err := p.local.Remove(filepath.Join(encryptedDir, fmt.Sprintf("%d.enc", upload.JobID))); err != nil {
+	encryptedPath := filepath.Join(encryptedDir, fmt.Sprintf("%d.enc", upload.JobID))
+	if err := p.local.Remove(encryptedPath); err != nil && !os.IsNotExist(err) {
 		slog.Error("delete: remove encrypted blob", "job", id, "error", err)
 	}
 

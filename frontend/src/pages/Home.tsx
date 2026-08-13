@@ -17,8 +17,14 @@ import {
   Grid3x3,
 } from 'lucide-react';
 import { getFileType, formatSize, type FileItem } from '@/lib/files';
-import { EnqueueDelete, EnqueueDownload } from '../../wailsjs/go/upload/Service';
-import { GetFileDetails, GetHomeOverview, GetStoredFiles, UpdateFile } from '../../wailsjs/go/home/Service';
+import {
+  GetFileDetails,
+  GetHomeOverview,
+  GetStoredFiles,
+  UpdateFile,
+  DownloadFiles,
+  DeleteFiles,
+} from '../../wailsjs/go/home/Service';
 import { home } from '../../wailsjs/go/models';
 import { useActiveTransfers } from '@/context/ActiveTransfersContext';
 import { useSearch } from '@/context/SearchContext';
@@ -179,8 +185,8 @@ export default function Home() {
 
   const handleDownloadById = async (id: number) => {
     try {
-      const job = await EnqueueDownload(id);
-      toast.success(`Downloading ${job.CustomName || job.File}`);
+      await DownloadFiles([id]);
+      toast.success('Download started');
       refresh();
     } catch (err) {
       console.error('Failed to start download:', err);
@@ -194,9 +200,7 @@ export default function Home() {
 
   const deleteFiles = async (ids: string[]) => {
     try {
-      for (const id of ids) {
-        await EnqueueDelete(Number(id));
-      }
+      await DeleteFiles(ids.map(Number));
     } catch (err) {
       console.error('Failed to delete file:', err);
       toast.error('Failed to delete a file. Please try again.');
@@ -234,8 +238,17 @@ export default function Home() {
     }
   };
 
-  const handleBulkDownload = () => {
-    toast.success(`Started downloading ${selectedFileIds.size} files`);
+  const handleBulkDownload = async () => {
+    const ids = [...selectedFileIds];
+    if (ids.length === 0) return;
+    try {
+      await DownloadFiles(ids.map(Number));
+      toast.success(`Downloading ${ids.length} files`);
+      refresh();
+    } catch (err) {
+      console.error('Failed to start downloads:', err);
+      toast.error('Failed to start the downloads. Please try again.');
+    }
     clearSelection();
   };
 

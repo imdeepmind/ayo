@@ -105,7 +105,7 @@ func main() {
 	// GetChunks) to the upload repository, so the data layer is implemented
 	// exactly once, and reads settings through the settings service.
 	homeRepository := home.NewRepository(conn, uploadRepository)
-	homeService := home.NewService(authService, homeRepository, settingsService)
+	homeService := home.NewService(authService, homeRepository, settingsService, uploadService)
 
 	// Create application with options. Anything passed to Bind is exposed to
 	// the frontend as generated JavaScript bindings under
