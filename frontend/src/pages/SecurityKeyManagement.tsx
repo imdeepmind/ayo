@@ -7,9 +7,7 @@ export default function SecurityKeyManagement() {
   const { session } = useAuth();
 
   const handleDownloadRecoveryKey = () => {
-    toast.error(
-      'Your recovery key is only shown once, right after registration or password reset.'
-    );
+    toast('Your recovery key is only shown once, right after registration or password reset.');
   };
 
   const keys = [

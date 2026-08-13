@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { toErrorMessage } from '@/lib/errors';
 import PageSection from '@/components/bits/Section';
 import AuthCard from '@/components/items/AuthCard';
 import TextInput from '@/components/bits/Input';
@@ -46,7 +47,7 @@ export default function Reset() {
       }
     } catch (err) {
       console.error(err);
-      toast.error(String(err) || 'An unexpected error occurred');
+      toast.error(toErrorMessage(err, 'An unexpected error occurred'));
     }
   };
 

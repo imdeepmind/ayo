@@ -2,6 +2,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { toErrorMessage } from '@/lib/errors';
 import PageSection from '@/components/bits/Section';
 import AuthCard from '@/components/items/AuthCard';
 import TextInput from '@/components/bits/Input';
@@ -43,7 +44,7 @@ export default function Login() {
           'Unable to connect to your database. Please check that the database is accessible and try again.'
         );
       } else {
-        toast.error(message || 'An unexpected error occurred. Please try again.');
+        toast.error(toErrorMessage(err, 'An unexpected error occurred. Please try again.'));
       }
     }
   };

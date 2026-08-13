@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
+import { toErrorMessage } from '@/lib/errors';
 import Button from '@/components/bits/Button';
 import UploadDropzone from '@/components/items/UploadDropzone';
 import UploadFileItem, { type UploadFile } from '@/components/items/UploadFileItem';
@@ -79,7 +80,7 @@ export default function Upload() {
       refresh();
     } catch (err) {
       console.error('Upload error:', err);
-      toast.error(String(err) || 'Failed to queue files. Please try again.');
+      toast.error(toErrorMessage(err, 'Failed to queue files. Please try again.'));
     } finally {
       setIsUploading(false);
     }

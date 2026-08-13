@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { Info } from 'lucide-react';
 import Home from '@/pages/Home';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
@@ -74,6 +75,15 @@ function App() {
                 error: {
                   iconTheme: {
                     primary: '#ef4444',
+                    secondary: '#fff',
+                  },
+                },
+                // Plain toast(...) calls (neutral/info) always show an icon so
+                // no notification appears without one.
+                blank: {
+                  icon: <Info className="h-4 w-4" />,
+                  iconTheme: {
+                    primary: 'var(--color-primary)',
                     secondary: '#fff',
                   },
                 },

@@ -61,7 +61,7 @@ export function ActiveTransfersProvider({ children }: { children: React.ReactNod
       if (savedPath) {
         toast.success(`Saved to ${savedPath}`);
       } else {
-        toast('Download cancelled.');
+        toast('Download cancelled — no file was saved.');
       }
     } catch (err) {
       console.error('Failed to finalize download:', err);
@@ -79,15 +79,17 @@ export function ActiveTransfersProvider({ children }: { children: React.ReactNod
         return;
       }
       if (job.Status === 'failed') {
-        toast.error(`${meta.name} failed`);
-      } else       if (job.Status === 'completed') {
+        const action =
+          job.Type === 'delete' ? 'Delete' : job.Type === 'download' ? 'Download' : 'Upload';
+        toast.error(`${action} of "${meta.name}" failed`);
+      } else if (job.Status === 'completed') {
         if (job.Type === 'download') {
           await finalize(job);
         } else if (job.Type === 'delete') {
-          toast.success(`${meta.name} deleted`);
+          toast.success(`"${meta.name}" deleted`);
           setDeleteCompletedCount((c) => c + 1);
         } else {
-          toast.success(`${meta.name} uploaded`);
+          toast.success(`"${meta.name}" uploaded`);
         }
       }
     },

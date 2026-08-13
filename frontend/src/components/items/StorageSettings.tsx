@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { AlertTriangle, ChevronDown } from 'lucide-react';
+import { toErrorMessage } from '@/lib/errors';
 import TextInput from '@/components/bits/Input';
 import Button from '@/components/bits/Button';
 import Toggle from '@/components/bits/Toggle';
@@ -621,7 +622,7 @@ export default function StorageSettings() {
       toast.success('Storage settings saved successfully');
     } catch (err) {
       console.error(err);
-      toast.error('Failed to save settings: ' + String(err));
+      toast.error(toErrorMessage(err, 'Failed to save settings. Please try again.'));
     }
   };
 
@@ -638,7 +639,7 @@ export default function StorageSettings() {
       toast.success('Ayo storage settings saved successfully');
     } catch (err) {
       console.error(err);
-      toast.error('Failed to save Ayo settings: ' + String(err));
+      toast.error(toErrorMessage(err, 'Failed to save Ayo settings. Please try again.'));
     }
   };
 
