@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
+import { toErrorMessage } from '@/lib/errors';
 import Button from '@/components/bits/Button';
 import UploadDropzone from '@/components/items/UploadDropzone';
 import UploadFileItem, { type UploadFile } from '@/components/items/UploadFileItem';
@@ -13,7 +14,7 @@ export default function Upload() {
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [isPicking, setIsPicking] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const { transfers, refresh } = useActiveTransfers();
+  const { transfers, refresh, trackJobs } = useActiveTransfers();
 
   const pickFiles = async () => {
     if (isPicking) return;
@@ -74,11 +75,12 @@ export default function Upload() {
         })
       );
       toast.success(`Queued ${jobs.length} ${jobs.length === 1 ? 'file' : 'files'} for upload`);
+      trackJobs(jobs);
       setFiles([]); // Clear queue after upload
       refresh();
     } catch (err) {
       console.error('Upload error:', err);
-      toast.error(String(err) || 'Failed to queue files. Please try again.');
+      toast.error(toErrorMessage(err, 'Failed to queue files. Please try again.'));
     } finally {
       setIsUploading(false);
     }
@@ -87,8 +89,8 @@ export default function Upload() {
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-10 md:px-8 pb-32">
       <div className="mb-10">
-        <h1 className="mb-3 text-3xl font-bold text-slate-900 dark:text-slate-100">Upload Files</h1>
-        <p className="text-base text-slate-600 dark:text-slate-400 leading-relaxed">
+        <h1 className="mb-3 text-3xl font-bold text-text">Upload Files</h1>
+        <p className="text-base text-text-muted leading-relaxed">
           Drop files below or click to browse your computer.
         </p>
       </div>
@@ -100,9 +102,7 @@ export default function Upload() {
       {transfers.length > 0 && (
         <div className="mt-12">
           <div className="mb-5">
-            <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-              Active Transfers ({transfers.length})
-            </h2>
+            <h2 className="text-xl font-bold text-text">Active Transfers ({transfers.length})</h2>
           </div>
 
           <div className="flex flex-col gap-4">
@@ -117,9 +117,7 @@ export default function Upload() {
       {files.length > 0 && (
         <div className="mt-12">
           <div className="mb-5 flex items-center justify-between">
-            <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-              Selected Files ({files.length})
-            </h2>
+            <h2 className="text-xl font-bold text-text">Selected Files ({files.length})</h2>
             <Button
               variant="ghost"
               onClick={() => setFiles([])}

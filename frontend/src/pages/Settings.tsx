@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Database, HardDrive, Settings as SettingsIcon, UserCog } from 'lucide-react';
 import SettingsLayout, { type SettingsSection } from '@/components/items/SettingsLayout';
 import StorageSettings from '@/components/items/StorageSettings';
@@ -14,7 +15,13 @@ const sections: SettingsSection[] = [
 ];
 
 export default function Settings() {
-  const [activeSection, setActiveSection] = useState('storage');
+  const location = useLocation();
+  const sectionFromState = (location.state as { section?: string } | null)?.section;
+  const initialSection =
+    sectionFromState && sections.some((s) => s.id === sectionFromState)
+      ? sectionFromState
+      : 'storage';
+  const [activeSection, setActiveSection] = useState(initialSection);
 
   return (
     <SettingsLayout

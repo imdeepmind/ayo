@@ -33,18 +33,13 @@ type EnqueuedJob struct {
 // Erasure* fields carry the reconstruction metadata that a manifest used to
 // hold: the exact encrypted size to trim Reed-Solomon padding and the shard
 // layout used to rebuild the file during download.
-//
-// FormatVersion identifies the encryption format: version 1 used single-pass
-// AES-GCM (deprecated, memory-intensive), version 2 uses chunked streaming
-// encryption (current).
 type Upload struct {
-	ID            int64
-	JobID         int64
-	File          string
-	CustomName    string
-	Size          int64
-	Tags          []string
-	FormatVersion int
+	ID         int64
+	JobID      int64
+	File       string
+	CustomName string
+	Size       int64
+	Tags       []string
 
 	EncryptedSize int64
 	DataShards    int
@@ -76,15 +71,4 @@ type ChunkInput struct {
 	ShardIndex int
 	ChunkID    string
 	StorageID  string
-}
-
-// StoredFile is the frontend-facing representation of one row of the `uploads`
-// table, used by the Home/drive screen. Timestamps are strings so the Wails
-// model stays a flat, predictable shape.
-type StoredFile struct {
-	ID        int64
-	Name      string
-	Size      int64
-	Tags      []string
-	CreatedAt string
 }

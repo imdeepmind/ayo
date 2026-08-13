@@ -22,8 +22,10 @@ type Repository interface {
 	// Get returns the job with the given ID, or ErrJobNotFound when it does not
 	// exist.
 	Get(ctx context.Context, id int64) (*Job, error)
-	// GetAll returns every job, oldest first.
-	GetAll(ctx context.Context) ([]*Job, error)
+	// GetActive returns the jobs currently in flight (pending or processing),
+	// oldest first. Completed and failed jobs stay in the table as audit
+	// history but are never returned here.
+	GetActive(ctx context.Context) ([]*Job, error)
 	// Update sets the status and progress of the job with the given ID. It
 	// returns ErrJobNotFound when no such job exists.
 	Update(ctx context.Context, id int64, status string, progress int) error
@@ -31,9 +33,6 @@ type Repository interface {
 	// pending or processing, oldest first, so work can be resumed after an app
 	// restart.
 	GetIncompleteByType(ctx context.Context, jobType string) ([]*Job, error)
-	// Delete removes the job with the given ID. It returns ErrJobNotFound when
-	// no such job exists.
-	Delete(ctx context.Context, id int64) error
 }
 
 type repository struct {
@@ -97,6 +96,12 @@ func initializeTable(db *dbclient.Client) error {
 	)`
 
 	if _, err := db.Exec(query); err != nil {
+		return err
+	}
+
+	// Keep the active-job lookup (status-based) fast as the audit table grows
+	// without bound.
+	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_queue_status ON queue (status)`); err != nil {
 		return err
 	}
 	return nil
@@ -173,20 +178,22 @@ func (r *repository) Get(ctx context.Context, id int64) (*Job, error) {
 	return job, nil
 }
 
-// GetAll returns every job ordered oldest first, which is the natural order
-// for processing.
-func (r *repository) GetAll(ctx context.Context) ([]*Job, error) {
+// GetActive returns the jobs still in flight (pending or processing), oldest
+// first. The queue table doubles as an append-only audit log, so finished jobs
+// are never deleted; this method simply never reads them.
+func (r *repository) GetActive(ctx context.Context) ([]*Job, error) {
 	query := `SELECT id, type, file_id, file, custom_name, path, size, status, progress, tags,
-		created_at, updated_at FROM queue ORDER BY id ASC`
+		created_at, updated_at FROM queue
+		WHERE status IN (?, ?) ORDER BY id ASC`
 
 	client, err := r.resolve()
 	if err != nil {
 		return nil, err
 	}
 
-	rows, err := client.QueryContext(ctx, query)
+	rows, err := client.QueryContext(ctx, client.Rebind(query), StatusPending, StatusProcessing)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list jobs: %w", err)
+		return nil, fmt.Errorf("failed to list active jobs: %w", err)
 	}
 	defer rows.Close()
 
@@ -301,29 +308,4 @@ func (r *repository) GetIncompleteByType(ctx context.Context, jobType string) ([
 		return nil, fmt.Errorf("failed to iterate jobs: %w", err)
 	}
 	return jobs, nil
-}
-
-// Delete removes a job by ID. It returns ErrJobNotFound when no such job
-// exists.
-func (r *repository) Delete(ctx context.Context, id int64) error {
-	query := `DELETE FROM queue WHERE id = ?`
-
-	client, err := r.resolve()
-	if err != nil {
-		return err
-	}
-
-	result, err := client.ExecContext(ctx, client.Rebind(query), id)
-	if err != nil {
-		return fmt.Errorf("failed to delete job: %w", err)
-	}
-
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to get affected rows: %w", err)
-	}
-	if affected == 0 {
-		return errors.ErrJobNotFound
-	}
-	return nil
 }

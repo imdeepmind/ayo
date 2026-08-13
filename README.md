@@ -67,23 +67,6 @@ flowchart TB
 
 Ayo is in the early stages of development.
 
-## Database selection
-
-Each account picks its database at registration (tabbed choice in the sign-up form):
-
-- **SQLite**: a local database file per user, auto-created in the OS app data
-  directory (`~/Library/Application Support/ayo/<username>.db` on macOS).
-- **PostgreSQL**: connect to your own server with user-provided credentials.
-
-The credentials are encrypted in the OS keyring (dual-wrapped with the
-password-derived and recovery-key-derived KEKs, the same pattern as the master
-key), so password reset re-encrypts them automatically. The database choice is
-permanent and shown read-only in Settings → Database.
-
-> **Breaking change**: accounts created before this feature have no encrypted
-> database-credentials entry in the keyring and cannot log in after upgrading.
-> No automatic migration is provided.
-
 ## Getting started
 
 - Dev: `wails dev` (Vite hot reload; browser dev server on http://localhost:34115)

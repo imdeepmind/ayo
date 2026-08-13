@@ -6,7 +6,7 @@ type IconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const baseClasses =
-  'inline-flex items-center justify-center rounded-full border border-slate-300 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700';
+  'inline-flex items-center justify-center rounded-full border border-border-strong bg-surface-alt text-text-muted shadow-sm transition hover:bg-surface-hover hover:text-text focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background dark:border-border-input dark:bg-surface-alt dark:text-text-muted dark:hover:bg-surface-hover';
 
 export default function IconButton({ className = '', children, ...rest }: IconButtonProps) {
   return (

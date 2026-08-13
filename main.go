@@ -8,6 +8,7 @@ import (
 	"ayo/internal/clients/storage"
 	"ayo/internal/features/auth"
 	"ayo/internal/features/dbconfig"
+	"ayo/internal/features/home"
 	"ayo/internal/features/recovery"
 	"ayo/internal/features/settings"
 	"ayo/internal/features/upload"
@@ -94,7 +95,17 @@ func main() {
 	// Reed-Solomon shards using the erasure-coding settings, and persists the
 	// stored-file record and its shards to the uploads/chunks tables of the
 	// signed-in user's database.
-	uploadService := upload.NewService(authService, settingsService, queueService, conn, fileClient)
+	uploadRepository := upload.NewRepository(conn)
+	uploadService := upload.NewService(authService, settingsService, queueService, uploadRepository, fileClient)
+
+	// Home service: aggregation (recent files, storage totals, provider count,
+	// erasure-coding setup), the paginated drive listing/search, the edit action
+	// and storage-usage read for the Home screen. It owns the read-side queries
+	// of the uploads/chunks tables and delegates the shared reads (GetUpload,
+	// GetChunks) to the upload repository, so the data layer is implemented
+	// exactly once, and reads settings through the settings service.
+	homeRepository := home.NewRepository(conn, uploadRepository)
+	homeService := home.NewService(authService, homeRepository, settingsService, uploadService)
 
 	// Create application with options. Anything passed to Bind is exposed to
 	// the frontend as generated JavaScript bindings under
@@ -104,6 +115,7 @@ func main() {
 		Title:  "ayo",
 		Width:  1100,
 		Height: 768,
+		// Frameless: true,
 		AssetServer: &assetserver.Options{
 			// The compiled frontend (frontend/dist) is embedded into the binary
 			// via assets.go.
@@ -143,6 +155,7 @@ func main() {
 			recoveryService,
 			settingsService,
 			uploadService,
+			homeService,
 		},
 	})
 

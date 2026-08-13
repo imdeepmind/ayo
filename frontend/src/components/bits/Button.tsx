@@ -10,13 +10,13 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const baseClasses =
-  'inline-flex items-center justify-center rounded-xl text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
+  'inline-flex items-center justify-center rounded-xl text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed';
 
 const primaryClasses =
-  'bg-gradient-to-r from-sky-500 to-blue-500 text-white shadow-lg shadow-sky-500/30 hover:shadow-xl hover:shadow-sky-500/40 hover:from-sky-400 hover:to-blue-400 active:from-sky-600 active:to-blue-600 focus:ring-sky-400/50 focus:ring-offset-slate-900 dark:shadow-sky-500/20 dark:hover:shadow-sky-500/30';
+  'bg-primary text-white hover:bg-primary-hover active:bg-primary-active focus:ring-primary/50 dark:bg-primary dark:hover:bg-primary-hover';
 
 const ghostClasses =
-  'border-2 border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300 focus:ring-slate-300/50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 dark:hover:border-slate-500 dark:focus:ring-slate-500/50';
+  'border border-border bg-surface-alt text-text hover:bg-surface-muted/80 focus:ring-border-strong/50 dark:border-border-strong dark:bg-surface-alt dark:text-text dark:hover:bg-surface-hover';
 
 export default function Button({
   variant = 'primary',

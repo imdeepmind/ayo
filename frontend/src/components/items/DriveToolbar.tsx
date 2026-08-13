@@ -1,31 +1,44 @@
-import Button from '@/components/bits/Button';
-import SearchInput from '@/components/bits/SearchInput';
+import { Plus } from 'lucide-react';
 
 type DriveToolbarProps = {
-  searchQuery: string;
-  onSearchChange: (value: string) => void;
+  activeCategory?: string;
   onUploadClick: () => void;
 };
 
 export default function DriveToolbar({
-  searchQuery,
-  onSearchChange,
+  activeCategory = 'my-drive',
   onUploadClick,
 }: DriveToolbarProps) {
-  return (
-    <div className="flex flex-col gap-4 border-b-2 border-slate-200 pb-5 dark:border-slate-700 sm:flex-row sm:items-center sm:justify-between">
-      <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">My Drive</div>
+  const getCategoryTitle = (cat: string) => {
+    switch (cat) {
+      case 'computers':
+        return 'Computers';
+      case 'shared':
+        return 'Shared With Me';
+      case 'recents':
+        return 'Recent Files';
+      case 'starred':
+        return 'Starred Files';
+      case 'deleted':
+        return 'Deleted Files';
+      default:
+        return 'My Drive';
+    }
+  };
 
-      <div className="flex w-full items-center justify-end gap-3 sm:w-auto">
-        <SearchInput
-          value={searchQuery}
-          onChange={onSearchChange}
-          placeholder="Search in Drive"
-          className="w-full max-w-sm"
-        />
-        <Button type="button" onClick={onUploadClick} className="whitespace-nowrap">
-          Upload
-        </Button>
+  return (
+    <div className="flex items-center justify-between py-2">
+      {/* Title + Plus button */}
+      <div className="flex items-center gap-3">
+        <h1 className="text-2xl font-bold text-text">{getCategoryTitle(activeCategory)}</h1>
+        <button
+          type="button"
+          onClick={onUploadClick}
+          className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white hover:bg-primary-hover active:scale-95 transition"
+          title="Upload new file"
+        >
+          <Plus className="h-5 w-5" />
+        </button>
       </div>
     </div>
   );

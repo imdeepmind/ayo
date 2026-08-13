@@ -20,8 +20,8 @@ export default function NotFound() {
         }
       >
         <div className="flex flex-col items-center justify-center py-8 space-y-4">
-          <div className="text-6xl font-black text-slate-200 tracking-tighter">404</div>
-          <p className="text-slate-500 dark:text-slate-400 text-center">
+          <div className="text-6xl font-black text-border-strong tracking-tighter">404</div>
+          <p className="text-text-subtle text-center">
             Oops! It seems you&apos;ve wandered into uncharted territory.
           </p>
         </div>

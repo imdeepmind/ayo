@@ -2,6 +2,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { toErrorMessage } from '@/lib/errors';
 import PageSection from '@/components/bits/Section';
 import AuthCard from '@/components/items/AuthCard';
 import TextInput from '@/components/bits/Input';
@@ -43,7 +44,7 @@ export default function Login() {
           'Unable to connect to your database. Please check that the database is accessible and try again.'
         );
       } else {
-        toast.error(message || 'An unexpected error occurred. Please try again.');
+        toast.error(toErrorMessage(err, 'An unexpected error occurred. Please try again.'));
       }
     }
   };
@@ -54,19 +55,19 @@ export default function Login() {
         title="Welcome back"
         description={<>Sign in to access your secure, encrypted ayo drive</>}
         footer={
-          <div className="flex flex-col items-center justify-between gap-3 text-sm text-slate-600 dark:text-slate-400 sm:flex-row">
+          <div className="flex flex-col items-center justify-between gap-3 text-sm text-text-muted sm:flex-row">
             <div className="flex items-center gap-1.5">
               <span>New to ayo?</span>
               <Link
                 to="/auth/register"
-                className="font-semibold text-sky-600 hover:text-sky-500 dark:text-sky-400 dark:hover:text-sky-300 transition-colors"
+                className="font-semibold text-primary hover:text-primary-hover transition-colors"
               >
                 Create an account →
               </Link>
             </div>
             <Link
               to="/auth/reset"
-              className="font-medium text-slate-500 hover:text-sky-600 dark:text-slate-400 dark:hover:text-sky-400 transition-colors"
+              className="font-medium text-text-subtle hover:text-primary dark:hover:text-primary transition-colors"
             >
               Forgot password?
             </Link>

@@ -24,7 +24,6 @@ type Repository interface {
 		customName string,
 		size int64,
 		tags []string,
-		formatVersion int,
 		manifest shardManifest,
 	) (*Upload, error)
 	// CreateChunks inserts one row per shard for the given file in a single
@@ -33,12 +32,8 @@ type Repository interface {
 	// GetChunks returns the shard records for a stored file, ordered by shard
 	// index so they can be read back in reconstruction order.
 	GetChunks(ctx context.Context, fileID int64) ([]Chunk, error)
-	// GetAll returns every stored file, newest first.
-	GetAll(ctx context.Context) ([]*Upload, error)
 	// GetUpload fetches one stored file by its upload ID.
 	GetUpload(ctx context.Context, id int64) (*Upload, error)
-	// GetTotalSize returns the sum of all stored file sizes (in bytes).
-	GetTotalSize(ctx context.Context) (int64, error)
 	// DeleteUpload removes a stored file by its upload ID. Its chunk rows are
 	// removed by the chunks → uploads foreign key cascade.
 	DeleteUpload(ctx context.Context, id int64) error
@@ -52,8 +47,11 @@ type repository struct {
 
 // NewRepository returns a repository bound to the shared connection holder. The
 // uploads/chunks tables are created lazily on the active client (see resolve),
-// since there is no database connection before a user signs in.
-func NewRepository(conn *dbclient.Connection) Repository {
+// since there is no database connection before a user signs in. It returns the
+// concrete type so callers (e.g. main.go) can pass the same instance to
+// services that depend on different slices of it (upload.Repository vs
+// home.UploadRepository).
+func NewRepository(conn *dbclient.Connection) *repository {
 	return &repository{conn: conn}
 }
 
@@ -67,7 +65,7 @@ func (r *repository) resolve() (*dbclient.Client, error) {
 	r.initMu.Lock()
 	defer r.initMu.Unlock()
 	if r.initClient != c {
-		if err := initializeTable(c); err != nil {
+		if err := InitializeSchema(c); err != nil {
 			return nil, err
 		}
 		r.initClient = c
@@ -75,17 +73,18 @@ func (r *repository) resolve() (*dbclient.Client, error) {
 	return c, nil
 }
 
-// initializeTable idempotently ensures the uploads and chunks tables exist.
-// chunks.file_id references uploads.id (via the foreign_keys pragma on SQLite /
-// a native FK on PostgreSQL), and chunks.chunk_id is globally unique so shard
-// names can never collide even across users or uploads. The uploads table also
-// carries the reconstruction metadata (encrypted size, shard layout, block
-// count) that a local manifest used to hold, so a stored file can always be
-// rebuilt from its row. The DDL branches on the client's dialect (AUTOINCREMENT
-// vs IDENTITY, DATETIME vs TIMESTAMP, BIGINT for size columns).
-//
-// Migration: adds format_version column if it doesn't exist (for existing DBs).
-func initializeTable(db *dbclient.Client) error {
+// InitializeSchema idempotently ensures the uploads and chunks tables exist.
+// The upload feature owns the shared schema (it is the writer); the home
+// feature bootstraps the same tables through this function so both read and
+// write the same storage without duplicating the DDL. chunks.file_id references
+// uploads.id (via the foreign_keys pragma on SQLite / a native FK on
+// PostgreSQL), and chunks.chunk_id is globally unique so shard names can never
+// collide even across users or uploads. The uploads table also carries the
+// reconstruction metadata (encrypted size, shard layout, block count) that a
+// local manifest used to hold, so a stored file can always be rebuilt from its
+// row. The DDL branches on the client's dialect (AUTOINCREMENT vs IDENTITY,
+// DATETIME vs TIMESTAMP, BIGINT for size columns).
+func InitializeSchema(db *dbclient.Client) error {
 	var queries []string
 
 	if db.IsPostgres() {
@@ -97,7 +96,6 @@ func initializeTable(db *dbclient.Client) error {
 				custom_name    TEXT NOT NULL DEFAULT '',
 				size           BIGINT NOT NULL,
 				tags           TEXT NOT NULL DEFAULT '[]',
-				format_version INTEGER NOT NULL DEFAULT 1,
 				encrypted_size BIGINT NOT NULL,
 				data_shards    INTEGER NOT NULL,
 				parity_shards  INTEGER NOT NULL,
@@ -126,7 +124,6 @@ func initializeTable(db *dbclient.Client) error {
 				custom_name    TEXT NOT NULL DEFAULT '',
 				size           INTEGER NOT NULL,
 				tags           TEXT NOT NULL DEFAULT '[]',
-				format_version INTEGER NOT NULL DEFAULT 1,
 				encrypted_size INTEGER NOT NULL,
 				data_shards    INTEGER NOT NULL,
 				parity_shards  INTEGER NOT NULL,
@@ -154,64 +151,7 @@ func initializeTable(db *dbclient.Client) error {
 		}
 	}
 
-	// Migration: add format_version column to existing uploads table if missing.
-	hasFormatVersion, err := hasFormatVersionColumn(db)
-	if err != nil {
-		return err
-	}
-	if !hasFormatVersion {
-		alter := "ALTER TABLE uploads ADD COLUMN format_version INTEGER NOT NULL DEFAULT 1"
-		if db.IsPostgres() {
-			// IF NOT EXISTS guards against races on PostgreSQL.
-			alter = "ALTER TABLE uploads ADD COLUMN IF NOT EXISTS format_version INTEGER NOT NULL DEFAULT 1"
-		}
-		if _, err := db.Exec(alter); err != nil {
-			return fmt.Errorf("add format_version column: %w", err)
-		}
-	}
-
 	return nil
-}
-
-// hasFormatVersionColumn reports whether the uploads table already carries the
-// format_version column. SQLite inspects its table_info pragma; PostgreSQL
-// queries information_schema.
-func hasFormatVersionColumn(db *dbclient.Client) (bool, error) {
-	if db.IsPostgres() {
-		query := `SELECT column_name FROM information_schema.columns
-			WHERE table_name = 'uploads' AND column_name = 'format_version'`
-		var column string
-		err := db.QueryRow(query).Scan(&column)
-		if err == sql.ErrNoRows {
-			return false, nil
-		}
-		if err != nil {
-			return false, fmt.Errorf("check format_version column: %w", err)
-		}
-		return true, nil
-	}
-
-	rows, err := db.Query("PRAGMA table_info(uploads)")
-	if err != nil {
-		return false, fmt.Errorf("check format_version column: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var cid int
-		var name string
-		var typ string
-		var notNull int
-		var dfltValue sql.NullString
-		var pk int
-		if err := rows.Scan(&cid, &name, &typ, &notNull, &dfltValue, &pk); err != nil {
-			return false, fmt.Errorf("scan table_info: %w", err)
-		}
-		if name == "format_version" {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 // CreateUpload inserts a stored-file record and returns it populated with its
@@ -226,18 +166,17 @@ func (r *repository) CreateUpload(
 	customName string,
 	size int64,
 	tags []string,
-	formatVersion int,
 	manifest shardManifest,
 ) (*Upload, error) {
-	encodedTags, err := json.Marshal(tags)
+	encodedTags, err := EncodeTags(tags)
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode tags: %w", err)
+		return nil, err
 	}
 
 	query := `INSERT OR IGNORE INTO uploads
-		(job_id, file, custom_name, size, tags, format_version, encrypted_size, data_shards,
+		(job_id, file, custom_name, size, tags, encrypted_size, data_shards,
 		 parity_shards, shard_size, block_count)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	client, err := r.resolve()
 	if err != nil {
@@ -248,15 +187,15 @@ func (r *repository) CreateUpload(
 		// PostgreSQL has no INSERT OR IGNORE or LastInsertId; use an upsert that
 		// does nothing on conflict and return the row ID directly.
 		query = `INSERT INTO uploads
-			(job_id, file, custom_name, size, tags, format_version, encrypted_size, data_shards,
+			(job_id, file, custom_name, size, tags, encrypted_size, data_shards,
 			 parity_shards, shard_size, block_count)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT (job_id) DO NOTHING
 			RETURNING id`
 
 		var id int64
 		err := client.QueryRowContext(ctx, client.Rebind(query), jobID, file, customName, size,
-			string(encodedTags), formatVersion, manifest.EncryptedSize, manifest.DataShards,
+			encodedTags, manifest.EncryptedSize, manifest.DataShards,
 			manifest.ParityShards, manifest.ShardSize, manifest.BlockCount).Scan(&id)
 		if err == sql.ErrNoRows {
 			return r.getUploadByJob(ctx, jobID)
@@ -268,7 +207,7 @@ func (r *repository) CreateUpload(
 	}
 
 	result, err := client.ExecContext(ctx, client.Rebind(query), jobID, file, customName, size,
-		string(encodedTags), formatVersion, manifest.EncryptedSize, manifest.DataShards,
+		encodedTags, manifest.EncryptedSize, manifest.DataShards,
 		manifest.ParityShards, manifest.ShardSize, manifest.BlockCount)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create upload: %w", err)
@@ -287,7 +226,7 @@ func (r *repository) CreateUpload(
 
 // getUpload fetches one upload row by ID.
 func (r *repository) getUpload(ctx context.Context, id int64) (*Upload, error) {
-	query := `SELECT id, job_id, file, custom_name, size, tags, format_version,
+	query := `SELECT id, job_id, file, custom_name, size, tags,
 		encrypted_size, data_shards, parity_shards, shard_size, block_count,
 		created_at, updated_at FROM uploads WHERE id = ?`
 
@@ -305,7 +244,6 @@ func (r *repository) getUpload(ctx context.Context, id int64) (*Upload, error) {
 		&upload.CustomName,
 		&upload.Size,
 		&tags,
-		&upload.FormatVersion,
 		&upload.EncryptedSize,
 		&upload.DataShards,
 		&upload.ParityShards,
@@ -324,7 +262,7 @@ func (r *repository) getUpload(ctx context.Context, id int64) (*Upload, error) {
 // getUploadByJob fetches one upload row by its job ID, used to reuse an
 // existing record when a job is reprocessed after a crash.
 func (r *repository) getUploadByJob(ctx context.Context, jobID int64) (*Upload, error) {
-	query := `SELECT id, job_id, file, custom_name, size, tags, format_version,
+	query := `SELECT id, job_id, file, custom_name, size, tags,
 		encrypted_size, data_shards, parity_shards, shard_size, block_count,
 		created_at, updated_at FROM uploads WHERE job_id = ?`
 
@@ -342,7 +280,6 @@ func (r *repository) getUploadByJob(ctx context.Context, jobID int64) (*Upload, 
 		&upload.CustomName,
 		&upload.Size,
 		&tags,
-		&upload.FormatVersion,
 		&upload.EncryptedSize,
 		&upload.DataShards,
 		&upload.ParityShards,
@@ -356,6 +293,18 @@ func (r *repository) getUploadByJob(ctx context.Context, jobID int64) (*Upload, 
 	}
 	upload.Tags = decodeTags(tags)
 	return &upload, nil
+}
+
+// EncodeTags serializes a tag list to its JSON column representation.
+func EncodeTags(tags []string) (string, error) {
+	if tags == nil {
+		tags = []string{}
+	}
+	encoded, err := json.Marshal(tags)
+	if err != nil {
+		return "", fmt.Errorf("failed to encode tags: %w", err)
+	}
+	return string(encoded), nil
 }
 
 // decodeTags parses a JSON-encoded tag list. Malformed or empty values fall
@@ -407,7 +356,7 @@ func (r *repository) CreateChunks(ctx context.Context, fileID int64, chunks []Ch
 
 // GetAll returns every stored file, newest first.
 func (r *repository) GetAll(ctx context.Context) ([]*Upload, error) {
-	query := `SELECT id, job_id, file, custom_name, size, tags, format_version,
+	query := `SELECT id, job_id, file, custom_name, size, tags,
 		encrypted_size, data_shards, parity_shards, shard_size, block_count,
 		created_at, updated_at FROM uploads ORDER BY created_at DESC`
 
@@ -433,7 +382,6 @@ func (r *repository) GetAll(ctx context.Context) ([]*Upload, error) {
 			&upload.CustomName,
 			&upload.Size,
 			&tags,
-			&upload.FormatVersion,
 			&upload.EncryptedSize,
 			&upload.DataShards,
 			&upload.ParityShards,
@@ -456,23 +404,6 @@ func (r *repository) GetAll(ctx context.Context) ([]*Upload, error) {
 // GetUpload fetches one stored file by its upload ID.
 func (r *repository) GetUpload(ctx context.Context, id int64) (*Upload, error) {
 	return r.getUpload(ctx, id)
-}
-
-// GetTotalSize returns the sum of all stored file sizes in bytes. Files with
-// no rows yet (or an empty table) report 0.
-func (r *repository) GetTotalSize(ctx context.Context) (int64, error) {
-	query := `SELECT COALESCE(SUM(size), 0) FROM uploads`
-
-	client, err := r.resolve()
-	if err != nil {
-		return 0, err
-	}
-
-	var total int64
-	if err := client.QueryRowContext(ctx, query).Scan(&total); err != nil {
-		return 0, fmt.Errorf("failed to sum upload sizes: %w", err)
-	}
-	return total, nil
 }
 
 // DeleteUpload removes a stored file by its upload ID. Its chunk rows are

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { AlertTriangle, ChevronDown } from 'lucide-react';
+import { toErrorMessage } from '@/lib/errors';
 import TextInput from '@/components/bits/Input';
 import Button from '@/components/bits/Button';
 import Toggle from '@/components/bits/Toggle';
@@ -125,22 +126,22 @@ function ProviderForm({
   };
 
   return (
-    <div className="rounded-2xl border-2 border-slate-200 bg-white/90 backdrop-blur-sm shadow-lg transition-all duration-200 dark:border-slate-700 dark:bg-slate-800/90">
+    <div className="rounded-2xl border-2 border-border bg-background backdrop-blur-sm shadow-lg transition-all duration-200 dark:border-border-strong">
       {/* Header */}
       <button
         type="button"
         onClick={() => onToggleCollapse(provider.id)}
-        className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-slate-50/50 dark:hover:bg-slate-700/30 rounded-t-2xl transition-colors"
+        className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-surface-hover/50 dark:hover:bg-surface-hover/30 rounded-t-2xl transition-colors"
       >
         <div className="flex items-center gap-3">
-          <span className="text-xs font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400">
+          <span className="text-xs font-bold uppercase tracking-wider text-primary">
             {providerLabel(provider.type)}
           </span>
-          <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-500 dark:bg-slate-700/60 dark:text-slate-300">
+          <span className="rounded-md bg-surface-alt px-2 py-0.5 font-mono text-[11px] font-semibold text-text-subtle dark:bg-surface-hover dark:text-text-muted">
             {provider.providerId}
           </span>
           {!provider.collapsed && (
-            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-medium text-text-subtle">
               {provider.type === 'aws'
                 ? (provider.fields as AWSFields).bucketName || 'Untitled'
                 : provider.type === 'azure'
@@ -153,7 +154,7 @@ function ProviderForm({
         </div>
         <div className="flex items-center gap-2">
           <ChevronDown
-            className="h-4 w-4 text-slate-400 transition-transform duration-200"
+            className="h-4 w-4 text-text-faint transition-transform duration-200"
             style={{ transform: provider.collapsed ? 'rotate(0deg)' : 'rotate(180deg)' }}
           />
         </div>
@@ -161,7 +162,7 @@ function ProviderForm({
 
       {/* Body */}
       {!provider.collapsed && (
-        <div className="space-y-4 border-t-2 border-slate-100 px-6 pb-6 pt-5 dark:border-slate-700">
+        <div className="space-y-4 border-t-2 border-border px-6 pb-6 pt-5 dark:border-border-strong">
           {provider.type === 'aws' && (
             <>
               <TextInput
@@ -235,7 +236,7 @@ function ProviderForm({
               <div className="space-y-2">
                 <label
                   htmlFor={`${provider.id}-sa-json`}
-                  className="block text-sm font-semibold text-slate-700 dark:text-slate-200"
+                  className="block text-sm font-semibold text-text-muted dark:text-text"
                 >
                   Service Account JSON
                 </label>
@@ -245,7 +246,7 @@ function ProviderForm({
                   placeholder='{"type": "service_account", ...}'
                   value={(provider.fields as GCPFields).serviceAccountJson}
                   onChange={(e) => update('serviceAccountJson', e.target.value)}
-                  className={`w-full rounded-xl border-2 ${errors.serviceAccountJson ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20' : 'border-slate-200 focus:border-sky-500 focus:ring-sky-500/20 dark:border-slate-600 dark:focus:border-sky-400'} bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm outline-none transition-all duration-200 focus:ring-4 dark:bg-slate-900/50 dark:text-slate-100 dark:placeholder:text-slate-500 font-mono`}
+                  className={`w-full rounded-xl border-2 ${errors.serviceAccountJson ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20' : 'border-border-input focus:border-primary focus:ring-primary/20 dark:border-border-input dark:focus:border-primary'} bg-surface px-4 py-2.5 text-sm text-text placeholder:text-text-faint shadow-sm outline-none transition-all duration-200 focus:ring-4 dark:bg-surface dark:text-text dark:placeholder:text-text-subtle font-mono`}
                 />
                 {errors.serviceAccountJson && (
                   <p className="text-sm text-red-500 dark:text-red-400 flex items-center gap-1.5">
@@ -259,7 +260,7 @@ function ProviderForm({
                     {errors.serviceAccountJson}
                   </p>
                 )}
-                <p className="text-xs text-slate-500 dark:text-slate-400 flex items-start gap-1.5">
+                <p className="text-xs text-text-subtle flex items-start gap-1.5">
                   <svg
                     className="w-3.5 h-3.5 flex-shrink-0 mt-0.5"
                     fill="currentColor"
@@ -301,7 +302,7 @@ function ProviderForm({
               <div className="space-y-2">
                 <label
                   htmlFor={`${provider.id}-folder-path`}
-                  className="block text-sm font-semibold text-slate-700 dark:text-slate-200"
+                  className="block text-sm font-semibold text-text-muted dark:text-text"
                 >
                   Folder Location
                 </label>
@@ -312,7 +313,7 @@ function ProviderForm({
                     readOnly
                     placeholder="Choose a folder..."
                     value={(provider.fields as LocalFields).folderPath}
-                    className={`w-full flex-1 rounded-xl border-2 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 shadow-sm outline-none transition-all duration-200 focus:ring-4 dark:bg-slate-900/50 dark:text-slate-200 dark:placeholder:text-slate-500 ${errors.folderPath ? 'border-red-400' : 'border-slate-200 dark:border-slate-600'}`}
+                    className={`w-full flex-1 rounded-xl border-2 bg-surface-alt px-4 py-2.5 text-sm text-text-muted placeholder:text-text-faint shadow-sm outline-none transition-all duration-200 focus:ring-4 dark:bg-surface dark:text-text dark:placeholder:text-text-subtle ${errors.folderPath ? 'border-red-400' : 'border-border-input dark:border-border-input'}`}
                   />
                   <button
                     type="button"
@@ -325,7 +326,7 @@ function ProviderForm({
                         toast.error('Failed to open folder picker: ' + String(err));
                       }
                     }}
-                    className="inline-flex items-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-sm transition-all duration-200 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-sky-500 dark:hover:bg-sky-950/30 dark:hover:text-sky-400"
+                    className="inline-flex items-center gap-2 rounded-xl border-2 border-border-strong bg-surface px-4 py-2.5 text-sm font-semibold text-text-muted shadow-sm transition-all duration-200 hover:border-primary hover:bg-primary/10 hover:text-primary dark:border-border-input dark:bg-surface-alt dark:text-text-muted dark:hover:border-primary/50 dark:hover:bg-primary/20 dark:hover:text-primary"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path
@@ -621,7 +622,7 @@ export default function StorageSettings() {
       toast.success('Storage settings saved successfully');
     } catch (err) {
       console.error(err);
-      toast.error('Failed to save settings: ' + String(err));
+      toast.error(toErrorMessage(err, 'Failed to save settings. Please try again.'));
     }
   };
 
@@ -638,7 +639,7 @@ export default function StorageSettings() {
       toast.success('Ayo storage settings saved successfully');
     } catch (err) {
       console.error(err);
-      toast.error('Failed to save Ayo settings: ' + String(err));
+      toast.error(toErrorMessage(err, 'Failed to save Ayo settings. Please try again.'));
     }
   };
 
@@ -646,21 +647,21 @@ export default function StorageSettings() {
   const tabClass = (id: TabId) =>
     `px-5 py-3 text-sm font-semibold transition-all duration-200 border-b-2 ${
       activeTab === id
-        ? 'border-sky-500 text-sky-600 dark:border-sky-400 dark:text-sky-400'
-        : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 dark:text-slate-400 dark:hover:text-slate-300 dark:hover:border-slate-600'
+        ? 'border-primary text-primary'
+        : 'border-transparent text-text-subtle hover:text-text hover:border-border-strong dark:text-text-subtle dark:hover:text-text dark:hover:border-border-input'
     }`;
 
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Storage Settings</h2>
-        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+        <h2 className="text-2xl font-bold text-text">Storage Settings</h2>
+        <p className="mt-2 text-sm text-text-muted">
           Configure where your files are stored and how they are protected.
         </p>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b-2 border-slate-200 dark:border-slate-700">
+      <div className="flex border-b-2 border-border dark:border-border-strong">
         <button type="button" className={tabClass('custom')} onClick={() => setActiveTab('custom')}>
           Custom Storage (Recommended)
         </button>
@@ -672,7 +673,7 @@ export default function StorageSettings() {
       {/* Custom Storage Tab */}
       {activeTab === 'custom' && (
         <div className="space-y-6">
-          <div className="rounded-2xl border-2 border-slate-200 bg-white/90 backdrop-blur-sm p-6 shadow-lg dark:border-slate-700 dark:bg-slate-800/90">
+          <div className="rounded-2xl border-2 border-border bg-background backdrop-blur-sm p-6 shadow-lg dark:border-border-strong">
             <Toggle
               id="custom-storage-toggle"
               label="Enable Custom Storage"
@@ -700,9 +701,9 @@ export default function StorageSettings() {
             </div>
 
             {/* Add provider */}
-            <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 p-6 dark:border-slate-700 dark:bg-slate-900/30">
+            <div className="rounded-2xl border-2 border-dashed border-border bg-surface-hover/50 p-6 dark:border-border-strong dark:bg-surface">
               <div className="flex flex-wrap items-center gap-3">
-                <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                <span className="text-sm font-semibold text-text-muted dark:text-text">
                   Add storage provider:
                 </span>
                 {(['aws', 'gcp', 'azure', 'local'] as ProviderType[]).map((type) => (
@@ -712,7 +713,7 @@ export default function StorageSettings() {
                     onClick={() => addProvider(type)}
                     disabled={!customEnabled || type === 'gcp' || type === 'azure'}
                     title={type === 'gcp' || type === 'azure' ? 'Coming soon' : undefined}
-                    className="inline-flex items-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-sm transition-all duration-200 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-600 hover:shadow-md dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-sky-500 dark:hover:bg-sky-950/30 dark:hover:text-sky-400 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-slate-300 disabled:hover:bg-white disabled:hover:text-slate-600"
+                    className="inline-flex items-center gap-2 rounded-xl border-2 border-border-strong bg-surface px-4 py-2.5 text-sm font-semibold text-text-muted shadow-sm transition-all duration-200 hover:border-primary hover:bg-primary/10 hover:text-primary hover:shadow-md dark:border-border-input dark:bg-surface-alt dark:text-text-muted dark:hover:border-primary/50 dark:hover:bg-primary/20 dark:hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-border-strong disabled:hover:bg-surface disabled:hover:text-text-muted"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path
@@ -769,7 +770,7 @@ export default function StorageSettings() {
             </div>
           </div>
 
-          <div className="rounded-2xl border-2 border-slate-200 bg-white/90 backdrop-blur-sm p-6 shadow-lg dark:border-slate-700 dark:bg-slate-800/90">
+          <div className="rounded-2xl border-2 border-border bg-background backdrop-blur-sm p-6 shadow-lg dark:border-border-strong">
             <Toggle
               id="ayo-storage-toggle"
               label="Enable Ayo Provided Storage"

@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
-	"time"
 
-	dbclient "ayo/internal/clients/db"
 	"ayo/internal/clients/storage"
 	"ayo/internal/features/auth"
 	"ayo/internal/features/settings"
@@ -31,15 +29,14 @@ type SettingsProvider interface {
 }
 
 // QueueService is the subset of queue.Service that upload depends on. It covers
-// both enqueueing (Service) and the processor's needs (Get, GetIncompleteByType,
-// UpdateStatusAndProgress), plus Delete for clearing transient download jobs.
+// both enqueueing (Service) and the processor's needs (Get, GetActive,
+// GetIncompleteByType, UpdateStatusAndProgress).
 type QueueService interface {
 	Add(input queue.AddInput) (*queue.Job, error)
-	GetAll() ([]*queue.Job, error)
+	GetActive() ([]*queue.Job, error)
 	Get(id int64) (*queue.Job, error)
 	GetIncompleteByType(jobType string) ([]*queue.Job, error)
 	UpdateStatusAndProgress(id int64, status string, progress int) error
-	Delete(id int64) error
 }
 
 // UploadRepository is the subset of upload.Repository the processor uses to
@@ -53,7 +50,6 @@ type UploadRepository interface {
 		customName string,
 		size int64,
 		tags []string,
-		formatVersion int,
 		manifest shardManifest,
 	) (*Upload, error)
 	CreateChunks(ctx context.Context, fileID int64, chunks []ChunkInput) error
@@ -83,8 +79,7 @@ type Service struct {
 }
 
 func NewService(sessionProvider SessionProvider, settingsProvider SettingsProvider,
-	queueService QueueService, conn *dbclient.Connection, local *storage.LocalFilesystem) *Service {
-	repo := NewRepository(conn)
+	queueService QueueService, repo Repository, local *storage.LocalFilesystem) *Service {
 	return &Service{
 		sessionProvider:  sessionProvider,
 		settingsProvider: settingsProvider,
@@ -105,12 +100,13 @@ func (s *Service) Startup(ctx context.Context) {
 	s.processor.Start()
 }
 
-// cleanupStaleDownloads removes leftover staging files and download jobs from a
-// previous run. Downloads are ephemeral: anything still present at startup
-// (completed but never saved, or mid-flight) is discarded, since the staged
-// bytes are not a persisted record and the user can simply download again.
+// cleanupStaleDownloads removes leftover staging files and temp encrypted files
+// from a previous run. Downloads are ephemeral: anything still present at
+// startup (completed but never saved, or mid-flight) is discarded, since the
+// staged bytes are not a persisted record and the user can simply download
+// again.
 //
-// Also cleans up temp encrypted files from download reconstruction.
+// The queue records for those downloads are kept: job history is never pruned.
 func (s *Service) cleanupStaleDownloads() {
 	// Clean up download staging directory.
 	if err := s.local.RemoveAll(downloadsDir); err != nil {
@@ -130,17 +126,6 @@ func (s *Service) cleanupStaleDownloads() {
 			if err := s.local.Remove(file); err != nil {
 				slog.Error("startup: remove download temp file", "file", file, "error", err)
 			}
-		}
-	}
-
-	// Delete stale download jobs.
-	jobs, err := s.queueService.GetAll()
-	if err != nil {
-		return
-	}
-	for _, job := range jobs {
-		if job.Type == queue.TypeDownload {
-			_ = s.queueService.Delete(job.ID)
 		}
 	}
 }
@@ -228,31 +213,38 @@ func (s *Service) EnqueueFiles(input EnqueueFilesInput) ([]EnqueuedJob, error) {
 }
 
 // GetActiveTransfers returns the jobs currently in flight (pending or
-// processing, of any type) plus completed download jobs awaiting the save
-// dialog, oldest first, so the frontend can render progress and trigger
-// FinalizeDownload.
+// processing, of any type), oldest first, so the frontend can render progress.
+// Finished jobs stay in the queue as audit history and are not returned here.
 func (s *Service) GetActiveTransfers() ([]EnqueuedJob, error) {
 	if _, err := s.sessionProvider.RequireSession(); err != nil {
 		return nil, err
 	}
 
-	jobs, err := s.queueService.GetAll()
+	jobs, err := s.queueService.GetActive()
 	if err != nil {
 		return nil, err
 	}
 
 	active := make([]EnqueuedJob, 0, len(jobs))
 	for _, job := range jobs {
-		if job.Status != queue.StatusPending && job.Status != queue.StatusProcessing {
-			// Completed downloads are kept visible until the user picks a save
-			// destination; everything else done is no longer active.
-			if job.Type != queue.TypeDownload || job.Status != queue.StatusCompleted {
-				continue
-			}
-		}
 		active = append(active, toEnqueuedJob(job))
 	}
 	return active, nil
+}
+
+// GetJobStatus returns the current persisted state of one queued job, oldest
+// audit lookup used to resolve a job's final outcome after it leaves the active
+// set. Returns ErrJobNotFound when no such job exists.
+func (s *Service) GetJobStatus(id int64) (EnqueuedJob, error) {
+	if _, err := s.sessionProvider.RequireSession(); err != nil {
+		return EnqueuedJob{}, err
+	}
+
+	job, err := s.queueService.Get(id)
+	if err != nil {
+		return EnqueuedJob{}, err
+	}
+	return toEnqueuedJob(job), nil
 }
 
 // toEnqueuedJob maps a queue.Job to the flat frontend-facing shape.
@@ -305,8 +297,9 @@ func (s *Service) EnqueueDownload(storageID int64) (EnqueuedJob, error) {
 
 // FinalizeDownload shows the native save dialog for a completed download and,
 // on confirmation, copies the staged plaintext to the chosen location. The
-// staging file and the transient download job are removed either way. It
-// returns the saved path, or "" (nil error) when the user cancels.
+// staging file is removed either way; the transient download job's queue record
+// is kept for history. It returns the saved path, or "" (nil error) when the
+// user cancels.
 func (s *Service) FinalizeDownload(jobID int64) (string, error) {
 	if _, err := s.sessionProvider.RequireSession(); err != nil {
 		return "", err
@@ -338,11 +331,10 @@ func (s *Service) FinalizeDownload(jobID int64) (string, error) {
 		return "", errors.AsInternalServerError("download: save dialog", err)
 	}
 
-	// The staging file and the transient job are discarded whether the user
-	// saves or cancels.
+	// The staging file is discarded whether the user saves or cancels. The
+	// job's queue record is kept.
 	defer func() {
 		_ = s.local.Remove(staged)
-		_ = s.queueService.Delete(jobID)
 	}()
 
 	if dest == "" {
@@ -357,49 +349,6 @@ func (s *Service) FinalizeDownload(jobID int64) (string, error) {
 		return "", errors.AsInternalServerError("download: write destination", err)
 	}
 	return dest, nil
-}
-
-// GetStoredFiles returns every persisted upload (the drive listing), newest
-// first.
-func (s *Service) GetStoredFiles() ([]StoredFile, error) {
-	if _, err := s.sessionProvider.RequireSession(); err != nil {
-		return nil, err
-	}
-
-	uploads, err := s.repo.GetAll(context.Background())
-	if err != nil {
-		return nil, errors.AsInternalServerError("get stored files: list", err)
-	}
-
-	stored := make([]StoredFile, 0, len(uploads))
-	for _, u := range uploads {
-		name := u.CustomName
-		if name == "" {
-			name = u.File
-		}
-		stored = append(stored, StoredFile{
-			ID:        u.ID,
-			Name:      name,
-			Size:      u.Size,
-			Tags:      u.Tags,
-			CreatedAt: u.CreatedAt.UTC().Format(time.RFC3339),
-		})
-	}
-	return stored, nil
-}
-
-// GetStorageUsed returns the total size in bytes of all stored files, used by
-// the global status bar.
-func (s *Service) GetStorageUsed() (int64, error) {
-	if _, err := s.sessionProvider.RequireSession(); err != nil {
-		return 0, err
-	}
-
-	total, err := s.repo.GetTotalSize(context.Background())
-	if err != nil {
-		return 0, errors.AsInternalServerError("get storage used", err)
-	}
-	return total, nil
 }
 
 // EnqueueDelete queues a background delete of the stored file with the given

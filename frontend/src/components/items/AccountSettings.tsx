@@ -93,10 +93,8 @@ export default function AccountSettings() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Account Settings</h2>
-        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-          Manage your account security and data.
-        </p>
+        <h2 className="text-2xl font-bold text-text">Account Settings</h2>
+        <p className="mt-2 text-sm text-text-muted">Manage your account security and data.</p>
       </div>
 
       <div className="space-y-4">
@@ -120,12 +118,8 @@ export default function AccountSettings() {
                 <action.icon className="h-5 w-5" />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                  {action.title}
-                </h3>
-                <p className="mt-1 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                  {action.description}
-                </p>
+                <h3 className="text-base font-bold text-text">{action.title}</h3>
+                <p className="mt-1 text-sm text-text-muted leading-relaxed">{action.description}</p>
 
                 {activeAction === action.id ? (
                   <form onSubmit={handleSubmit(onSubmit)} className="mt-5 space-y-4">

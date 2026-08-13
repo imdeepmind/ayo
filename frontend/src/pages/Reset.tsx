@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { toErrorMessage } from '@/lib/errors';
 import PageSection from '@/components/bits/Section';
 import AuthCard from '@/components/items/AuthCard';
 import TextInput from '@/components/bits/Input';
@@ -46,7 +47,7 @@ export default function Reset() {
       }
     } catch (err) {
       console.error(err);
-      toast.error(String(err) || 'An unexpected error occurred');
+      toast.error(toErrorMessage(err, 'An unexpected error occurred'));
     }
   };
 
@@ -78,11 +79,11 @@ export default function Reset() {
         }
         footer={
           !newRecoveryKey && (
-            <div className="flex items-center justify-center gap-1.5 text-sm text-slate-600 dark:text-slate-400">
+            <div className="flex items-center justify-center gap-1.5 text-sm text-text-muted">
               <span>Remember your password?</span>
               <Link
                 to="/auth/login"
-                className="font-semibold text-sky-600 hover:text-sky-500 dark:text-sky-400 dark:hover:text-sky-300 transition-colors"
+                className="font-semibold text-primary hover:text-primary-hover transition-colors"
               >
                 Sign in →
               </Link>
@@ -113,8 +114,8 @@ export default function Reset() {
                     Your New Recovery Key
                   </p>
                 </div>
-                <div className="bg-white/80 dark:bg-slate-900/50 rounded-lg p-4 backdrop-blur-sm border border-emerald-200/50 dark:border-emerald-800/50">
-                  <p className="font-mono text-sm break-all text-slate-900 dark:text-slate-100 leading-relaxed">
+                <div className="bg-background rounded-lg p-4 backdrop-blur-sm border border-emerald-200/50 dark:border-emerald-800/50">
+                  <p className="font-mono text-sm break-all text-text leading-relaxed">
                     {newRecoveryKey}
                   </p>
                 </div>

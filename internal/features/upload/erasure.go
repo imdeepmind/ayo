@@ -238,8 +238,13 @@ type shardRef struct {
 // final block's zero-padding.
 //
 // The reconstructed data is written to outputWriter as blocks are processed,
-// streaming through memory without building the full file in memory.
-func reconstructCiphertext(manifest shardManifest, refs []shardRef, outputWriter io.Writer) error {
+// streaming through memory without building the full file in memory. onProgress
+// is invoked after each shard is read from its provider with the bytes
+// downloaded so far and the total, so the download progress can track the slow
+// network I/O.
+func reconstructCiphertext(manifest shardManifest, refs []shardRef, outputWriter io.Writer,
+	onProgress func(done, total int64) error,
+) error {
 	total := manifest.DataShards + manifest.ParityShards
 	if manifest.DataShards <= 0 || total != len(refs) {
 		return fmt.Errorf("invalid layout: expected %d shards, got %d", total, len(refs))
@@ -247,6 +252,9 @@ func reconstructCiphertext(manifest shardManifest, refs []shardRef, outputWriter
 
 	shards := make([][]byte, total)
 	present := 0
+	shardSize := int64(manifest.ShardSize) * int64(manifest.BlockCount)
+	totalBytes := int64(len(refs)) * shardSize
+	var doneBytes int64
 	for i, ref := range refs {
 		data, err := ref.client.ReadFile(ref.key)
 		if err != nil {
@@ -255,6 +263,12 @@ func reconstructCiphertext(manifest shardManifest, refs []shardRef, outputWriter
 		}
 		shards[i] = data
 		present++
+		doneBytes += shardSize
+		if onProgress != nil {
+			if err := onProgress(doneBytes, totalBytes); err != nil {
+				return err
+			}
+		}
 	}
 	if present < manifest.DataShards {
 		return fmt.Errorf("too few shards to reconstruct: %d present, %d needed", present, manifest.DataShards)

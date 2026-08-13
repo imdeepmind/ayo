@@ -186,6 +186,197 @@ export namespace db {
 
 }
 
+export namespace home {
+	
+	export class ProviderDetails {
+	    ID: string;
+	    Type: string;
+	    Name: string;
+	    Resource: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProviderDetails(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Type = source["Type"];
+	        this.Name = source["Name"];
+	        this.Resource = source["Resource"];
+	    }
+	}
+	export class FileDetails {
+	    ID: number;
+	    OriginalName: string;
+	    CustomName: string;
+	    Size: number;
+	    StoredSize: number;
+	    Tags: string[];
+	    DataShards: number;
+	    ParityShards: number;
+	    Providers: ProviderDetails[];
+	    CreatedAt: string;
+	    UpdatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new FileDetails(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.OriginalName = source["OriginalName"];
+	        this.CustomName = source["CustomName"];
+	        this.Size = source["Size"];
+	        this.StoredSize = source["StoredSize"];
+	        this.Tags = source["Tags"];
+	        this.DataShards = source["DataShards"];
+	        this.ParityShards = source["ParityShards"];
+	        this.Providers = this.convertValues(source["Providers"], ProviderDetails);
+	        this.CreatedAt = source["CreatedAt"];
+	        this.UpdatedAt = source["UpdatedAt"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class RecentFile {
+	    ID: number;
+	    Name: string;
+	    Format: string;
+	    Size: number;
+	    UpdatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RecentFile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Name = source["Name"];
+	        this.Format = source["Format"];
+	        this.Size = source["Size"];
+	        this.UpdatedAt = source["UpdatedAt"];
+	    }
+	}
+	export class HomeOverview {
+	    RecentFiles: RecentFile[];
+	    TotalFiles: number;
+	    TotalSizeUsed: number;
+	    ActualSizeUsed: number;
+	    TotalProviders: number;
+	    ErasureCodingSetup: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new HomeOverview(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.RecentFiles = this.convertValues(source["RecentFiles"], RecentFile);
+	        this.TotalFiles = source["TotalFiles"];
+	        this.TotalSizeUsed = source["TotalSizeUsed"];
+	        this.ActualSizeUsed = source["ActualSizeUsed"];
+	        this.TotalProviders = source["TotalProviders"];
+	        this.ErasureCodingSetup = source["ErasureCodingSetup"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	export class StoredFile {
+	    ID: number;
+	    Name: string;
+	    Size: number;
+	    Tags: string[];
+	    CreatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new StoredFile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Name = source["Name"];
+	        this.Size = source["Size"];
+	        this.Tags = source["Tags"];
+	        this.CreatedAt = source["CreatedAt"];
+	    }
+	}
+	export class StoredFilePage {
+	    Files: StoredFile[];
+	    Total: number;
+	    Page: number;
+	    PageSize: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new StoredFilePage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Files = this.convertValues(source["Files"], StoredFile);
+	        this.Total = source["Total"];
+	        this.Page = source["Page"];
+	        this.PageSize = source["PageSize"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
 export namespace settings {
 	
 	export class DatabaseInfo {
@@ -341,26 +532,6 @@ export namespace upload {
 	        this.Name = source["Name"];
 	        this.Path = source["Path"];
 	        this.Size = source["Size"];
-	    }
-	}
-	export class StoredFile {
-	    ID: number;
-	    Name: string;
-	    Size: number;
-	    Tags: string[];
-	    CreatedAt: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new StoredFile(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.ID = source["ID"];
-	        this.Name = source["Name"];
-	        this.Size = source["Size"];
-	        this.Tags = source["Tags"];
-	        this.CreatedAt = source["CreatedAt"];
 	    }
 	}
 

@@ -10,16 +10,13 @@ const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
   ({ label, id, error, className = '', ...rest }, ref) => {
     return (
       <div className="space-y-2">
-        <label
-          htmlFor={id}
-          className="block text-sm font-semibold text-slate-700 dark:text-slate-200"
-        >
+        <label htmlFor={id} className="block text-sm font-semibold text-text-muted dark:text-text">
           {label}
         </label>
         <input
           id={id}
           ref={ref}
-          className={`w-full rounded-xl border-2 ${error ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20' : 'border-slate-200 focus:border-sky-500 focus:ring-sky-500/20 dark:border-slate-600 dark:focus:border-sky-400'} bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm outline-none transition-all duration-200 focus:ring-4 dark:bg-slate-900/50 dark:text-slate-100 dark:placeholder:text-slate-500 ${className}`.trim()}
+          className={`w-full rounded-xl border-2 ${error ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20' : 'border-border-input focus:border-primary focus:ring-primary/20 dark:border-border-input dark:focus:border-primary'} bg-surface px-4 py-2.5 text-sm text-text placeholder:text-text-faint shadow-sm outline-none transition-all duration-200 focus:ring-4 dark:bg-surface dark:text-text dark:placeholder:text-text-subtle ${className}`.trim()}
           {...rest}
         />
         {error && (
