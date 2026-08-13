@@ -59,7 +59,11 @@ export function ActiveTransfersProvider({ children }: { children: React.ReactNod
     try {
       const savedPath = await FinalizeDownload(job.ID);
       if (savedPath) {
-        toast.success(`Saved to ${savedPath}`);
+        toast.success(
+          <span>
+            Saved to <span style={{ wordBreak: 'break-all' }}>{savedPath}</span>
+          </span>
+        );
       } else {
         toast('Download cancelled — no file was saved.');
       }
