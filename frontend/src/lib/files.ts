@@ -42,10 +42,6 @@ export function getFileType(name: string): FileItemType {
   return 'other';
 }
 
-export function calculateTotalUsedBytes(items: FileItem[]): number {
-  return items.reduce((total, item) => total + item.sizeBytes, 0);
-}
-
 // formatSize renders a byte count as a compact human-readable string, e.g.
 // 15728640 -> "15.0MB".
 export function formatSize(bytes: number): string {

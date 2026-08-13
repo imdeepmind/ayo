@@ -22,8 +22,8 @@ export function GetStorageUsed() {
   return window['go']['home']['Service']['GetStorageUsed']();
 }
 
-export function GetStoredFiles(arg1, arg2, arg3) {
-  return window['go']['home']['Service']['GetStoredFiles'](arg1, arg2, arg3);
+export function GetStoredFiles(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['home']['Service']['GetStoredFiles'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function UpdateFile(arg1, arg2, arg3) {

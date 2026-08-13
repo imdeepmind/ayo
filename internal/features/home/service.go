@@ -40,21 +40,22 @@ type UploadEnqueuer interface {
 // (GetUpload, GetChunks) to the upload feature's repository, the single owner
 // of the uploads/chunks tables.
 type Repository interface {
-	// GetAll returns every stored file, newest first.
-	GetAll(ctx context.Context) ([]*upload.Upload, error)
-	// GetAllPaged returns the stored files for one page of the drive listing,
-	// newest first, with the given page size and offset.
-	GetAllPaged(ctx context.Context, limit, offset int) ([]*upload.Upload, error)
-	// SearchByName returns stored files whose file or custom name contains the
-	// given query (case-insensitive), newest first, for one page of results.
-	SearchByName(ctx context.Context, query string, limit, offset int) ([]*upload.Upload, error)
-	// CountUploads returns the total number of stored files.
-	CountUploads(ctx context.Context) (int64, error)
-	// CountByName returns the number of stored files whose file or custom name
-	// contains the given query (case-insensitive).
-	CountByName(ctx context.Context, query string) (int64, error)
+	// ListPaged returns one page of the drive listing, ordered by the given
+	// sort column (name|size|date) and direction (asc|desc). A non-empty query
+	// filters to files whose file or custom name contains it
+	// (case-insensitive); an empty query returns every stored file.
+	ListPaged(ctx context.Context, query, sortBy, sortDir string, limit, offset int) ([]*upload.Upload, error)
+	// Count returns the number of stored files matching the given query, or the
+	// total number of stored files when the query is empty.
+	Count(ctx context.Context, query string) (int64, error)
 	// GetTotalSize returns the sum of all stored file sizes in bytes.
 	GetTotalSize(ctx context.Context) (int64, error)
+	// GetActualSizeUsed returns the real bytes physically stored across
+	// providers: per file, shard size x data+parity shards x block count.
+	GetActualSizeUsed(ctx context.Context) (int64, error)
+	// GetRecentFiles returns the most recently uploaded stored files, newest
+	// first, bounded by the given limit.
+	GetRecentFiles(ctx context.Context, limit int) ([]*upload.Upload, error)
 	// GetUpload fetches one stored file by its upload ID.
 	GetUpload(ctx context.Context, id int64) (*upload.Upload, error)
 	// GetChunks returns the shard records for a stored file, ordered by shard
@@ -85,34 +86,39 @@ func NewService(sessionProvider SessionProvider, repository Repository,
 }
 
 // GetHomeOverview returns the Home-screen summary: the five most recently
-// updated files, storage totals and the current erasure-coding setup.
+// uploaded files, storage totals and the current erasure-coding setup. Each
+// number is an SQL aggregate over the uploads table rather than a client-side
+// scan of every row.
 func (s *Service) GetHomeOverview() (*HomeOverview, error) {
 	if _, err := s.sessionProvider.RequireSession(); err != nil {
 		return nil, err
 	}
 
-	uploads, err := s.repository.GetAll(context.Background())
+	ctx := context.Background()
+	totalFiles, err := s.repository.Count(ctx, "")
 	if err != nil {
-		return nil, errors.AsInternalServerError("get home overview: list uploads", err)
+		return nil, errors.AsInternalServerError("get home overview: count files", err)
+	}
+	totalSize, err := s.repository.GetTotalSize(ctx)
+	if err != nil {
+		return nil, errors.AsInternalServerError("get home overview: sum sizes", err)
+	}
+	actualSize, err := s.repository.GetActualSizeUsed(ctx)
+	if err != nil {
+		return nil, errors.AsInternalServerError("get home overview: sum stored sizes", err)
+	}
+	recent, err := s.repository.GetRecentFiles(ctx, 5)
+	if err != nil {
+		return nil, errors.AsInternalServerError("get home overview: list recent files", err)
 	}
 
-	overview := &HomeOverview{
-		RecentFiles: make([]RecentFile, 0, 5),
-		TotalFiles:  len(uploads),
-	}
-
-	for _, u := range uploads {
-		overview.TotalSizeUsed += u.Size
-		overview.ActualSizeUsed += int64(u.ShardSize) * int64(u.DataShards+u.ParityShards) * int64(u.BlockCount)
-
-		if len(overview.RecentFiles) >= 5 {
-			continue
-		}
+	recentFiles := make([]RecentFile, 0, len(recent))
+	for _, u := range recent {
 		name := u.CustomName
 		if name == "" {
 			name = u.File
 		}
-		overview.RecentFiles = append(overview.RecentFiles, RecentFile{
+		recentFiles = append(recentFiles, RecentFile{
 			ID:        u.ID,
 			Name:      name,
 			Format:    fileFormat(name),
@@ -126,11 +132,16 @@ func (s *Service) GetHomeOverview() (*HomeOverview, error) {
 		return nil, errors.AsInternalServerError("get home overview: get settings", err)
 	}
 
-	overview.TotalProviders = len(userSettings.CloudKeys)
+	overview := &HomeOverview{
+		RecentFiles:        recentFiles,
+		TotalFiles:         int(totalFiles),
+		TotalSizeUsed:      totalSize,
+		ActualSizeUsed:     actualSize,
+		TotalProviders:     len(userSettings.CloudKeys),
+		ErasureCodingSetup: "0+0",
+	}
 	if userSettings.ErasureCoding && userSettings.ErasureCodingConfig != "" {
 		overview.ErasureCodingSetup = string(userSettings.ErasureCodingConfig)
-	} else {
-		overview.ErasureCodingSetup = "0+0"
 	}
 
 	return overview, nil
@@ -157,13 +168,42 @@ const defaultPageSize = 20
 // maxPageSize caps the number of rows GetStoredFiles may return per page.
 const maxPageSize = 50
 
+// Whitelisted sort columns and directions shared between the service's input
+// normalization and the repository's ORDER BY builder.
+const (
+	sortByName = "name"
+	sortBySize = "size"
+	sortByDate = "date"
+	sortAsc    = "asc"
+	sortDesc   = "desc"
+)
+
+// normalizeSort coerces a frontend-supplied sort column and direction into one
+// of the whitelisted values the repository understands. Unknown columns fall
+// back to sortByDate (created_at) and unknown directions to sortDesc, so the
+// drive listing always starts out newest-first.
+func normalizeSort(sortBy, sortDir string) (string, string) {
+	switch strings.ToLower(strings.TrimSpace(sortBy)) {
+	case sortByName, sortBySize:
+		sortBy = strings.ToLower(sortBy)
+	default:
+		sortBy = sortByDate
+	}
+	if strings.ToLower(strings.TrimSpace(sortDir)) == sortAsc {
+		return sortBy, sortAsc
+	}
+	return sortBy, sortDesc
+}
+
 // GetStoredFiles returns one page of the drive listing. With an empty query it
-// returns every persisted upload, newest first (normal mode); with a non-empty
-// query it returns only files whose name matches the query (search mode). The
-// page is bounded by pageSize (clamped to [1, maxPageSize], defaulting to
-// defaultPageSize) and the response carries the total matching row count so the
-// frontend can render pagination controls.
-func (s *Service) GetStoredFiles(query string, page, pageSize int) (StoredFilePage, error) {
+// returns every persisted upload (normal mode); with a non-empty query it
+// returns only files whose name matches the query (search mode). Rows are
+// ordered by sortBy (name|size|date, default date) in sortDir (asc|desc,
+// default desc) before the page is sliced. The page is bounded by pageSize
+// (clamped to [1, maxPageSize], defaulting to defaultPageSize) and the response
+// carries the total matching row count so the frontend can render pagination
+// controls.
+func (s *Service) GetStoredFiles(query, sortBy, sortDir string, page, pageSize int) (StoredFilePage, error) {
 	if _, err := s.sessionProvider.RequireSession(); err != nil {
 		return StoredFilePage{}, err
 	}
@@ -180,24 +220,15 @@ func (s *Service) GetStoredFiles(query string, page, pageSize int) (StoredFilePa
 	offset := (page - 1) * pageSize
 
 	query = strings.TrimSpace(query)
-	var (
-		uploads []*upload.Upload
-		total   int64
-		err     error
-	)
-	if query == "" {
-		uploads, err = s.repository.GetAllPaged(context.Background(), pageSize, offset)
-		if err == nil {
-			total, err = s.repository.CountUploads(context.Background())
-		}
-	} else {
-		uploads, err = s.repository.SearchByName(context.Background(), query, pageSize, offset)
-		if err == nil {
-			total, err = s.repository.CountByName(context.Background(), query)
-		}
-	}
+	sortBy, sortDir = normalizeSort(sortBy, sortDir)
+
+	uploads, err := s.repository.ListPaged(context.Background(), query, sortBy, sortDir, pageSize, offset)
 	if err != nil {
 		return StoredFilePage{}, errors.AsInternalServerError("get stored files: list", err)
+	}
+	total, err := s.repository.Count(context.Background(), query)
+	if err != nil {
+		return StoredFilePage{}, errors.AsInternalServerError("get stored files: count", err)
 	}
 
 	stored := make([]StoredFile, 0, len(uploads))

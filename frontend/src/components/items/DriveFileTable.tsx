@@ -17,8 +17,8 @@ import {
 import type { FileItem } from '@/lib/files';
 import { formatSize } from '@/lib/files';
 
-type SortField = 'name' | 'size' | 'date';
-type SortDirection = 'asc' | 'desc';
+export type SortField = 'name' | 'size' | 'date';
+export type SortDirection = 'asc' | 'desc';
 
 type DriveFileTableProps = {
   files: FileItem[];
@@ -29,6 +29,9 @@ type DriveFileTableProps = {
   onEdit: (file: FileItem) => void;
   onDownload: (file: FileItem) => void;
   onDelete: (file: FileItem) => void;
+  sortField: SortField;
+  sortDirection: SortDirection;
+  onSortChange: (field: SortField) => void;
   viewMode?: 'list' | 'grid';
   emptyMessage?: string;
 };
@@ -118,41 +121,15 @@ export default function DriveFileTable({
   onEdit,
   onDownload,
   onDelete,
+  sortField,
+  sortDirection,
+  onSortChange,
   viewMode = 'list',
   emptyMessage = 'No files found. Upload your first file to get started.',
 }: DriveFileTableProps) {
-  const [sortField, setSortField] = useState<SortField>('date');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
-    }
-  };
-
-  const sortedFiles = [...files].sort((a, b) => {
-    let comparison = 0;
-
-    switch (sortField) {
-      case 'name':
-        comparison = a.name.localeCompare(b.name);
-        break;
-      case 'size':
-        comparison = a.sizeBytes - b.sizeBytes;
-        break;
-      case 'date':
-        comparison = new Date(a.modifiedAt).getTime() - new Date(b.modifiedAt).getTime();
-        break;
-    }
-
-    return sortDirection === 'asc' ? comparison : -comparison;
-  });
-
-  const allSelected = sortedFiles.length > 0 && selectedFileIds.size === sortedFiles.length;
+  const allSelected = files.length > 0 && selectedFileIds.size === files.length;
   const someSelected = selectedFileIds.size > 0 && !allSelected;
 
   const renderSortIcon = (field: SortField) => {
@@ -218,7 +195,7 @@ export default function DriveFileTable({
   if (viewMode === 'grid') {
     return (
       <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {sortedFiles.map((file) => {
+        {files.map((file) => {
           const badge = getBadgeStyle(file.type);
           const isSelected = selectedFileIds.has(file.id);
 
@@ -301,19 +278,19 @@ export default function DriveFileTable({
               </th>
               <th
                 className="px-4 py-3.5 font-medium cursor-pointer group select-none whitespace-nowrap"
-                onClick={() => handleSort('name')}
+                onClick={() => onSortChange('name')}
               >
                 Name {renderSortIcon('name')}
               </th>
               <th
                 className="px-4 py-3.5 font-medium cursor-pointer group select-none whitespace-nowrap hidden lg:table-cell w-44 text-text-faint"
-                onClick={() => handleSort('date')}
+                onClick={() => onSortChange('date')}
               >
                 Last Modified {renderSortIcon('date')}
               </th>
               <th
                 className="px-4 py-3.5 font-medium cursor-pointer group select-none whitespace-nowrap hidden sm:table-cell w-28 text-text-faint"
-                onClick={() => handleSort('size')}
+                onClick={() => onSortChange('size')}
               >
                 Size {renderSortIcon('size')}
               </th>
@@ -324,7 +301,7 @@ export default function DriveFileTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {sortedFiles.map((file) => {
+            {files.map((file) => {
               const badge = getBadgeStyle(file.type);
               const isSelected = selectedFileIds.has(file.id);
               const displayType = file.name.endsWith('.pdf')

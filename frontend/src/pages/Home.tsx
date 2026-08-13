@@ -29,7 +29,10 @@ import { home } from '../../wailsjs/go/models';
 import { useActiveTransfers } from '@/context/ActiveTransfersContext';
 import { useSearch } from '@/context/SearchContext';
 import DriveToolbar from '@/components/items/DriveToolbar';
-import DriveFileTable from '@/components/items/DriveFileTable';
+import DriveFileTable, {
+  type SortField,
+  type SortDirection,
+} from '@/components/items/DriveFileTable';
 import EditFileModal from '@/components/items/EditFileModal';
 import FileDetailsModal from '@/components/items/FileDetailsModal';
 import Button from '@/components/bits/Button';
@@ -68,6 +71,8 @@ export default function Home() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [totalFiles, setTotalFiles] = useState(0);
+  const [sortField, setSortField] = useState<SortField>('date');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const { refresh, trackJobs, deleteCompletedCount } = useActiveTransfers();
 
   // Selection state
@@ -88,7 +93,7 @@ export default function Home() {
 
   const loadFiles = useCallback(async () => {
     try {
-      const storedPage = await GetStoredFiles(query, page, pageSize);
+      const storedPage = await GetStoredFiles(query, sortField, sortDirection, page, pageSize);
       setFiles(storedPage.Files.map(toFileItem));
       setTotalFiles(storedPage.Total);
     } catch (err) {
@@ -97,7 +102,7 @@ export default function Home() {
     } finally {
       setIsLoading(false);
     }
-  }, [query, page, pageSize]);
+  }, [query, sortField, sortDirection, page, pageSize]);
 
   const loadOverview = useCallback(async () => {
     try {
@@ -167,6 +172,17 @@ export default function Home() {
 
   const handlePageSizeChange = (nextPageSize: number) => {
     setPageSize(nextPageSize);
+    setPage(1);
+    clearSelection();
+  };
+
+  const handleSortChange = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
     setPage(1);
     clearSelection();
   };
@@ -413,6 +429,9 @@ export default function Home() {
             onEdit={handleEdit}
             onDownload={handleDownload}
             onDelete={handleDelete}
+            sortField={sortField}
+            sortDirection={sortDirection}
+            onSortChange={handleSortChange}
             viewMode={viewMode}
             emptyMessage={
               isSearching
