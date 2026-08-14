@@ -8,6 +8,7 @@ import (
 
 	dbclient "ayo/internal/clients/db"
 	"ayo/internal/features/dbconfig"
+	"ayo/internal/features/masterkey"
 	"ayo/internal/shared/crypto"
 	"ayo/internal/shared/errors"
 	"ayo/internal/shared/paths"
@@ -51,6 +52,7 @@ type Session struct {
 type Service struct {
 	conn     *dbclient.Connection
 	dbCreds  dbconfig.Repository
+	mkey     masterkey.Repository
 	repo     Repository
 	session  *Session
 	dbConfig dbclient.Config
@@ -76,9 +78,9 @@ func validatePasswordStrength(fl validator.FieldLevel) bool {
 }
 
 // NewService wires a shared connection holder, the database-credentials
-// keyring repository and a validator with the custom password strength rule
-// into a ready-to-use auth Service.
-func NewService(conn *dbclient.Connection, dbCreds dbconfig.Repository) *Service {
+// keyring repository, the master-key keyring repository and a validator with
+// the custom password strength rule into a ready-to-use auth Service.
+func NewService(conn *dbclient.Connection, dbCreds dbconfig.Repository, mkey masterkey.Repository) *Service {
 	validate := validator.New()
 
 	// Register custom password strength validator
@@ -87,6 +89,7 @@ func NewService(conn *dbclient.Connection, dbCreds dbconfig.Repository) *Service
 	return &Service{
 		conn:     conn,
 		dbCreds:  dbCreds,
+		mkey:     mkey,
 		repo:     NewRepository(conn),
 		validate: validate,
 	}
@@ -276,14 +279,19 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 		return false, errors.ErrInvalidPassword
 	}
 
-	// salt for the password
-	salt := user.PasswordSalt
+	// Load the encrypted master-key material from whichever source it lives in
+	// (the OS keyring when an entry exists, otherwise the users table).
+	material, err := s.loadMasterKeyMaterial(user)
+	if err != nil {
+		s.conn.Close()
+		return false, errors.AsInternalServerError("login: load master key material", err)
+	}
 
-	// derriving the kek
-	kek := crypto.DeriveKEK(input.Password, salt)
+	// deriving the KEK from the password and the stored salt
+	kek := crypto.DeriveKEK(input.Password, material.PasswordSalt)
 
 	// decrypting the master key
-	masterKey, err := crypto.DecryptMasterKey(kek, user.PasswordMasterKey, user.PasswordNonce)
+	masterKey, err := crypto.DecryptMasterKey(kek, material.PasswordMasterKey, material.PasswordNonce)
 	if err != nil {
 		s.conn.Close()
 		return false, errors.AsInternalServerError("login: decrypt master key", err)
@@ -376,16 +384,24 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*RegisterResult, erro
 		return nil, errors.AsInternalServerError("reset password: hash recovery key", err)
 	}
 
+	// Load the encrypted master-key material from whichever source it lives in
+	// (the OS keyring when an entry exists, otherwise the users table).
+	material, err := s.loadMasterKeyMaterial(user)
+	if err != nil {
+		s.conn.Close()
+		return nil, errors.AsInternalServerError("reset password: load master key material", err)
+	}
+
 	// extract the original master key using the provided recovery key
-	recoveryKek := crypto.DeriveKEK(input.RecoveryKey, user.RecoverySalt)
-	masterKey, err := crypto.DecryptMasterKey(recoveryKek, user.RecoveryMasterKey, user.RecoveryNonce)
+	recoveryKek := crypto.DeriveKEK(input.RecoveryKey, material.RecoverySalt)
+	masterKey, err := crypto.DecryptMasterKey(recoveryKek, material.RecoveryMasterKey, material.RecoveryNonce)
 	if err != nil {
 		s.conn.Close()
 		return nil, errors.AsInternalServerError("reset password: decrypt master key", err)
 	}
 
 	// generate the new encrypted master key using password
-	passwordKek := crypto.DeriveKEK(input.NewPassword, user.PasswordSalt)
+	passwordKek := crypto.DeriveKEK(input.NewPassword, material.PasswordSalt)
 	passwordEncryptedMasterKey, passwordNonce, err := crypto.EncryptMasterKey(passwordKek, masterKey)
 	if err != nil {
 		s.conn.Close()
@@ -393,27 +409,35 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*RegisterResult, erro
 	}
 
 	// generate the new encrypted master key using recovery key
-	recoveryKek = crypto.DeriveKEK(newRecoveryKey, user.RecoverySalt)
+	recoveryKek = crypto.DeriveKEK(newRecoveryKey, material.RecoverySalt)
 	recoveryEncryptedMasterKey, recoveryNonce, err := crypto.EncryptMasterKey(recoveryKek, masterKey)
 	if err != nil {
 		s.conn.Close()
 		return nil, errors.AsInternalServerError("reset password: encrypt master key with recovery key", err)
 	}
 
-	// update the password and recovery key
-	err = s.repo.UpdateUserPassword(
+	// update the password and recovery key hashes
+	err = s.repo.UpdateUserHashes(
 		context.Background(),
 		user.ID,
 		string(hashedPassword),
 		string(hashedRecoveryKey),
-		passwordEncryptedMasterKey,
-		passwordNonce,
-		recoveryEncryptedMasterKey,
-		recoveryNonce,
 	)
 	if err != nil {
 		s.conn.Close()
 		return nil, errors.AsInternalServerError("reset password: update user", err)
+	}
+
+	// Re-wrap the master key in whichever source it lives in, so an account that
+	// stores its material in the keyring keeps the real values there while its
+	// users table columns stay junk, and vice versa.
+	material.PasswordNonce = passwordNonce
+	material.PasswordMasterKey = passwordEncryptedMasterKey
+	material.RecoveryNonce = recoveryNonce
+	material.RecoveryMasterKey = recoveryEncryptedMasterKey
+	if err := s.persistMasterKeyMaterial(context.Background(), user, material); err != nil {
+		s.conn.Close()
+		return nil, errors.AsInternalServerError("reset password: update master key material", err)
 	}
 
 	// Re-encrypt the database credentials with the new password and recovery
@@ -481,6 +505,125 @@ func (s *Service) DatabaseConfig() (dbclient.Config, error) {
 		return dbclient.Config{}, errors.ErrUnauthorized
 	}
 	return s.dbConfig, nil
+}
+
+// GetMasterKeyStorage reports where the signed-in user's encrypted master-key
+// material is kept: "keyring" when an entry exists in the OS keyring, otherwise
+// "database" (the users table). It requires a signed-in session.
+func (s *Service) GetMasterKeyStorage() (string, error) {
+	if _, err := s.RequireSession(); err != nil {
+		return "", err
+	}
+	storage, err := s.masterKeyStorage(s.session.Username)
+	if err != nil {
+		return "", errors.AsInternalServerError("get master key storage", err)
+	}
+	return string(storage), nil
+}
+
+// SetMasterKeyStorage migrates the signed-in user's encrypted master-key
+// material to the requested source ("keyring" or "database"). Both the
+// password- and recovery-key-derived salt, nonce and ciphertext are copied to
+// the target, and the source is cleared: the users table columns are filled
+// with random junk when moving to the keyring, and the keyring entry is deleted
+// when moving to the database. It returns the resulting storage state.
+func (s *Service) SetMasterKeyStorage(storage string) (string, error) {
+	if _, err := s.RequireSession(); err != nil {
+		return "", err
+	}
+	target := masterkey.Storage(storage)
+	if target != masterkey.StorageDatabase && target != masterkey.StorageKeyring {
+		return "", errors.ErrInvalidInput
+	}
+
+	current, err := s.masterKeyStorage(s.session.Username)
+	if err != nil {
+		return "", errors.AsInternalServerError("set master key storage: read state", err)
+	}
+	if target == current {
+		return string(current), nil
+	}
+
+	user, err := s.repo.GetUserByUsername(context.Background(), s.session.Username)
+	if err != nil {
+		return "", errors.AsInternalServerError("set master key storage: get user", err)
+	}
+
+	// The material currently lives in the source we are migrating away from.
+	material, err := s.loadMasterKeyMaterial(user)
+	if err != nil {
+		return "", errors.AsInternalServerError("set master key storage: load material", err)
+	}
+
+	if target == masterkey.StorageKeyring {
+		// Move the real material into the keyring and fill the database columns
+		// with indistinguishable random junk.
+		if err := s.mkey.Save(s.session.Username, material); err != nil {
+			return "", errors.AsInternalServerError("set master key storage: save to keyring", err)
+		}
+		junk, err := masterkey.GenerateJunk()
+		if err != nil {
+			return "", errors.AsInternalServerError("set master key storage: generate junk", err)
+		}
+		if err := s.repo.UpdateMasterKeyMaterial(context.Background(), user.ID, junk); err != nil {
+			return "", errors.AsInternalServerError("set master key storage: junk database", err)
+		}
+	} else {
+		// Restore the real material into the database and drop the keyring
+		// entry so the state stays detectable from the keyring alone.
+		if err := s.repo.UpdateMasterKeyMaterial(context.Background(), user.ID, material); err != nil {
+			return "", errors.AsInternalServerError("set master key storage: restore database", err)
+		}
+		if err := s.mkey.Delete(s.session.Username); err != nil {
+			return "", errors.AsInternalServerError("set master key storage: delete keyring", err)
+		}
+	}
+
+	return string(target), nil
+}
+
+// masterKeyStorage reports whether a keyring entry exists for the user. It is
+// the single source of truth for the storage state: present => keyring storage,
+// absent => database storage.
+func (s *Service) masterKeyStorage(username string) (masterkey.Storage, error) {
+	exists, err := s.mkey.Exists(username)
+	if err != nil {
+		return "", err
+	}
+	if exists {
+		return masterkey.StorageKeyring, nil
+	}
+	return masterkey.StorageDatabase, nil
+}
+
+// loadMasterKeyMaterial returns a user's encrypted master-key material from
+// whichever source it currently lives in: the OS keyring when an entry exists,
+// otherwise the users table row.
+func (s *Service) loadMasterKeyMaterial(user *User) (*masterkey.Material, error) {
+	exists, err := s.mkey.Exists(user.Username)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return s.mkey.Load(user.Username)
+	}
+	return user.MasterKeyMaterial(), nil
+}
+
+// persistMasterKeyMaterial writes the encrypted master-key material to the
+// source it is currently stored in (the OS keyring when an entry exists,
+// otherwise the users table). The other source is left untouched, so the
+// keyring entry and the database junk stay consistent for keyring-stored
+// accounts.
+func (s *Service) persistMasterKeyMaterial(ctx context.Context, user *User, material *masterkey.Material) error {
+	exists, err := s.mkey.Exists(user.Username)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return s.mkey.Save(user.Username, material)
+	}
+	return s.repo.UpdateMasterKeyMaterial(ctx, user.ID, material)
 }
 
 // validateDBConfig enforces type-specific field requirements on the chosen

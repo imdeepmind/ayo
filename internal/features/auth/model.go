@@ -1,5 +1,9 @@
 package auth
 
+import (
+	"ayo/internal/features/masterkey"
+)
+
 // User is the persisted representation of an account, mirroring one row of the
 // `users` table. It stores only hashes and encrypted material - never plaintext
 // credentials or keys. The plaintext recovery key is returned to the caller via
@@ -31,4 +35,19 @@ type User struct {
 	RecoverySalt      []byte
 	RecoveryNonce     []byte
 	RecoveryMasterKey []byte
+}
+
+// MasterKeyMaterial returns the user's encrypted master-key material as read
+// from the users table. When the account stores its material in the OS keyring
+// instead, these columns carry junk and callers must load the material from the
+// keyring via the masterkey repository.
+func (u *User) MasterKeyMaterial() *masterkey.Material {
+	return &masterkey.Material{
+		PasswordSalt:      u.PasswordSalt,
+		PasswordNonce:     u.PasswordNonce,
+		PasswordMasterKey: u.PasswordMasterKey,
+		RecoverySalt:      u.RecoverySalt,
+		RecoveryNonce:     u.RecoveryNonce,
+		RecoveryMasterKey: u.RecoveryMasterKey,
+	}
 }

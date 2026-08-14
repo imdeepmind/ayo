@@ -8,6 +8,8 @@
 package keyring
 
 import (
+	"errors"
+
 	go_keyring "github.com/zalando/go-keyring"
 )
 
@@ -28,4 +30,15 @@ func Get(service, user string) (string, error) {
 // entry. The value is encrypted by the OS keyring implementation.
 func Set(service, user, value string) error {
 	return go_keyring.Set(service, user, value)
+}
+
+// Delete removes the entry stored for the given service/user pair. Deleting an
+// entry that does not exist is treated as success (idempotent), matching how
+// some backends report a missing item as ErrNotFound.
+func Delete(service, user string) error {
+	err := go_keyring.Delete(service, user)
+	if err != nil && errors.Is(err, go_keyring.ErrNotFound) {
+		return nil
+	}
+	return err
 }

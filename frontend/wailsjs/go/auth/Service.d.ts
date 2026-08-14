@@ -7,6 +7,8 @@ export function CurrentClient():Promise<db.Client>;
 
 export function DatabaseConfig():Promise<db.Config>;
 
+export function GetMasterKeyStorage():Promise<string>;
+
 export function GetSession():Promise<auth.Session>;
 
 export function Login(arg1:auth.LoginInput):Promise<boolean>;
@@ -18,3 +20,5 @@ export function Register(arg1:auth.RegisterInput):Promise<auth.RegisterResult>;
 export function RequireSession():Promise<auth.Session>;
 
 export function ResetPassword(arg1:auth.ResetPasswordInput):Promise<auth.RegisterResult>;
+
+export function SetMasterKeyStorage(arg1:string):Promise<string>;
