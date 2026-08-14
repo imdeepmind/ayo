@@ -1,93 +1,102 @@
+import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { KeyRound, ShieldCheck, ShieldAlert, Lock } from 'lucide-react';
-import Button from '@/components/bits/Button';
-import { useAuth } from '@/context/AuthContext';
+import { Lock } from 'lucide-react';
+import Toggle from '@/components/bits/Toggle';
+import ConfirmDialog from '@/components/bits/ConfirmDialog';
+import { toErrorMessage } from '@/lib/errors';
+import { GetMasterKeyStorage, SetMasterKeyStorage } from '../../wailsjs/go/auth/Service';
+
+type MasterKeyStorage = 'database' | 'keyring';
 
 export default function SecurityKeyManagement() {
-  const { session } = useAuth();
+  const [storage, setStorage] = useState<MasterKeyStorage | null>(null);
+  const [pendingStorage, setPendingStorage] = useState<MasterKeyStorage | null>(null);
 
-  const handleDownloadRecoveryKey = () => {
-    toast('Your recovery key is only shown once, right after registration or password reset.');
+  const loadStorage = async () => {
+    try {
+      const current = await GetMasterKeyStorage();
+      setStorage(current === 'keyring' ? 'keyring' : 'database');
+    } catch (error) {
+      console.error('Failed to load master key storage:', error);
+    }
   };
 
-  const keys = [
-    {
-      icon: <Lock className="h-5 w-5" />,
-      title: 'Master Key',
-      description:
-        'Derived from your password and used to unlock everything. Never stored on disk.',
-      status: 'Derived in-memory',
-      ok: true,
-    },
-    {
-      icon: <KeyRound className="h-5 w-5" />,
-      title: 'Recovery Key',
-      description:
-        'Backs up your database credentials. Shown once at registration and after a password reset.',
-      status: 'Shown once',
-      ok: false,
-    },
-    {
-      icon: <ShieldCheck className="h-5 w-5" />,
-      title: 'Key Encryption Key (KEK)',
-      description: 'Encrypts your stored database credentials with password and recovery keys.',
-      status: 'Active',
-      ok: true,
-    },
-  ];
+  useEffect(() => {
+    loadStorage();
+  }, []);
+
+  const handleToggle = (checked: boolean) => {
+    setPendingStorage(checked ? 'keyring' : 'database');
+  };
+
+  const handleConfirm = async () => {
+    const target = pendingStorage;
+    setPendingStorage(null);
+    if (!target || target === storage) return;
+
+    try {
+      const result = await SetMasterKeyStorage(target);
+      setStorage(result === 'keyring' ? 'keyring' : 'database');
+      toast.success(
+        result === 'keyring'
+          ? 'Master key moved to the OS keyring.'
+          : 'Master key moved back to the database.'
+      );
+    } catch (error) {
+      console.error('Failed to change master key storage:', error);
+      toast.error(toErrorMessage(error, 'Failed to move the master key.'));
+    }
+  };
 
   return (
     <div className="space-y-8">
       <div>
         <h2 className="text-2xl font-bold text-text">Key Management</h2>
         <p className="mt-2 text-sm text-text-muted">
-          Review how {session?.Username || 'your account'}&apos;s encryption keys are protected.
+          Choose where your encrypted master key is stored.
         </p>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {keys.map((k) => (
-          <div
-            key={k.title}
-            className="rounded-2xl border-2 border-border bg-background backdrop-blur-sm p-6 shadow-lg dark:border-border-strong"
-          >
-            <div className="flex items-center gap-3">
-              <div className="rounded-xl bg-primary/10 p-2.5 dark:bg-primary/20">
-                <span className="text-primary">{k.icon}</span>
-              </div>
-              <h3 className="text-sm font-bold text-text">{k.title}</h3>
-            </div>
-            <p className="mt-3 text-sm text-text-muted leading-relaxed">{k.description}</p>
-            <p
-              className={`mt-4 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold ${
-                k.ok
-                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                  : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-              }`}
-            >
-              {k.ok ? (
-                <ShieldCheck className="h-3.5 w-3.5" />
-              ) : (
-                <ShieldAlert className="h-3.5 w-3.5" />
-              )}
-              {k.status}
-            </p>
-          </div>
-        ))}
       </div>
 
       <div className="rounded-2xl border-2 border-border bg-background backdrop-blur-sm p-6 shadow-lg dark:border-border-strong">
-        <h3 className="text-base font-bold text-text">Recovery</h3>
-        <p className="mt-1 text-sm text-text-muted leading-relaxed">
-          Your recovery key is essential for resetting your password. It is only ever shown once, so
-          if you lost it, resetting your password is the only way to obtain a new one.
-        </p>
-        <div className="mt-4">
-          <Button type="button" variant="ghost" onClick={handleDownloadRecoveryKey}>
-            Download Recovery Key
-          </Button>
+        <div className="flex items-center gap-4">
+          <div className="rounded-xl bg-primary/10 p-2.5 dark:bg-primary/20">
+            <Lock className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-text-faint dark:text-text-subtle">
+              Master Key Storage
+            </p>
+            <p className="text-lg font-bold text-text">
+              {storage === null ? 'Checking...' : storage === 'keyring' ? 'OS keyring' : 'Database'}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <Toggle
+            id="master-key-keyring"
+            label="Store master key in OS keyring"
+            description="Keeps both the password and recovery copies (salt, nonce and ciphertext) in the system keychain. The database columns then hold random data."
+            checked={storage === 'keyring'}
+            disabled={storage === null}
+            onChange={(e) => handleToggle(e.target.checked)}
+          />
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={pendingStorage !== null}
+        title="Move encrypted master key?"
+        message={
+          pendingStorage === 'keyring'
+            ? 'The password and recovery copies of your master key (salts, nonces and ciphertext) will be moved to the OS keyring, and your database will only keep random data. This makes the key material recoverable only through the system credential store.'
+            : 'The password and recovery copies of your master key (salts, nonces and ciphertext) will be moved from the OS keyring back into your database, and the keyring entry will be deleted.'
+        }
+        confirmLabel="Move Key"
+        destructive={false}
+        onConfirm={handleConfirm}
+        onCancel={() => setPendingStorage(null)}
+      />
     </div>
   );
 }

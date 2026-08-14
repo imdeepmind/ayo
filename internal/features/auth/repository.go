@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	dbclient "ayo/internal/clients/db"
+	"ayo/internal/features/masterkey"
 	"ayo/internal/shared/errors"
 )
 
@@ -29,16 +30,13 @@ type Repository interface {
 		recoveryMasterKey []byte,
 	) (*User, error)
 	GetUserByUsername(ctx context.Context, username string) (*User, error)
-	UpdateUserPassword(
+	UpdateUserHashes(
 		ctx context.Context,
 		id int64,
 		passwordHash string,
 		recoveryKey string,
-		passwordMasterKey []byte,
-		passwordNonce []byte,
-		recoveryMasterKey []byte,
-		recoveryNonce []byte,
 	) error
+	UpdateMasterKeyMaterial(ctx context.Context, id int64, material *masterkey.Material) error
 }
 
 type repository struct {
@@ -197,21 +195,17 @@ func (r *repository) GetUserByUsername(ctx context.Context, username string) (*U
 	return &user, nil
 }
 
-// UpdateUserPassword replaces the password/recovery-key hashes and re-wraps the
-// master key with the newly derived KEKs. Used by the reset-password flow.
-func (r *repository) UpdateUserPassword(
+// UpdateUserHashes replaces the password and recovery-key bcrypt hashes for the
+// given user. Used by the reset-password flow; the encrypted master-key material
+// is updated separately (see UpdateMasterKeyMaterial) so that keyring-stored
+// accounts keep junk in the database.
+func (r *repository) UpdateUserHashes(
 	ctx context.Context,
 	id int64,
 	passwordHash string,
 	recoveryKey string,
-	passwordMasterKey []byte,
-	passwordNonce []byte,
-	recoveryMasterKey []byte,
-	recoveryNonce []byte,
 ) error {
-	query := `UPDATE users SET password_hash = ?, recovery_key = ?, ` +
-		`password_master_key = ?, password_nonce = ?, recovery_master_key = ?, ` +
-		`recovery_nonce = ? WHERE id = ?`
+	query := `UPDATE users SET password_hash = ?, recovery_key = ? WHERE id = ?`
 
 	client, err := r.resolve()
 	if err != nil {
@@ -220,11 +214,36 @@ func (r *repository) UpdateUserPassword(
 	_, err = client.ExecContext(
 		ctx,
 		client.Rebind(query),
-		passwordHash, recoveryKey, passwordMasterKey, passwordNonce,
-		recoveryMasterKey, recoveryNonce, id,
+		passwordHash, recoveryKey, id,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to update user password: %w", err)
+		return fmt.Errorf("failed to update user hashes: %w", err)
+	}
+	return nil
+}
+
+// UpdateMasterKeyMaterial replaces the six encrypted master-key columns for the
+// given user. It is used to migrate the material between the users table and
+// the OS keyring: when the material moves to the keyring, this writes
+// indistinguishable random junk; when it moves back, it writes the real values.
+func (r *repository) UpdateMasterKeyMaterial(ctx context.Context, id int64, material *masterkey.Material) error {
+	query := `UPDATE users SET password_salt = ?, password_nonce = ?, ` +
+		`password_master_key = ?, recovery_salt = ?, recovery_nonce = ?, ` +
+		`recovery_master_key = ? WHERE id = ?`
+
+	client, err := r.resolve()
+	if err != nil {
+		return err
+	}
+	_, err = client.ExecContext(
+		ctx,
+		client.Rebind(query),
+		material.PasswordSalt, material.PasswordNonce, material.PasswordMasterKey,
+		material.RecoverySalt, material.RecoveryNonce, material.RecoveryMasterKey,
+		id,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update master key material: %w", err)
 	}
 	return nil
 }

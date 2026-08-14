@@ -10,6 +10,10 @@ export function DatabaseConfig() {
   return window['go']['auth']['Service']['DatabaseConfig']();
 }
 
+export function GetMasterKeyStorage() {
+  return window['go']['auth']['Service']['GetMasterKeyStorage']();
+}
+
 export function GetSession() {
   return window['go']['auth']['Service']['GetSession']();
 }
@@ -32,4 +36,8 @@ export function RequireSession() {
 
 export function ResetPassword(arg1) {
   return window['go']['auth']['Service']['ResetPassword'](arg1);
+}
+
+export function SetMasterKeyStorage(arg1) {
+  return window['go']['auth']['Service']['SetMasterKeyStorage'](arg1);
 }
