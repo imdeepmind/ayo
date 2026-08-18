@@ -6,12 +6,7 @@ export default function ApplicationSettings() {
   const { theme, toggleTheme } = useTheme();
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="text-2xl font-bold text-text">Application Settings</h2>
-        <p className="mt-2 text-sm text-text-muted">Customize how the ayo app looks and behaves.</p>
-      </div>
-
+    <div className="space-y-4">
       <div className="space-y-4">
         <div className="rounded-2xl border-2 border-border bg-background backdrop-blur-sm p-6 shadow-lg dark:border-border-strong">
           <Toggle

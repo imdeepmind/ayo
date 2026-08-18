@@ -91,12 +91,7 @@ export default function AccountSettings() {
   const currentAction = actions.find((a) => a.id === activeAction);
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="text-2xl font-bold text-text">Account Settings</h2>
-        <p className="mt-2 text-sm text-text-muted">Manage your account security and data.</p>
-      </div>
-
+    <div className="space-y-4">
       <div className="space-y-4">
         {actions.map((action) => (
           <div

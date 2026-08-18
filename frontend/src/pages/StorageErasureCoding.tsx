@@ -48,12 +48,9 @@ export default function StorageErasureCoding() {
   };
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="text-2xl font-bold text-text">Erasure Coding</h2>
-        <p className="mt-2 text-sm text-text-muted">
-          Configure how your files are split into fragments and protected with parity.
-        </p>
+    <div className="w-full relative space-y-6">
+      <div className="flex items-center justify-between py-2">
+        <h1 className="text-2xl font-bold text-text">Erasure Coding</h1>
       </div>
 
       {loading ? (

@@ -49,12 +49,9 @@ export default function SecurityKeyManagement() {
   };
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="text-2xl font-bold text-text">Key Management</h2>
-        <p className="mt-2 text-sm text-text-muted">
-          Choose where your encrypted master key is stored.
-        </p>
+    <div className="w-full relative space-y-6">
+      <div className="flex items-center justify-between py-2">
+        <h1 className="text-2xl font-bold text-text">Key Management</h1>
       </div>
 
       <div className="rounded-2xl border-2 border-border bg-background backdrop-blur-sm p-6 shadow-lg dark:border-border-strong">

@@ -652,12 +652,9 @@ export default function StorageSettings() {
     }`;
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="text-2xl font-bold text-text">Storage Settings</h2>
-        <p className="mt-2 text-sm text-text-muted">
-          Configure where your files are stored and how they are protected.
-        </p>
+    <div className="w-full relative space-y-6">
+      <div className="flex items-center justify-between py-2">
+        <h1 className="text-2xl font-bold text-text">Storage Settings</h1>
       </div>
 
       {/* Tabs */}

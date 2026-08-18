@@ -18,7 +18,7 @@ export default function Header() {
 
   const handleAccountSettings = () => {
     setMenuOpen(false);
-    navigate('/settings', { state: { section: 'account' } });
+    navigate('/settings');
   };
 
   const handleLogout = async () => {

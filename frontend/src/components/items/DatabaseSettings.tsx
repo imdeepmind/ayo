@@ -23,9 +23,9 @@ export default function DatabaseSettings() {
 
   if (loading) {
     return (
-      <div className="space-y-8">
-        <div>
-          <h2 className="text-2xl font-bold text-text">Database Settings</h2>
+      <div className="w-full relative space-y-6">
+        <div className="flex items-center justify-between py-2">
+          <h1 className="text-2xl font-bold text-text">Database Settings</h1>
         </div>
         <p className="text-sm text-text-subtle">Loading database information...</p>
       </div>
@@ -35,12 +35,9 @@ export default function DatabaseSettings() {
   const isPostgres = info?.Type === 'postgresql';
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="text-2xl font-bold text-text">Database Settings</h2>
-        <p className="mt-2 text-sm text-text-muted">
-          Your account data is stored in the database you chose during registration.
-        </p>
+    <div className="w-full relative space-y-6">
+      <div className="flex items-center justify-between py-2">
+        <h1 className="text-2xl font-bold text-text">Database Settings</h1>
       </div>
 
       <div className="rounded-2xl border-2 border-border bg-background backdrop-blur-sm p-6 shadow-lg dark:border-border-strong">
