@@ -102,7 +102,7 @@ export default function Upload() {
       {files.length === 0 && (
         <>
           {/* Feature Highlights Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="flex items-center gap-4 rounded-2xl border border-border bg-surface p-5 shadow-sm">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#260913] border border-[#480c1e] text-primary">
                 <Lock className="h-5 w-5 text-primary" />
