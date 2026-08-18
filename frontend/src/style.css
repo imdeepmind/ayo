@@ -67,35 +67,31 @@
   }
 
   .dark {
-    /* Brand colors stay the same in dark mode; surfaces/text adapt */
-    --toast-bg: #131415;
-    --toast-color: #f1f5f9;
-    --toast-border: #334155;
+    /* Brand colors stay the same; dark navy-black surfaces matching reference screenshot */
+    --toast-bg: #0d131f;
+    --toast-color: #ffffff;
+    --toast-border: #1b2537;
 
-    --color-bg: #131415;
-    --color-surface: #0f172a;
-    /* slate-900 */
-    --color-surface-alt: #1e293b;
-    /* slate-800 */
-    --color-surface-hover: #1e293b;
-    /* slate-800 */
-    --color-surface-muted: #334155;
-    /* slate-700 */
+    --color-bg: #080b11;
+    /* dark background */
+    --color-surface: #0a0e15;
+    /* dark navy-black card surface */
+    --color-surface-alt: #10131a;
+    /* inner inputs and buttons */
+    --color-surface-hover: #111316;
+    /* hover state */
+    --color-surface-muted: #161a21;
 
-    --color-text: #f1f5f9;
-    /* slate-100 */
-    --color-text-muted: #cbd5e1;
-    /* slate-300 */
-    --color-text-subtle: #94a3b8;
-    /* slate-400 */
-    --color-text-faint: #94a3b8;
-    /* slate-400 */
+    --color-text: #ffffff;
+    /* white primary text */
+    --color-text-muted: #94a3b8;
+    /* slate secondary text */
+    --color-text-subtle: #64748b;
+    --color-text-faint: #475569;
 
-    --color-border: #1e293b;
-    /* slate-800 */
-    --color-border-strong: #334155;
-    /* slate-700 */
-    --color-border-input: #475569;
-    /* slate-600 */
+    --color-border: #1b2537;
+    /* dark slate-navy border */
+    --color-border-strong: #1d273a;
+    --color-border-input: #233047;
   }
 }
