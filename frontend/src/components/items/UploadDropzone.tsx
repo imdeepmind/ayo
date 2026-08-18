@@ -32,10 +32,11 @@ export default function UploadDropzone({ onPick }: UploadDropzoneProps) {
 
   return (
     <div
-      className={`group relative flex min-h-[240px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed transition-all duration-200 ${isDragging
+      className={`group relative flex min-h-[240px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed transition-all duration-200 ${
+        isDragging
           ? 'border-primary bg-surface-alt shadow-xl'
           : 'border-border bg-surface hover:border-primary/40 hover:bg-surface-hover'
-        }`}
+      }`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -43,10 +44,11 @@ export default function UploadDropzone({ onPick }: UploadDropzoneProps) {
     >
       <div className="flex flex-col items-center gap-5 text-center z-10 px-6 py-12">
         <div
-          className={`flex h-16 w-16 items-center justify-center rounded-2xl border transition-all duration-300 ${isDragging
+          className={`flex h-16 w-16 items-center justify-center rounded-2xl border transition-all duration-300 ${
+            isDragging
               ? 'scale-105 border-primary/50 bg-primary/20 text-primary shadow-xl'
               : 'border-border-strong bg-surface-alt text-primary shadow-sm group-hover:scale-105 group-hover:border-primary/40'
-            }`}
+          }`}
         >
           <UploadCloud className="h-8 w-8 text-primary" />
         </div>
@@ -61,9 +63,7 @@ export default function UploadDropzone({ onPick }: UploadDropzoneProps) {
               </>
             )}
           </h2>
-          <p className="mt-2 text-sm text-text-muted">
-            Supports any file type.
-          </p>
+          <p className="mt-2 text-sm text-text-muted">Supports any file type.</p>
         </div>
       </div>
     </div>

@@ -19,10 +19,10 @@
     /* sidebar background (top of gradient) */
     --color-sidebar-bg-dark: #4a0114;
     /* very dark red at bottom of sidebar gradient */
-    --color-sidebar-text: #ffffff;
+    --color-sidebar-text: #0f172a;
     /* active / bold link */
-    --color-sidebar-text-muted: rgba(254, 202, 202, 0.75);
-    /* inactive links (red-100/75) */
+    --color-sidebar-text-muted: rgba(15, 23, 42, 0.7);
+    /* inactive links */
     --color-sidebar-border: rgba(248, 113, 113, 0.3);
     /* divider lines (red-400/30) */
     --color-sidebar-track: rgba(127, 29, 29, 0.4);
@@ -93,5 +93,9 @@
     /* dark slate-navy border */
     --color-border-strong: #1d273a;
     --color-border-input: #233047;
+
+    /* ─── Sidebar (dark mode) ─────────────────────────────── */
+    --color-sidebar-text: #ffffff;
+    --color-sidebar-text-muted: rgba(254, 202, 202, 0.75);
   }
 }
