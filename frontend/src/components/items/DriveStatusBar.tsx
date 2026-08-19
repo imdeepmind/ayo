@@ -51,7 +51,7 @@ export default function DriveStatusBar({
   const hiddenUploads = uploads.length - visibleUploads.length;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-background text-xs text-text-muted backdrop-blur-sm dark:border-border dark:text-text-muted w-full">
+    <div className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-surface text-xs text-text-muted backdrop-blur-sm dark:border-border dark:text-text-muted w-full">
       <div className="mx-auto flex w-full items-center justify-between gap-4 px-4 md:px-8 lg:px-16 py-2">
         <div className="flex items-center gap-3">
           <Link to="/settings" aria-label="Open settings">

@@ -95,7 +95,7 @@ export default function AccountSettings() {
       {actions.map((action) => (
         <div
           key={action.id}
-          className={`rounded-2xl border-2 bg-background p-6 transition-all duration-200 ${
+          className={`rounded-2xl border-2 bg-surface p-6 transition-all duration-200 ${
             action.variant === 'danger'
               ? 'border-red-200 dark:border-red-900/40'
               : 'border-amber-200 dark:border-amber-900/40'
@@ -136,8 +136,8 @@ export default function AccountSettings() {
                 }}
                 className={`shrink-0 inline-flex items-center rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-200 shadow-lg ${
                   action.variant === 'danger'
-                    ? 'bg-gradient-to-r from-red-500 to-rose-500 text-white hover:from-red-400 hover:to-rose-400 hover:shadow-xl shadow-red-500/30'
-                    : 'bg-gradient-to-r from-amber-500 to-yellow-500 text-white hover:from-amber-400 hover:to-yellow-400 hover:shadow-xl shadow-amber-500/30'
+                    ? 'bg-gradient-to-r from-red-500 to-rose-500 text-white hover:from-red-400 hover:to-rose-400 hover:shadow-xl dark:shadow-red-500/30'
+                    : 'bg-gradient-to-r from-amber-500 to-yellow-500 text-white hover:from-amber-400 hover:to-yellow-400 hover:shadow-xl dark:shadow-amber-500/30'
                 }`}
               >
                 {action.buttonLabel}
@@ -189,12 +189,7 @@ export default function AccountSettings() {
                 <Button type="submit" className="text-sm" disabled={isSubmitting}>
                   {isSubmitting ? 'Processing...' : currentAction?.confirmLabel}
                 </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="text-sm"
-                  onClick={handleCancel}
-                >
+                <Button type="button" variant="ghost" className="text-sm" onClick={handleCancel}>
                   Cancel
                 </Button>
               </div>

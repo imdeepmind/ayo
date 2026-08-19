@@ -107,7 +107,7 @@ export default function DatabaseConfig({
         </button>
       </div>
 
-      <div className="rounded-2xl border-2 border-border bg-background backdrop-blur-sm p-6 shadow-lg dark:border-border-strong">
+      <div className="rounded-2xl border-2 border-border bg-surface backdrop-blur-sm p-6 dark:border-border-strong">
         {type === 'sqlite' ? (
           <div className="rounded-xl border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-primary/5 p-5 dark:border-primary/40 dark:from-primary/10 dark:to-primary/10">
             <div className="flex gap-3">

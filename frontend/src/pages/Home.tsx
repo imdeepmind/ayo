@@ -322,7 +322,7 @@ export default function Home() {
 
       {/* Stats bar */}
       {!isSearching && (
-        <section className="flex w-max overflow-hidden rounded-2xl border border-border bg-background divide-x divide-border">
+        <section className="flex w-max overflow-hidden rounded-2xl border border-border bg-surface divide-x divide-border">
           {stats.map((stat) => (
             <div key={stat.label} className="flex items-center gap-2 px-4 py-3 min-w-0">
               {stat.icon}
@@ -340,7 +340,7 @@ export default function Home() {
         <section className="space-y-3">
           <h2 className="text-lg font-bold text-text">Recent Files</h2>
           {recentFiles.length === 0 ? (
-            <div className="rounded-2xl border border-border bg-background p-6 text-center text-sm text-text-subtle">
+            <div className="rounded-2xl border border-border bg-surface p-6 text-center text-sm text-text-subtle">
               No recent files yet. Upload your first file to get started.
             </div>
           ) : (
@@ -352,7 +352,7 @@ export default function Home() {
                   <div
                     key={file.ID}
                     onClick={() => handleDownloadById(file.ID)}
-                    className={`group cursor-pointer rounded-2xl border border-border bg-background p-3.5 flex flex-col justify-between transition-all hover:bg-surface-hover dark:hover:bg-surface-alt ${
+                    className={`group cursor-pointer rounded-2xl border border-border bg-surface p-3.5 flex flex-col justify-between transition-all hover:bg-surface-hover dark:hover:bg-surface-alt ${
                       index >= 4 ? 'hidden xl:flex' : index >= 3 ? 'hidden lg:flex' : ''
                     }`}
                   >
@@ -386,7 +386,7 @@ export default function Home() {
         </h2>
 
         {isLoading ? (
-          <div className="rounded-2xl border border-border bg-background p-12 text-center">
+          <div className="rounded-2xl border border-border bg-surface p-12 text-center">
             <div className="flex flex-col items-center gap-3">
               <div className="animate-spin rounded-full h-8 w-8 border-2 border-border-strong border-t-primary dark:border-border-strong dark:border-t-primary" />
               <span className="text-sm font-medium text-text-subtle">Loading your files...</span>

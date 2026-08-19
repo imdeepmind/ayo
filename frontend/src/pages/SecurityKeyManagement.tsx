@@ -54,7 +54,7 @@ export default function SecurityKeyManagement() {
         <h1 className="text-2xl font-bold text-text">Key Management</h1>
       </div>
 
-      <div className="rounded-2xl border-2 border-border bg-background backdrop-blur-sm p-6 shadow-lg dark:border-border-strong">
+      <div className="rounded-2xl border-2 border-border bg-surface backdrop-blur-sm p-6 dark:border-border-strong">
         <div className="flex items-center gap-4">
           <div className="rounded-xl bg-primary/10 p-2.5 dark:bg-primary/20">
             <Lock className="h-5 w-5 text-primary" />

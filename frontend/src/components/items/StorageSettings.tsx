@@ -124,7 +124,7 @@ function ProviderForm({
   };
 
   return (
-    <div className="rounded-2xl border-2 border-border bg-background backdrop-blur-sm shadow-lg transition-all duration-200 dark:border-border-strong">
+    <div className="rounded-2xl border-2 border-border bg-surface backdrop-blur-sm transition-all duration-200 dark:border-border-strong">
       {/* Header */}
       <button
         type="button"
@@ -668,7 +668,7 @@ export default function StorageSettings() {
       {/* Custom Storage Tab */}
       {activeTab === 'custom' && (
         <div className="space-y-6">
-          <div className="rounded-2xl border-2 border-border bg-background backdrop-blur-sm p-6 shadow-lg dark:border-border-strong">
+          <div className="rounded-2xl border-2 border-border bg-surface backdrop-blur-sm p-6 dark:border-border-strong">
             <Toggle
               id="custom-storage-toggle"
               label="Enable Custom Storage"
@@ -756,7 +756,7 @@ export default function StorageSettings() {
             </div>
           </div>
 
-          <div className="rounded-2xl border-2 border-border bg-background backdrop-blur-sm p-6 shadow-lg dark:border-border-strong">
+          <div className="rounded-2xl border-2 border-border bg-surface backdrop-blur-sm p-6 dark:border-border-strong">
             <Toggle
               id="ayo-storage-toggle"
               label="Enable Ayo Provided Storage"

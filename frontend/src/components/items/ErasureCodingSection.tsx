@@ -69,7 +69,7 @@ export default function ErasureCodingSection({
 }: ErasureCodingSectionProps) {
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl border-2 border-border bg-background backdrop-blur-sm p-6 shadow-lg dark:border-border-strong">
+      <div className="rounded-2xl border-2 border-border bg-surface backdrop-blur-sm p-6 dark:border-border-strong">
         <Toggle
           id="erasure-coding-toggle"
           label="Erasure Coding"
@@ -81,7 +81,7 @@ export default function ErasureCodingSection({
       </div>
 
       {enabled && !disabled && (
-        <div className="space-y-4 rounded-2xl border-2 border-border bg-gradient-to-br from-surface-hover to-surface-alt p-6 dark:border-border-strong dark:from-surface dark:to-surface-alt">
+        <div className="space-y-4 rounded-2xl border-2 border-border bg-surface p-6 dark:border-border-strong">
           <p className="text-sm font-medium text-text-muted dark:text-text leading-relaxed">
             Choose how data is split into data shards + parity shards. Higher parity means more
             fault tolerance but more storage overhead.
@@ -94,8 +94,8 @@ export default function ErasureCodingSection({
                 className={`group relative cursor-pointer rounded-2xl border-2 p-5 transition-all duration-200
                   ${
                     selectedConfig === c.value
-                      ? 'border-primary bg-gradient-to-br from-primary/5 to-primary/5 shadow-lg dark:border-primary/40 dark:from-primary/10 dark:to-primary/10'
-                      : 'border-border bg-surface hover:border-border-strong hover:shadow-md dark:border-border-strong dark:bg-surface-alt dark:hover:border-border-input'
+                      ? 'border-primary bg-primary/10 dark:border-primary/40 dark:bg-primary/20'
+                      : 'border-border bg-surface-alt hover:border-border-strong dark:border-border-strong dark:bg-surface-alt dark:hover:border-border-input'
                   }
                 `}
               >

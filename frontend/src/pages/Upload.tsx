@@ -103,8 +103,8 @@ export default function Upload() {
         <>
           {/* Feature Highlights Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="flex items-center gap-4 rounded-2xl border border-border bg-surface p-5 shadow-sm">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#260913] border border-[#480c1e] text-primary">
+            <div className="flex items-center gap-4 rounded-2xl border border-border bg-surface p-5">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-primary/20">
                 <Lock className="h-5 w-5 text-primary" />
               </div>
               <div>
@@ -115,8 +115,8 @@ export default function Upload() {
               </div>
             </div>
 
-            <div className="flex items-center gap-4 rounded-2xl border border-border bg-surface p-5 shadow-sm">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#260913] border border-[#480c1e] text-primary">
+            <div className="flex items-center gap-4 rounded-2xl border border-border bg-surface p-5">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-primary/20">
                 <Layers className="h-5 w-5 text-primary" />
               </div>
               <div>
@@ -127,8 +127,8 @@ export default function Upload() {
               </div>
             </div>
 
-            <div className="flex items-center gap-4 rounded-2xl border border-border bg-surface p-5 shadow-sm">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#260913] border border-[#480c1e] text-primary">
+            <div className="flex items-center gap-4 rounded-2xl border border-border bg-surface p-5">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-primary/20">
                 <Cloud className="h-5 w-5 text-primary" />
               </div>
               <div>
@@ -141,7 +141,7 @@ export default function Upload() {
           </div>
 
           {/* Provider Details Bar */}
-          <div className="flex flex-wrap items-center justify-center gap-4 rounded-2xl border border-border bg-surface px-6 py-4 text-xs font-semibold shadow-sm">
+          <div className="flex flex-wrap items-center justify-center gap-4 rounded-2xl border border-border bg-surface px-6 py-4 text-xs font-semibold">
             <div className="flex flex-wrap items-center gap-3 sm:gap-4">
               <span className="font-bold text-text">Storage Providers</span>
               <span className="inline-flex items-center gap-2 font-normal text-text-muted">

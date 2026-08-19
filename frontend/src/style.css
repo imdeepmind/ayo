@@ -16,56 +16,63 @@
 
     /* ─── Sidebar ────────────────────────────────────────── */
     --color-sidebar-bg: color-mix(in srgb, var(--color-primary) 34%, #000);
-    /* sidebar gradient top (0%) — primary darkened toward #4a0015 */
+    /* sidebar gradient top (0%) */
     --color-sidebar-bg-mid: color-mix(in srgb, var(--color-primary) 20%, #000);
-    /* sidebar gradient mid (45%) — primary darkened toward #2c000b */
+    /* sidebar gradient mid (45%) */
     --color-sidebar-bg-dark: color-mix(in srgb, var(--color-primary) 10%, #000);
-    /* sidebar gradient bottom (100%) — primary darkened toward #160005 */
+    /* sidebar gradient bottom (100%) */
     --color-sidebar-text: #ffffff;
     /* active / bold link */
     --color-sidebar-text-muted: rgba(254, 202, 202, 0.75);
     /* inactive links */
     --color-sidebar-border: rgba(248, 113, 113, 0.3);
-    /* divider lines (red-400/30) */
+    /* divider lines */
     --color-sidebar-track: rgba(127, 29, 29, 0.4);
-    /* progress track (red-800/40) */
+    /* progress track */
     --color-sidebar-fill: #ffffff;
     /* progress bar fill */
 
     /* ─── Toast ──────────────────────────────────────────── */
     --toast-bg: #ffffff;
-    --toast-color: #1e293b;
-    --toast-border: #e2e8f0;
+    --toast-color: #111111;
+    --toast-border: rgba(0, 0, 0, 0.08);
 
-    /* ─── Background / Surfaces ──────────────────────────── */
-    --color-bg: #ffffff;
+    /* ─── Background / Surfaces (matching Figma demo) ────── */
+    --color-bg: #f3f4f6;
     /* app background */
     --color-surface: #ffffff;
     /* cards / panels / modals / table */
-    --color-surface-alt: #f1f5f9;
-    /* inputs, ghost buttons, subtle fills (slate-100) */
-    --color-surface-hover: #f8fafc;
-    /* hover fills (slate-50) */
-    --color-surface-muted: #e2e8f0;
-    /* tracks, thumbnails, disabled fills (slate-200) */
+    --color-surface-alt: #f3f4f6;
+    /* inputs, inner containers, search bar */
+    --color-surface-hover: #f9fafb;
+    /* hover fills */
+    --color-surface-muted: rgba(0, 0, 0, 0.06);
+    /* tracks, thumbnails, disabled fills */
 
-    /* ─── Text ───────────────────────────────────────────── */
-    --color-text: #0f172a;
-    /* primary text (slate-900) */
-    --color-text-muted: #475569;
-    /* secondary text (slate-600) */
-    --color-text-subtle: #64748b;
-    /* tertiary text (slate-500) */
-    --color-text-faint: #94a3b8;
-    /* faint text (slate-400) */
+    /* ─── Text (matching Figma demo) ─────────────────────── */
+    --color-text: #111111;
+    /* primary text */
+    --color-text-muted: #555555;
+    /* secondary text */
+    --color-text-subtle: #777777;
+    /* tertiary text */
+    --color-text-faint: #999999;
+    /* faint text */
 
-    /* ─── Borders ────────────────────────────────────────── */
-    --color-border: #e2e8f0;
-    /* default borders (slate-200) */
-    --color-border-strong: #cbd5e1;
-    /* stronger borders (slate-300) */
-    --color-border-input: #e2e8f0;
-    /* form-control borders (slate-200) */
+    /* ─── Borders (matching Figma demo) ──────────────────── */
+    --color-border: rgba(0, 0, 0, 0.08);
+    /* default borders */
+    --color-border-strong: rgba(0, 0, 0, 0.13);
+    /* stronger borders */
+    --color-border-input: rgba(0, 0, 0, 0.08);
+    /* form-control borders */
+
+    /* ─── Shadows (No shadows in Figma light mode) ───────── */
+    --shadow-sm: none;
+    --shadow-md: none;
+    --shadow-lg: none;
+    --shadow-xl: none;
+    --shadow-2xl: none;
   }
 
   .dark {
@@ -99,5 +106,12 @@
     /* ─── Sidebar (dark mode) ─────────────────────────────── */
     --color-sidebar-text: #ffffff;
     --color-sidebar-text-muted: rgba(254, 202, 202, 0.75);
+
+    /* ─── Shadows (dark mode) ─────────────────────────────── */
+    --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.4);
+    --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   }
 }

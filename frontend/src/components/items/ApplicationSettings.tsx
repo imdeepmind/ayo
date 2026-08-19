@@ -55,7 +55,7 @@ export default function ApplicationSettings() {
   const isDark = theme === 'dark';
 
   return (
-    <div className="rounded-2xl border-2 border-border bg-background backdrop-blur-sm shadow-lg dark:border-border-strong">
+    <div className="rounded-2xl border-2 border-border bg-surface backdrop-blur-sm dark:border-border-strong">
       <div className="p-6">
         <h3 className="text-base font-bold text-text">Appearance</h3>
         <p className="mt-1 text-sm text-text-muted">Choose how ayo looks on your device.</p>

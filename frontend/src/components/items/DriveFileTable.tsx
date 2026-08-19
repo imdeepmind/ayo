@@ -78,7 +78,7 @@ function RowActions({
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={onClose} />
-          <div className="absolute right-0 top-full z-50 mt-1 min-w-[150px] rounded-xl border border-border bg-background p-1 shadow-lg dark:bg-surface">
+          <div className="absolute right-0 top-full z-50 mt-1 min-w-[150px] rounded-xl border border-border bg-surface p-1 shadow-lg dark:bg-surface">
             <button type="button" className={menuItemClass} onClick={() => onView(file)}>
               <Eye className="h-4 w-4 text-text-faint" />
               View
@@ -174,14 +174,14 @@ export default function DriveFileTable({
 
   if (files.length === 0) {
     return (
-      <div className="mt-4 rounded-2xl border border-border bg-background px-4 py-12 text-center text-sm text-text-subtle">
+      <div className="mt-4 rounded-2xl border border-border bg-surface px-4 py-12 text-center text-sm text-text-subtle">
         {emptyMessage}
       </div>
     );
   }
 
   return (
-    <div className="mt-4 rounded-2xl border border-border bg-background overflow-hidden">
+    <div className="mt-4 rounded-2xl border border-border bg-surface overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm border-collapse">
           <thead>
@@ -227,7 +227,7 @@ export default function DriveFileTable({
               return (
                 <tr
                   key={file.id}
-                  className={`group transition hover:bg-surface-hover/80 dark:hover:bg-surface-alt/50 ${
+                  className={`group transition hover:bg-surface-alt dark:hover:bg-surface-alt/50 ${
                     isSelected ? 'bg-primary/5 dark:bg-primary/10' : ''
                   }`}
                 >

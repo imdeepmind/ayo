@@ -58,9 +58,9 @@ export default function UploadFileItem({ fileInfo, onRemove, onSaveEdit }: Uploa
   };
 
   return (
-    <div className="flex items-center justify-between rounded-2xl border border-border bg-surface p-5 shadow-sm">
+    <div className="flex items-center justify-between rounded-2xl border border-border bg-surface p-5">
       <div className="flex flex-1 items-center gap-4 overflow-hidden">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#260913] border border-[#480c1e] text-primary">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary">
           <FileIcon className="h-6 w-6" />
         </div>
 

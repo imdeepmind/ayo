@@ -64,7 +64,7 @@ export default function FileDetailsModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="w-full max-w-lg rounded-2xl bg-background p-6 border border-border dark:border-border-strong">
+      <div className="w-full max-w-lg rounded-2xl bg-surface p-6 border border-border dark:border-border-strong">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-semibold text-text">File Details</h2>
           <button
