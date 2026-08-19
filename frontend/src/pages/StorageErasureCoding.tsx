@@ -63,7 +63,7 @@ export default function StorageErasureCoding() {
             selectedConfig={config}
             onConfigChange={setConfig}
           />
-          <div className="pt-2">
+          <div className="flex justify-end pt-2">
             <Button type="button" onClick={handleSave} disabled={saving}>
               {saving ? 'Saving...' : 'Save Erasure Coding Settings'}
             </Button>

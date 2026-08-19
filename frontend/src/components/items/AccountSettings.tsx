@@ -92,105 +92,116 @@ export default function AccountSettings() {
 
   return (
     <div className="space-y-4">
-      <div className="space-y-4">
-        {actions.map((action) => (
-          <div
-            key={action.id}
-            className={`rounded-2xl border-2 p-6 transition-all duration-200 ${
-              action.variant === 'danger'
-                ? 'border-red-200 bg-gradient-to-br from-red-50 to-rose-50 dark:border-red-900/40 dark:from-red-950/20 dark:to-rose-950/20'
-                : 'border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50 dark:border-amber-900/40 dark:from-amber-950/20 dark:to-yellow-950/20'
-            }`}
-          >
-            <div className="flex items-start gap-4">
-              <div
-                className={`rounded-xl p-2.5 ${
+      {actions.map((action) => (
+        <div
+          key={action.id}
+          className={`rounded-2xl border-2 bg-background p-6 transition-all duration-200 ${
+            action.variant === 'danger'
+              ? 'border-red-200 dark:border-red-900/40'
+              : 'border-amber-200 dark:border-amber-900/40'
+          }`}
+        >
+          <div className="flex items-center gap-4">
+            <div
+              className={`shrink-0 rounded-xl p-2.5 ${
+                action.variant === 'danger'
+                  ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+                  : 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
+              }`}
+            >
+              <action.icon className="h-5 w-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2.5">
+                <h3 className="text-base font-bold text-text">{action.title}</h3>
+                <span
+                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider ${
+                    action.variant === 'danger'
+                      ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+                      : 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
+                  }`}
+                >
+                  {action.variant === 'danger' ? 'Danger' : 'Warning'}
+                </span>
+              </div>
+              <p className="mt-1 text-sm text-text-muted leading-relaxed">{action.description}</p>
+            </div>
+
+            {activeAction !== action.id && (
+              <button
+                type="button"
+                onClick={() => {
+                  reset();
+                  setActiveAction(action.id);
+                }}
+                className={`shrink-0 inline-flex items-center rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-200 shadow-lg ${
                   action.variant === 'danger'
-                    ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
-                    : 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
+                    ? 'bg-gradient-to-r from-red-500 to-rose-500 text-white hover:from-red-400 hover:to-rose-400 hover:shadow-xl shadow-red-500/30'
+                    : 'bg-gradient-to-r from-amber-500 to-yellow-500 text-white hover:from-amber-400 hover:to-yellow-400 hover:shadow-xl shadow-amber-500/30'
                 }`}
               >
-                <action.icon className="h-5 w-5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-base font-bold text-text">{action.title}</h3>
-                <p className="mt-1 text-sm text-text-muted leading-relaxed">{action.description}</p>
-
-                {activeAction === action.id ? (
-                  <form onSubmit={handleSubmit(onSubmit)} className="mt-5 space-y-4">
-                    <TextInput
-                      id={`${action.id}-password`}
-                      label="Current Password"
-                      type="password"
-                      placeholder="Enter your current password"
-                      error={errors.password?.message}
-                      {...register('password')}
-                    />
-                    <TextInput
-                      id={`${action.id}-recovery-key`}
-                      label="Recovery Key"
-                      type="text"
-                      placeholder="Enter your recovery key"
-                      error={errors.recoveryKey?.message}
-                      {...register('recoveryKey')}
-                    />
-
-                    {activeAction === 'change-password' && (
-                      <>
-                        <TextInput
-                          id="new-password"
-                          label="New Password"
-                          type="password"
-                          placeholder="Enter new password"
-                          error={errors.newPassword?.message}
-                          {...register('newPassword')}
-                        />
-                        <TextInput
-                          id="confirm-new-password"
-                          label="Confirm New Password"
-                          type="password"
-                          placeholder="Confirm new password"
-                          error={errors.confirmNewPassword?.message}
-                          {...register('confirmNewPassword')}
-                        />
-                      </>
-                    )}
-
-                    <div className="flex gap-3 pt-2">
-                      <Button type="submit" className="text-sm" disabled={isSubmitting}>
-                        {isSubmitting ? 'Processing...' : currentAction?.confirmLabel}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="text-sm"
-                        onClick={handleCancel}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </form>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      reset();
-                      setActiveAction(action.id);
-                    }}
-                    className={`mt-4 inline-flex items-center rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-200 shadow-lg ${
-                      action.variant === 'danger'
-                        ? 'bg-gradient-to-r from-red-500 to-rose-500 text-white hover:from-red-400 hover:to-rose-400 hover:shadow-xl shadow-red-500/30'
-                        : 'bg-gradient-to-r from-amber-500 to-yellow-500 text-white hover:from-amber-400 hover:to-yellow-400 hover:shadow-xl shadow-amber-500/30'
-                    }`}
-                  >
-                    {action.buttonLabel}
-                  </button>
-                )}
-              </div>
-            </div>
+                {action.buttonLabel}
+              </button>
+            )}
           </div>
-        ))}
-      </div>
+
+          {activeAction === action.id && (
+            <form onSubmit={handleSubmit(onSubmit)} className="mt-5 space-y-4">
+              <TextInput
+                id={`${action.id}-password`}
+                label="Current Password"
+                type="password"
+                placeholder="Enter your current password"
+                error={errors.password?.message}
+                {...register('password')}
+              />
+              <TextInput
+                id={`${action.id}-recovery-key`}
+                label="Recovery Key"
+                type="text"
+                placeholder="Enter your recovery key"
+                error={errors.recoveryKey?.message}
+                {...register('recoveryKey')}
+              />
+
+              {activeAction === 'change-password' && (
+                <>
+                  <TextInput
+                    id="new-password"
+                    label="New Password"
+                    type="password"
+                    placeholder="Enter new password"
+                    error={errors.newPassword?.message}
+                    {...register('newPassword')}
+                  />
+                  <TextInput
+                    id="confirm-new-password"
+                    label="Confirm New Password"
+                    type="password"
+                    placeholder="Confirm new password"
+                    error={errors.confirmNewPassword?.message}
+                    {...register('confirmNewPassword')}
+                  />
+                </>
+              )}
+
+              <div className="flex justify-end gap-3 pt-2">
+                <Button type="submit" className="text-sm" disabled={isSubmitting}>
+                  {isSubmitting ? 'Processing...' : currentAction?.confirmLabel}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="text-sm"
+                  onClick={handleCancel}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          )}
+        </div>
+      ))}
     </div>
   );
 }

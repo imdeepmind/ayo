@@ -5,9 +5,7 @@ import { toErrorMessage } from '@/lib/errors';
 import TextInput from '@/components/bits/Input';
 import Button from '@/components/bits/Button';
 import Toggle from '@/components/bits/Toggle';
-import ErasureCodingSection, {
-  type ErasureCodingConfig,
-} from '@/components/items/ErasureCodingSection';
+import { type ErasureCodingConfig } from '@/components/items/ErasureCodingSection';
 import { GetSettings, UpdateSettings, PickFolder } from '../../../wailsjs/go/settings/Service';
 import { settings } from '../../../wailsjs/go/models';
 
@@ -726,17 +724,8 @@ export default function StorageSettings() {
               </div>
             </div>
 
-            {/* Erasure Coding */}
-            <ErasureCodingSection
-              enabled={customErasureEnabled}
-              onToggle={setCustomErasureEnabled}
-              selectedConfig={customErasureConfig}
-              onConfigChange={setCustomErasureConfig}
-              disabled={!customEnabled}
-            />
-
             {/* Save */}
-            <div className="pt-2">
+            <div className="flex justify-end pt-2">
               <Button type="button" onClick={handleSaveCustom} disabled={!customEnabled}>
                 Save Custom Storage Settings
               </Button>
@@ -781,15 +770,7 @@ export default function StorageSettings() {
           <div
             className={`space-y-6 transition-opacity duration-200 ${ayoEnabled ? 'opacity-100' : 'pointer-events-none opacity-40'}`}
           >
-            <ErasureCodingSection
-              enabled={ayoErasureEnabled}
-              onToggle={setAyoErasureEnabled}
-              selectedConfig={ayoErasureConfig}
-              onConfigChange={setAyoErasureConfig}
-              disabled={!ayoEnabled}
-            />
-
-            <div className="pt-2">
+            <div className="flex justify-end pt-2">
               <Button type="button" onClick={handleSaveAyo} disabled={!ayoEnabled}>
                 Save Ayo Storage Settings
               </Button>
