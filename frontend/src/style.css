@@ -42,6 +42,8 @@
     /* app background */
     --color-surface: #ffffff;
     /* cards / panels / modals / table */
+    --color-surface-elevated: #ffffff;
+    /* modals / dropdown menus / popovers */
     --color-surface-alt: #f3f4f6;
     /* inputs, inner containers, search bar */
     --color-surface-hover: #f9fafb;
@@ -85,6 +87,8 @@
     /* app background */
     --color-surface: rgba(255, 255, 255, 0.04);
     /* cards / panels / modals / table */
+    --color-surface-elevated: #1a1a1a;
+    /* modals / dropdown menus / popovers */
     --color-surface-alt: rgba(255, 255, 255, 0.05);
     /* inputs, inner containers, chips */
     --color-surface-hover: rgba(255, 255, 255, 0.07);

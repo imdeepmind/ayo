@@ -79,7 +79,7 @@ export default function Header() {
                     onClick={() => setMenuOpen(false)}
                     aria-hidden="true"
                   />
-                  <div className="absolute right-0 z-50 mt-3 w-56 overflow-hidden rounded-xl border-2 border-border bg-surface shadow-2xl dark:border-border-strong">
+                  <div className="absolute right-0 z-50 mt-3 w-56 overflow-hidden rounded-xl border-2 border-border bg-surface-elevated shadow-2xl dark:border-border-strong">
                     <div className="border-b-2 border-border px-4 py-3 dark:border-border-strong">
                       <p className="truncate text-sm font-bold text-text">{session.Username}</p>
                       <p className="truncate text-xs text-text-faint">

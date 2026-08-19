@@ -50,7 +50,7 @@ export default function EditFileModal({ isOpen, file, onClose, onSave }: EditFil
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="w-full max-w-md rounded-2xl bg-surface p-6 border border-border dark:border-border-strong">
+      <div className="w-full max-w-md rounded-2xl bg-surface-elevated p-6 border border-border dark:border-border-strong">
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-semibold text-text">Edit File</h2>
@@ -120,7 +120,7 @@ export default function EditFileModal({ isOpen, file, onClose, onSave }: EditFil
                     }
                   }}
                   placeholder="Add a tag..."
-                  className="block w-full rounded-lg border border-border-strong py-2 pl-9 pr-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-border-input dark:bg-surface dark:text-text placeholder:text-text-faint"
+                  className="block w-full rounded-lg border border-border-strong py-2 pl-9 pr-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-border-input dark:bg-surface-alt dark:text-text placeholder:text-text-faint"
                 />
               </div>
               <Button type="button" variant="ghost" onClick={handleAddTag} className="px-3">

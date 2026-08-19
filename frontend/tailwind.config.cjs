@@ -24,6 +24,7 @@ module.exports = {
         },
         surface: {
           DEFAULT: 'var(--color-surface)',
+          elevated:'var(--color-surface-elevated)',
           alt:     'var(--color-surface-alt)',
           hover:   'var(--color-surface-hover)',
           muted:   'var(--color-surface-muted)',

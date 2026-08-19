@@ -78,7 +78,7 @@ function RowActions({
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={onClose} />
-          <div className="absolute right-0 top-full z-50 mt-1 min-w-[150px] rounded-xl border border-border bg-surface p-1 shadow-lg dark:bg-surface">
+          <div className="absolute right-0 top-full z-50 mt-1 min-w-[150px] rounded-xl border border-border bg-surface-elevated p-1 shadow-lg">
             <button type="button" className={menuItemClass} onClick={() => onView(file)}>
               <Eye className="h-4 w-4 text-text-faint" />
               View
