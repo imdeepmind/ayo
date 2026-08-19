@@ -126,7 +126,7 @@ export default function Register() {
       >
         {recoveryKey ? (
           <div className="space-y-5">
-            <div className="relative overflow-hidden rounded-xl border-2 border-primary/20 dark:border-primary/40 bg-gradient-to-br from-primary/5 to-primary/5 dark:from-primary/10 dark:to-primary/10 p-5">
+            <div className="relative overflow-hidden rounded-xl border border-primary/20 dark:border-primary/40 bg-gradient-to-br from-primary/5 to-primary/5 dark:from-primary/10 dark:to-primary/10 p-5">
               <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-2xl -mr-16 -mt-16" />
               <div className="relative">
                 <div className="flex items-center gap-2 mb-3">
@@ -153,7 +153,7 @@ export default function Register() {
               </div>
             </div>
 
-            <div className="rounded-xl bg-amber-50 dark:bg-amber-500/10 border-2 border-amber-200 dark:border-amber-500/25 p-5">
+            <div className="rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/25 p-5">
               <div className="flex gap-3">
                 <div className="flex-shrink-0">
                   <svg

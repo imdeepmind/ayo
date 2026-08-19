@@ -1,10 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import { AlertTriangle, ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { toErrorMessage } from '@/lib/errors';
 import TextInput from '@/components/bits/Input';
 import Button from '@/components/bits/Button';
 import Toggle from '@/components/bits/Toggle';
+import ConfirmDialog from '@/components/bits/ConfirmDialog';
+import WarningBanner from '@/components/bits/WarningBanner';
 import { type ErasureCodingConfig } from '@/components/items/ErasureCodingSection';
 import { GetSettings, UpdateSettings, PickFolder } from '../../../wailsjs/go/settings/Service';
 import { settings } from '../../../wailsjs/go/models';
@@ -123,8 +125,20 @@ function ProviderForm({
     onChange(provider.id, { ...provider.fields, [key]: value });
   };
 
+  const path = (provider.fields as LocalFields).folderPath;
+
+  const pickFolder = async () => {
+    try {
+      const picked = await PickFolder();
+      if (picked) update('folderPath', picked);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to open folder picker: ' + String(err));
+    }
+  };
+
   return (
-    <div className="rounded-2xl border-2 border-border bg-surface backdrop-blur-sm transition-all duration-200 dark:border-border-strong">
+    <div className="rounded-2xl border border-border bg-surface backdrop-blur-sm transition-all duration-200 dark:border-border-strong">
       {/* Header */}
       <button
         type="button"
@@ -160,7 +174,7 @@ function ProviderForm({
 
       {/* Body */}
       {!provider.collapsed && (
-        <div className="space-y-4 border-t-2 border-border px-6 pb-6 pt-5 dark:border-border-strong">
+        <div className="space-y-4 border-t border-border px-6 pb-6 pt-5 dark:border-border-strong">
           {provider.type === 'aws' && (
             <>
               <TextInput
@@ -244,7 +258,7 @@ function ProviderForm({
                   placeholder='{"type": "service_account", ...}'
                   value={(provider.fields as GCPFields).serviceAccountJson}
                   onChange={(e) => update('serviceAccountJson', e.target.value)}
-                  className={`w-full rounded-xl border-2 ${errors.serviceAccountJson ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20' : 'border-border-input focus:border-primary focus:ring-primary/20 dark:border-border-input dark:focus:border-primary'} bg-surface px-4 py-2.5 text-sm text-text placeholder:text-text-faint shadow-sm outline-none transition-all duration-200 focus:ring-4 dark:bg-surface dark:text-text dark:placeholder:text-text-subtle font-mono`}
+                  className={`w-full rounded-xl border ${errors.serviceAccountJson ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20' : 'border-border-input focus:border-primary focus:ring-primary/20 dark:border-border-input dark:focus:border-primary'} bg-surface px-4 py-2.5 text-sm text-text placeholder:text-text-faint shadow-sm outline-none transition-all duration-200 focus:ring-4 dark:bg-surface dark:text-text dark:placeholder:text-text-subtle font-mono`}
                 />
                 {errors.serviceAccountJson && (
                   <p className="text-sm text-red-500 dark:text-red-400 flex items-center gap-1.5">
@@ -305,28 +319,21 @@ function ProviderForm({
                   Folder Location
                 </label>
                 <div className="flex items-center gap-2">
-                  <input
-                    id={`${provider.id}-folder-path`}
-                    type="text"
-                    readOnly
-                    placeholder="Choose a folder..."
-                    value={(provider.fields as LocalFields).folderPath}
-                    className={`w-full flex-1 rounded-xl border-2 bg-surface-alt px-4 py-2.5 text-sm text-text-muted placeholder:text-text-faint shadow-sm outline-none transition-all duration-200 focus:ring-4 dark:bg-surface dark:text-text dark:placeholder:text-text-subtle ${errors.folderPath ? 'border-red-400' : 'border-border-input dark:border-border-input'}`}
-                  />
                   <button
                     type="button"
-                    onClick={async () => {
-                      try {
-                        const path = await PickFolder();
-                        if (path) update('folderPath', path);
-                      } catch (err) {
-                        console.error(err);
-                        toast.error('Failed to open folder picker: ' + String(err));
-                      }
-                    }}
-                    className="inline-flex items-center gap-2 rounded-xl border-2 border-border-strong bg-surface px-4 py-2.5 text-sm font-semibold text-text-muted shadow-sm transition-all duration-200 hover:border-primary hover:bg-primary/10 hover:text-primary dark:border-border-input dark:bg-surface-alt dark:text-text-muted dark:hover:border-primary/50 dark:hover:bg-primary/20 dark:hover:text-primary"
+                    onClick={pickFolder}
+                    className={`flex-1 flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm text-left transition-all duration-200 ${
+                      errors.folderPath
+                        ? 'border-red-400'
+                        : 'border-border-input dark:border-border-input'
+                    } bg-surface-alt/60 dark:bg-surface-alt/60 hover:border-primary`}
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg
+                      className="w-4 h-4 shrink-0 text-text-faint"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -334,6 +341,21 @@ function ProviderForm({
                         d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
                       />
                     </svg>
+                    <span
+                      className={`truncate ${
+                        path
+                          ? 'font-mono text-text dark:text-text'
+                          : 'text-text-faint dark:text-text-subtle'
+                      }`}
+                    >
+                      {path || 'Choose a folder...'}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={pickFolder}
+                    className="inline-flex items-center gap-2 rounded-xl border border-border-strong bg-surface px-4 py-2.5 text-sm font-semibold text-text-muted shadow-sm transition-all duration-200 hover:border-primary hover:bg-primary/10 hover:text-primary dark:border-border-input dark:bg-surface-alt dark:text-text-muted dark:hover:border-primary/50 dark:hover:bg-primary/20 dark:hover:text-primary"
+                  >
                     Browse
                   </button>
                 </div>
@@ -344,7 +366,7 @@ function ProviderForm({
             </>
           )}
 
-          <div className="pt-3 flex items-center gap-2">
+          <div className="pt-3 flex items-center justify-end">
             <button
               type="button"
               onClick={() => onRemove(provider.id)}
@@ -378,6 +400,9 @@ export default function StorageSettings() {
   const [providerErrors, setProviderErrors] = useState<Record<string, Record<string, string>>>({});
   const [customErasureEnabled, setCustomErasureEnabled] = useState(false);
   const [customErasureConfig, setCustomErasureConfig] = useState<ErasureCodingConfig>('2+2');
+
+  // Provider removal confirmation
+  const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
 
   // Ayo storage state
   const [ayoEnabled, setAyoEnabled] = useState(false);
@@ -483,6 +508,13 @@ export default function StorageSettings() {
   const toggleCollapse = (id: string) => {
     setProviders((prev) => prev.map((p) => (p.id === id ? { ...p, collapsed: !p.collapsed } : p)));
   };
+
+  const confirmRemoveProvider = () => {
+    if (pendingRemoveId) removeProvider(pendingRemoveId);
+    setPendingRemoveId(null);
+  };
+
+  const pendingProvider = providers.find((p) => p.id === pendingRemoveId) ?? null;
 
   // -- Validation --
 
@@ -656,7 +688,7 @@ export default function StorageSettings() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b-2 border-border dark:border-border-strong">
+      <div className="flex border-b border-border dark:border-border-strong">
         <button type="button" className={tabClass('custom')} onClick={() => setActiveTab('custom')}>
           Custom Storage (Recommended)
         </button>
@@ -668,7 +700,7 @@ export default function StorageSettings() {
       {/* Custom Storage Tab */}
       {activeTab === 'custom' && (
         <div className="space-y-6">
-          <div className="rounded-2xl border-2 border-border bg-surface backdrop-blur-sm p-6 dark:border-border-strong">
+          <div className="rounded-2xl border border-border bg-surface backdrop-blur-sm p-6 dark:border-border-strong">
             <Toggle
               id="custom-storage-toggle"
               label="Enable Custom Storage"
@@ -688,7 +720,7 @@ export default function StorageSettings() {
                   key={p.id}
                   provider={p}
                   onChange={updateProviderFields}
-                  onRemove={removeProvider}
+                  onRemove={setPendingRemoveId}
                   onToggleCollapse={toggleCollapse}
                   errors={providerErrors[p.id] || {}}
                 />
@@ -696,7 +728,7 @@ export default function StorageSettings() {
             </div>
 
             {/* Add provider */}
-            <div className="rounded-2xl border-2 border-dashed border-border bg-surface-hover/50 p-6 dark:border-border-strong dark:bg-surface">
+            <div className="rounded-2xl border border-dashed border-border bg-surface-hover/50 p-6 dark:border-border-strong dark:bg-surface">
               <div className="flex flex-wrap items-center gap-3">
                 <span className="text-sm font-semibold text-text-muted dark:text-text">
                   Add storage provider:
@@ -708,7 +740,7 @@ export default function StorageSettings() {
                     onClick={() => addProvider(type)}
                     disabled={!customEnabled || type === 'gcp' || type === 'azure'}
                     title={type === 'gcp' || type === 'azure' ? 'Coming soon' : undefined}
-                    className="inline-flex items-center gap-2 rounded-xl border-2 border-border-strong bg-surface px-4 py-2.5 text-sm font-semibold text-text-muted shadow-sm transition-all duration-200 hover:border-primary hover:bg-primary/10 hover:text-primary hover:shadow-md dark:border-border-input dark:bg-surface-alt dark:text-text-muted dark:hover:border-primary/50 dark:hover:bg-primary/20 dark:hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-border-strong disabled:hover:bg-surface disabled:hover:text-text-muted"
+                    className="inline-flex items-center gap-2 rounded-xl border border-border-strong bg-surface px-4 py-2.5 text-sm font-semibold text-text-muted shadow-sm transition-all duration-200 hover:border-primary hover:bg-primary/10 hover:text-primary hover:shadow-md dark:border-border-input dark:bg-surface-alt dark:text-text-muted dark:hover:border-primary/50 dark:hover:bg-primary/20 dark:hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-border-strong disabled:hover:bg-surface disabled:hover:text-text-muted"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path
@@ -738,25 +770,12 @@ export default function StorageSettings() {
       {activeTab === 'ayo' && (
         <div className="space-y-6">
           {/* Warning */}
-          <div className="rounded-2xl border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50 p-6 dark:border-amber-500/25 dark:from-amber-500/10 dark:to-amber-500/10">
-            <div className="flex gap-4">
-              <div className="rounded-xl bg-amber-100 p-2.5 dark:bg-amber-500/15">
-                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-              </div>
-              <div className="flex-1">
-                <p className="text-base font-bold text-amber-900 dark:text-amber-300">
-                  Custom storage is more secure and cheaper
-                </p>
-                <p className="mt-2 text-sm text-amber-800 dark:text-amber-200/70 leading-relaxed">
-                  Use Ayo Provided Storage only if you want to avoid the technical difficulties of
-                  setting up your own cloud storage. Your data will be stored on Ayo-managed
-                  infrastructure.
-                </p>
-              </div>
-            </div>
-          </div>
+          <WarningBanner
+            title="Custom storage is more secure and cheaper"
+            description="Use Ayo Provided Storage only if you want to avoid the technical difficulties of setting up your own cloud storage. Your data will be stored on Ayo-managed infrastructure."
+          />
 
-          <div className="rounded-2xl border-2 border-border bg-surface backdrop-blur-sm p-6 dark:border-border-strong">
+          <div className="rounded-2xl border border-border bg-surface backdrop-blur-sm p-6 dark:border-border-strong">
             <Toggle
               id="ayo-storage-toggle"
               label="Enable Ayo Provided Storage"
@@ -778,6 +797,22 @@ export default function StorageSettings() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={pendingRemoveId !== null}
+        title="Remove Provider"
+        message={
+          pendingProvider
+            ? `Remove the ${providerLabel(pendingProvider.type)} provider${
+                pendingProvider.providerId ? ` (${pendingProvider.providerId})` : ''
+              }? Files stored with this provider will no longer be accessible through ayo.`
+            : 'Remove this provider?'
+        }
+        confirmLabel="Remove"
+        destructive
+        onConfirm={confirmRemoveProvider}
+        onCancel={() => setPendingRemoveId(null)}
+      />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
 import Button from '@/components/bits/Button';
+import Modal from '@/components/bits/Modal';
 
 type ConfirmDialogProps = {
   isOpen: boolean;
@@ -28,37 +29,35 @@ export default function ConfirmDialog({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="w-full max-w-sm rounded-2xl bg-surface-elevated p-6 border border-border dark:border-border-strong">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-text">{title}</h2>
-          <button
-            onClick={onCancel}
-            className="rounded-full p-1 text-text-faint hover:bg-surface-alt hover:text-text-muted transition dark:hover:bg-surface-hover dark:hover:text-text"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <p className="text-sm text-text-muted">{message}</p>
-
-        <div className="flex justify-end gap-3 pt-6">
-          <Button type="button" variant="ghost" onClick={onCancel}>
-            {cancelLabel}
-          </Button>
-          <Button
-            type="button"
-            onClick={onConfirm}
-            className={
-              destructive
-                ? 'bg-red-600 text-white hover:bg-red-700 active:bg-red-800 focus:ring-red-500'
-                : undefined
-            }
-          >
-            {confirmLabel}
-          </Button>
-        </div>
+    <Modal isOpen={isOpen} onClose={onCancel} className="max-w-sm">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-text">{title}</h2>
+        <button
+          onClick={onCancel}
+          className="rounded-full p-1 text-text-faint hover:bg-surface-alt hover:text-text-muted transition dark:hover:bg-surface-hover dark:hover:text-text"
+        >
+          <X className="h-5 w-5" />
+        </button>
       </div>
-    </div>
+
+      <p className="text-sm text-text-muted">{message}</p>
+
+      <div className="flex justify-end gap-3 pt-6">
+        <Button type="button" variant="ghost" onClick={onCancel}>
+          {cancelLabel}
+        </Button>
+        <Button
+          type="button"
+          onClick={onConfirm}
+          className={
+            destructive
+              ? 'bg-red-600 text-white hover:bg-red-700 active:bg-red-800 focus:ring-red-500'
+              : undefined
+          }
+        >
+          {confirmLabel}
+        </Button>
+      </div>
+    </Modal>
   );
 }

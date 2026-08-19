@@ -39,7 +39,7 @@ export default function PendingUploadItem({ item }: PendingUploadItemProps) {
       : 'Pending';
 
   return (
-    <div className="flex items-center justify-between rounded-2xl border-2 border-border bg-surface backdrop-blur-sm p-5 transition-all duration-200 dark:border-border-strong">
+    <div className="flex items-center justify-between rounded-2xl border border-border bg-surface backdrop-blur-sm p-5 transition-all duration-200 dark:border-border-strong">
       <div className="flex flex-1 items-center gap-4 overflow-hidden">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-primary/20">
           {isDownload ? <DownloadCloud className="h-6 w-6" /> : <UploadCloud className="h-6 w-6" />}

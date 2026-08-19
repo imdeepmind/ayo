@@ -54,7 +54,7 @@ export default function SecurityKeyManagement() {
         <h1 className="text-2xl font-bold text-text">Key Management</h1>
       </div>
 
-      <div className="rounded-2xl border-2 border-border bg-surface backdrop-blur-sm p-6 dark:border-border-strong">
+      <div className="rounded-2xl border border-border bg-surface backdrop-blur-sm p-6 dark:border-border-strong">
         <div className="flex items-center gap-4">
           <div className="rounded-xl bg-primary/10 p-2.5 dark:bg-primary/20">
             <Lock className="h-5 w-5 text-primary" />
@@ -73,7 +73,7 @@ export default function SecurityKeyManagement() {
           <Toggle
             id="master-key-keyring"
             label="Store master key in OS keyring"
-            description="Keeps both the password and recovery copies (salt, nonce and ciphertext) in the system keychain. The database columns then hold random data."
+            description="Your master key is encrypted with a key derived from your password and is never stored in plaintext. Keeps both the password and recovery copies (salt, nonce and ciphertext) in the system keychain. The database columns then hold random data."
             checked={storage === 'keyring'}
             disabled={storage === null}
             onChange={(e) => handleToggle(e.target.checked)}

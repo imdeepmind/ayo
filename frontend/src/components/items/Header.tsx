@@ -29,7 +29,7 @@ export default function Header() {
   };
 
   return (
-    <header className="w-full shrink-0 bg-background py-6 px-8 md:px-10">
+    <header className="w-full shrink-0 bg-background py-2 px-8 md:px-10">
       <div className="flex items-center justify-between gap-4">
         {/* Logo & Brand */}
         <Link to="/" className="flex items-center shrink-0">
@@ -79,8 +79,8 @@ export default function Header() {
                     onClick={() => setMenuOpen(false)}
                     aria-hidden="true"
                   />
-                  <div className="absolute right-0 z-50 mt-3 w-56 overflow-hidden rounded-xl border-2 border-border bg-surface-elevated shadow-2xl dark:border-border-strong">
-                    <div className="border-b-2 border-border px-4 py-3 dark:border-border-strong">
+                  <div className="absolute right-0 z-50 mt-3 w-56 overflow-hidden rounded-xl border border-border bg-surface-elevated shadow-2xl dark:border-border-strong">
+                    <div className="border-b border-border px-4 py-3 dark:border-border-strong">
                       <p className="truncate text-sm font-bold text-text">{session.Username}</p>
                       <p className="truncate text-xs text-text-faint">
                         Signed in as {session.Username}

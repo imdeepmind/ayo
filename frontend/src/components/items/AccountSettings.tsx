@@ -95,7 +95,7 @@ export default function AccountSettings() {
       {actions.map((action) => (
         <div
           key={action.id}
-          className={`rounded-2xl border-2 bg-surface p-6 transition-all duration-200 ${
+          className={`rounded-2xl border bg-surface p-6 transition-all duration-200 ${
             action.variant === 'danger'
               ? 'border-red-200 dark:border-red-500/25'
               : 'border-amber-200 dark:border-amber-500/25'

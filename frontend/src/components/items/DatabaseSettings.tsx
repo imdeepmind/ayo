@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { AlertTriangle, Database, Server } from 'lucide-react';
+import { Database, Server } from 'lucide-react';
+import WarningBanner from '@/components/bits/WarningBanner';
 import { GetDatabaseInfo } from '../../../wailsjs/go/settings/Service';
 import { settings } from '../../../wailsjs/go/models';
 
@@ -40,7 +41,7 @@ export default function DatabaseSettings() {
         <h1 className="text-2xl font-bold text-text">Database Settings</h1>
       </div>
 
-      <div className="rounded-2xl border-2 border-border bg-surface backdrop-blur-sm p-6 dark:border-border-strong">
+      <div className="rounded-2xl border border-border bg-surface backdrop-blur-sm p-6 dark:border-border-strong">
         <div className="flex items-center gap-4">
           <div className="rounded-xl bg-primary/10 p-3 dark:bg-primary/20">
             {isPostgres ? (
@@ -71,25 +72,18 @@ export default function DatabaseSettings() {
         </div>
       </div>
 
-      <div className="rounded-2xl border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50 p-6 dark:border-amber-500/25 dark:from-amber-500/10 dark:to-amber-500/10">
-        <div className="flex gap-4">
-          <div className="rounded-xl bg-amber-100 p-2.5 dark:bg-amber-500/15">
-            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-          </div>
-          <div className="flex-1">
-            <p className="text-base font-bold text-amber-900 dark:text-amber-300">
-              {isPostgres
-                ? 'Remote metadata is stored on your database server'
-                : 'Data loss risk on this device'}
-            </p>
-            <p className="mt-2 text-sm text-amber-800 dark:text-amber-200/70 leading-relaxed">
-              {isPostgres
-                ? 'Your encrypted data is stored in the configured PostgreSQL server. The database itself is not encrypted by ayo, so the server operator could see storage and access metadata.'
-                : 'Your data is stored in a local SQLite database file on this device. If the file is lost or the device fails, your data may be unrecoverable. Back up your recovery key.'}
-            </p>
-          </div>
-        </div>
-      </div>
+      <WarningBanner
+        title={
+          isPostgres
+            ? 'Remote metadata is stored on your database server'
+            : 'Data loss risk on this device'
+        }
+        description={
+          isPostgres
+            ? 'Your encrypted data is stored in the configured PostgreSQL server. The database itself is not encrypted by ayo, so the server operator could see storage and access metadata.'
+            : 'Your data is stored in a local SQLite database file on this device. If the file is lost or the device fails, your data may be unrecoverable. Back up your recovery key.'
+        }
+      />
 
       <p className="text-xs text-text-faint dark:text-text-subtle">
         The database choice is permanent and cannot be changed.
