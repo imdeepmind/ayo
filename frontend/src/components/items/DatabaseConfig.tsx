@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { Database, Server } from 'lucide-react';
 import TextInput from '@/components/bits/Input';
 import Button from '@/components/bits/Button';
+import WarningBanner from '@/components/bits/WarningBanner';
 
 export type DatabaseType = 'sqlite' | 'postgresql';
 
@@ -92,7 +93,7 @@ export default function DatabaseConfig({
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b-2 border-border dark:border-border-strong">
+      <div className="flex border-b border-border dark:border-border-strong">
         <button type="button" className={tabClass('sqlite')} onClick={() => setType('sqlite')}>
           <Database className="h-4 w-4" />
           SQLite
@@ -107,22 +108,14 @@ export default function DatabaseConfig({
         </button>
       </div>
 
-      <div className="rounded-2xl border-2 border-border bg-background backdrop-blur-sm p-6 shadow-lg dark:border-border-strong">
+      <div className="rounded-2xl border border-border bg-surface backdrop-blur-sm p-6 dark:border-border-strong">
         {type === 'sqlite' ? (
-          <div className="rounded-xl border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-primary/5 p-5 dark:border-primary/40 dark:from-primary/10 dark:to-primary/10">
-            <div className="flex gap-3">
-              <div className="rounded-xl bg-primary/10 p-2.5 dark:bg-primary/20">
-                <Database className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-text">Local storage</p>
-                <p className="mt-1 text-sm text-text-muted leading-relaxed">
-                  Your data will be stored locally. The database file will be created automatically
-                  in the app data directory. No setup required.
-                </p>
-              </div>
-            </div>
-          </div>
+          <WarningBanner
+            variant="info"
+            icon={Database}
+            title="Local storage"
+            description="Your data will be stored locally. The database file will be created automatically in the app data directory. No setup required."
+          />
         ) : (
           <form onSubmit={handleSubmit(submitPostgres)} className="space-y-5">
             <div className="grid gap-5 sm:grid-cols-2">
@@ -169,12 +162,11 @@ export default function DatabaseConfig({
               {...register('password')}
             />
 
-            <div className="rounded-xl border-2 border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">
-              <p className="text-sm text-amber-800 dark:text-amber-200 leading-relaxed">
-                Ayo will verify the database is reachable before creating your account. Your
-                connection details are encrypted and stored securely on this device.
-              </p>
-            </div>
+            <WarningBanner
+              className="p-4"
+              title="Connection verification"
+              description="Ayo will verify the database is reachable before creating your account. Your connection details are encrypted and stored securely on this device."
+            />
 
             <div className="flex gap-3 pt-2">
               {onBack && (

@@ -25,8 +25,6 @@ export default function UploadDropzone({ onPick }: UploadDropzoneProps) {
       e.preventDefault();
       e.stopPropagation();
       setIsDragging(false);
-      // The webview cannot expose absolute file paths for dropped files, so
-      // opening the native dialog is the reliable way to pick files.
       onPick();
     },
     [onPick]
@@ -34,35 +32,38 @@ export default function UploadDropzone({ onPick }: UploadDropzoneProps) {
 
   return (
     <div
-      className={`group relative flex min-h-[320px] cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed transition-all duration-200 ${
+      className={`group relative flex min-h-[240px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed transition-all duration-200 ${
         isDragging
-          ? 'border-primary bg-gradient-to-br from-primary/5 to-primary/5 shadow-lg dark:border-primary/40 dark:from-primary/10 dark:to-primary/10'
-          : 'border-border-strong bg-gradient-to-br from-surface-hover to-surface-alt hover:border-primary hover:from-surface-alt hover:to-surface-hover dark:border-border-strong dark:from-surface dark:to-surface-alt dark:hover:border-primary/50'
+          ? 'border-primary bg-surface-alt shadow-xl'
+          : 'border-border bg-surface hover:border-primary/40 hover:bg-surface-hover'
       }`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       onClick={onPick}
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-primary/5 opacity-0 transition-opacity duration-300 group-hover:opacity-100 rounded-3xl pointer-events-none" />
-
       <div className="flex flex-col items-center gap-5 text-center z-10 px-6 py-12">
         <div
-          className={`rounded-2xl p-5 transition-all duration-300 ${
+          className={`flex h-16 w-16 items-center justify-center rounded-2xl border transition-all duration-300 ${
             isDragging
-              ? 'scale-110 bg-gradient-to-br from-primary/10 to-primary/10 shadow-xl dark:from-primary/20 dark:to-primary/20 text-primary'
-              : 'bg-background shadow-lg text-text-subtle group-hover:shadow-xl group-hover:scale-105'
+              ? 'scale-105 border-primary/50 bg-primary/20 text-primary shadow-xl'
+              : 'border-border-strong bg-surface-alt text-primary shadow-sm group-hover:scale-105 group-hover:border-primary/40'
           }`}
         >
-          <UploadCloud className="h-12 w-12" />
+          <UploadCloud className="h-8 w-8 text-primary" />
         </div>
         <div>
-          <span className="text-xl font-bold text-text">
-            {isDragging ? 'Drop files here' : 'Drop files here or click to browse'}
-          </span>
-          <p className="mt-2 text-sm text-text-muted leading-relaxed">
-            Supports any file type. Maximum size 5GB per file.
-          </p>
+          <h2 className="text-xl font-bold text-text">
+            {isDragging ? (
+              'Drop files here'
+            ) : (
+              <>
+                Drop files here or click to{' '}
+                <span className="text-primary font-bold hover:underline">browse</span>
+              </>
+            )}
+          </h2>
+          <p className="mt-2 text-sm text-text-muted">Supports any file type.</p>
         </div>
       </div>
     </div>

@@ -93,7 +93,7 @@ export default function Reset() {
       >
         {newRecoveryKey ? (
           <div className="space-y-5">
-            <div className="relative overflow-hidden rounded-xl border-2 border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 p-5">
+            <div className="relative overflow-hidden rounded-xl border border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 p-5">
               <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400/10 rounded-full blur-2xl -mr-16 -mt-16" />
               <div className="relative">
                 <div className="flex items-center gap-2 mb-3">
@@ -122,7 +122,7 @@ export default function Reset() {
               </div>
             </div>
 
-            <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-800 p-5">
+            <div className="rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/25 p-5">
               <div className="flex gap-3">
                 <div className="flex-shrink-0">
                   <svg
@@ -140,10 +140,10 @@ export default function Reset() {
                   </svg>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-1">
+                  <p className="text-sm font-semibold text-amber-900 dark:text-amber-300 mb-1">
                     Important: Your old recovery key is invalid
                   </p>
-                  <p className="text-sm text-amber-800 dark:text-amber-200 leading-relaxed">
+                  <p className="text-sm text-amber-800 dark:text-amber-200/70 leading-relaxed">
                     Store this new recovery key in a safe place. Your previous recovery key will no
                     longer work for password resets.
                   </p>

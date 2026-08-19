@@ -1,11 +1,11 @@
 import { useState } from 'react';
+import { Lock, Layers, Cloud, UploadCloud } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { toErrorMessage } from '@/lib/errors';
 import Button from '@/components/bits/Button';
 import UploadDropzone from '@/components/items/UploadDropzone';
 import UploadFileItem, { type UploadFile } from '@/components/items/UploadFileItem';
 import PendingUploadItem from '@/components/items/PendingUploadItem';
-import UploadStickyBar from '@/components/items/UploadStickyBar';
 import { useActiveTransfers } from '@/context/ActiveTransfersContext';
 import { EnqueueFiles, PickFiles } from '../../wailsjs/go/upload/Service';
 import { upload } from '../../wailsjs/go/models';
@@ -87,10 +87,10 @@ export default function Upload() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-10 md:px-8 pb-32">
-      <div className="mb-10">
-        <h1 className="mb-3 text-3xl font-bold text-text">Upload Files</h1>
-        <p className="text-base text-text-muted leading-relaxed">
+    <div className="w-full relative space-y-6">
+      <div className="py-2">
+        <h1 className="text-2xl font-bold text-text">Upload Files</h1>
+        <p className="mt-1 text-sm text-text-muted leading-relaxed">
           Drop files below or click to browse your computer.
         </p>
       </div>
@@ -98,14 +98,77 @@ export default function Upload() {
       {/* Dropzone Component */}
       <UploadDropzone onPick={pickFiles} />
 
-      {/* Active Transfers */}
-      {transfers.length > 0 && (
-        <div className="mt-12">
-          <div className="mb-5">
-            <h2 className="text-xl font-bold text-text">Active Transfers ({transfers.length})</h2>
+      {/* Default State: Feature Cards & Provider Details */}
+      {files.length === 0 && (
+        <>
+          {/* Feature Highlights Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="flex items-center gap-4 rounded-2xl border border-border bg-surface p-5">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-primary/20">
+                <Lock className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-text">End-to-End Encrypted</h3>
+                <p className="mt-1 text-xs text-text-muted leading-relaxed">
+                  Files are encrypted on-device before upload.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4 rounded-2xl border border-border bg-surface p-5">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-primary/20">
+                <Layers className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-text">Erasure Coded</h3>
+                <p className="mt-1 text-xs text-text-muted leading-relaxed">
+                  Files are split and protected using 2+2 erasure coding.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4 rounded-2xl border border-border bg-surface p-5">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-primary/20">
+                <Cloud className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-text">Distributed Storage</h3>
+                <p className="mt-1 text-xs text-text-muted leading-relaxed">
+                  Stored across providers for security.
+                </p>
+              </div>
+            </div>
           </div>
 
-          <div className="flex flex-col gap-4">
+          {/* Provider Details Bar */}
+          <div className="flex flex-wrap items-center justify-center gap-4 rounded-2xl border border-border bg-surface px-6 py-4 text-xs font-semibold">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+              <span className="font-bold text-text">Storage Providers</span>
+              <span className="inline-flex items-center gap-2 font-normal text-text-muted">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 inline-block" />
+                <span className="font-semibold text-text">1 of 1 providers connected</span>
+              </span>
+              <span className="hidden sm:inline-block h-4 w-px bg-border mx-2" />
+              <span className="text-text-muted">
+                Erasure Coding: <span className="font-bold text-text">2+2</span>
+              </span>
+              <span className="hidden sm:inline-block h-4 w-px bg-border mx-2" />
+              <span className="text-text-muted">
+                Encryption: <span className="font-bold text-emerald-500">Enabled</span>
+              </span>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Active Transfers */}
+      {transfers.length > 0 && (
+        <div>
+          <div className="mb-4">
+            <h2 className="text-lg font-bold text-text">Active Transfers ({transfers.length})</h2>
+          </div>
+
+          <div className="flex flex-col gap-3">
             {transfers.map((job) => (
               <PendingUploadItem key={job.ID} item={job} />
             ))}
@@ -113,21 +176,32 @@ export default function Upload() {
         </div>
       )}
 
-      {/* File List */}
+      {/* Selected Files List (when files picked) */}
       {files.length > 0 && (
-        <div className="mt-12">
-          <div className="mb-5 flex items-center justify-between">
-            <h2 className="text-xl font-bold text-text">Selected Files ({files.length})</h2>
-            <Button
-              variant="ghost"
-              onClick={() => setFiles([])}
-              className="px-4 py-2 text-sm font-semibold text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
-            >
-              Clear All
-            </Button>
+        <div>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-bold text-text">Selected Files ({files.length})</h2>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                onClick={() => setFiles([])}
+                className="px-4 py-2 text-xs font-semibold text-primary hover:bg-primary/10 bg-transparent shadow-none"
+              >
+                Clear All
+              </Button>
+              <Button
+                type="button"
+                onClick={handleUpload}
+                disabled={isPicking || isUploading}
+                className="px-6 py-2 text-sm shadow-md"
+              >
+                Upload Files
+                <UploadCloud className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3">
             {files.map((fileInfo) => (
               <UploadFileItem
                 key={fileInfo.id}
@@ -139,13 +213,6 @@ export default function Upload() {
           </div>
         </div>
       )}
-
-      {/* Sticky Bottom Actions Component */}
-      <UploadStickyBar
-        fileCount={files.length}
-        onUpload={handleUpload}
-        disabled={isPicking || isUploading}
-      />
     </div>
   );
 }

@@ -58,21 +58,21 @@ export default function UploadFileItem({ fileInfo, onRemove, onSaveEdit }: Uploa
   };
 
   return (
-    <div className="flex items-center justify-between rounded-2xl border-2 border-border bg-background backdrop-blur-sm p-5 shadow-lg transition-all duration-200 hover:shadow-xl dark:border-border-strong">
+    <div className="flex items-center justify-between rounded-2xl border border-border bg-surface p-5">
       <div className="flex flex-1 items-center gap-4 overflow-hidden">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/10 to-primary/10 text-primary shadow-inner dark:from-primary/20 dark:to-primary/20">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary">
           <FileIcon className="h-6 w-6" />
         </div>
 
         <div className="flex flex-1 flex-col overflow-hidden">
           {isEditing ? (
-            <div className="space-y-4 pr-4">
+            <div className="space-y-3 pr-4">
               <div className="flex items-center gap-2">
                 <input
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full max-w-[300px] rounded-xl border-2 border-border-strong bg-surface px-3 py-2 text-sm font-medium text-text shadow-sm outline-none transition-all duration-200 focus:border-primary focus:ring-4 focus:ring-primary/20 dark:border-border-input dark:bg-surface dark:text-text"
+                  className="w-full max-w-[300px] rounded-xl border border-border-input bg-surface-alt px-3 py-1.5 text-sm font-medium text-text outline-none transition-all duration-200 focus:border-primary focus:ring-2 focus:ring-primary/20"
                   autoFocus
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleSave();
@@ -82,7 +82,7 @@ export default function UploadFileItem({ fileInfo, onRemove, onSaveEdit }: Uploa
                 <Button
                   variant="ghost"
                   onClick={handleSave}
-                  className="!p-2 border-none text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20 bg-transparent dark:bg-transparent shadow-none"
+                  className="!p-2 border-none text-emerald-500 hover:bg-emerald-500/10 bg-transparent shadow-none"
                   title="Save"
                 >
                   <Check className="h-5 w-5" />
@@ -90,7 +90,7 @@ export default function UploadFileItem({ fileInfo, onRemove, onSaveEdit }: Uploa
                 <Button
                   variant="ghost"
                   onClick={handleCancel}
-                  className="!p-2 border-none text-text-subtle hover:bg-surface-alt dark:text-text-subtle dark:hover:bg-surface-hover bg-transparent dark:bg-transparent shadow-none"
+                  className="!p-2 border-none text-text-subtle hover:bg-surface-hover bg-transparent shadow-none"
                   title="Cancel"
                 >
                   <X className="h-5 w-5" />
@@ -101,13 +101,13 @@ export default function UploadFileItem({ fileInfo, onRemove, onSaveEdit }: Uploa
                 {editTags.map((tag) => (
                   <span
                     key={tag}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 py-1 pl-3 pr-1.5 text-xs font-semibold text-primary dark:bg-primary/20 dark:text-primary"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary"
                   >
                     {tag}
                     <button
                       type="button"
                       onClick={() => handleRemoveTag(tag)}
-                      className="rounded-full p-0.5 hover:bg-primary/20 dark:hover:bg-primary/30 transition"
+                      className="rounded-full p-0.5 hover:bg-primary/20 transition"
                       title={`Remove tag ${tag}`}
                     >
                       <X className="h-3.5 w-3.5" />
@@ -117,7 +117,7 @@ export default function UploadFileItem({ fileInfo, onRemove, onSaveEdit }: Uploa
                 <div className="flex items-center gap-2">
                   <div className="relative">
                     <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5">
-                      <TagIcon className="h-4 w-4 text-text-faint" />
+                      <TagIcon className="h-3.5 w-3.5 text-text-faint" />
                     </div>
                     <input
                       type="text"
@@ -131,13 +131,13 @@ export default function UploadFileItem({ fileInfo, onRemove, onSaveEdit }: Uploa
                         if (e.key === 'Escape') handleCancel();
                       }}
                       placeholder="Add tag..."
-                      className="w-36 rounded-xl border-2 border-border-strong bg-surface py-1.5 pl-8 pr-3 text-xs font-medium text-text outline-none transition-all duration-200 focus:border-primary focus:ring-4 focus:ring-primary/20 dark:border-border-input dark:bg-surface dark:text-text placeholder:text-text-faint"
+                      className="w-36 rounded-xl border border-border-input bg-surface-alt py-1 pl-8 pr-3 text-xs font-medium text-text outline-none transition-all duration-200 focus:border-primary focus:ring-2 focus:ring-primary/20 placeholder:text-text-faint"
                     />
                   </div>
                   <Button
                     variant="ghost"
                     onClick={handleAddTag}
-                    className="!px-3 !py-1.5 border-none text-xs font-semibold text-primary hover:bg-primary/10 dark:hover:bg-primary/20 bg-transparent dark:bg-transparent shadow-none"
+                    className="!px-3 !py-1 border-none text-xs font-semibold text-primary hover:bg-primary/10 bg-transparent shadow-none"
                   >
                     Add
                   </Button>
@@ -149,13 +149,13 @@ export default function UploadFileItem({ fileInfo, onRemove, onSaveEdit }: Uploa
               <span className="truncate text-base font-bold text-text" title={fileInfo.customName}>
                 {fileInfo.customName}
               </span>
-              <span className="text-sm text-text-muted mt-0.5">{formatBytes(fileInfo.size)}</span>
+              <span className="text-xs text-text-muted mt-0.5">{formatBytes(fileInfo.size)}</span>
               {fileInfo.tags.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-2">
                   {fileInfo.tags.map((tag) => (
                     <span
                       key={tag}
-                      className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary dark:bg-primary/20 dark:text-primary"
+                      className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary"
                     >
                       {tag}
                     </span>
@@ -167,24 +167,24 @@ export default function UploadFileItem({ fileInfo, onRemove, onSaveEdit }: Uploa
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2 pl-4">
+      <div className="flex shrink-0 items-center gap-1 pl-4">
         {!isEditing && (
           <Button
             variant="ghost"
             onClick={() => setIsEditing(true)}
-            className="!p-2.5 border-none text-text-faint transition-all duration-200 hover:bg-primary/10 hover:text-primary dark:text-text-subtle dark:hover:bg-primary/20 dark:hover:text-primary bg-transparent dark:bg-transparent shadow-none"
+            className="!p-2 border-none text-text-muted transition-all duration-200 hover:bg-primary/10 hover:text-primary bg-transparent shadow-none"
             title="Rename"
           >
-            <Edit2 className="h-5 w-5" />
+            <Edit2 className="h-4 w-4" />
           </Button>
         )}
         <Button
           variant="ghost"
           onClick={() => onRemove(fileInfo.id)}
-          className="!p-2.5 border-none text-text-faint transition-all duration-200 hover:bg-red-50 hover:text-red-600 dark:text-text-subtle dark:hover:bg-red-900/20 dark:hover:text-red-400 bg-transparent dark:bg-transparent shadow-none"
+          className="!p-2 border-none text-text-muted transition-all duration-200 hover:bg-primary/10 hover:text-primary bg-transparent shadow-none"
           title="Remove"
         >
-          <Trash2 className="h-5 w-5" />
+          <Trash2 className="h-4 w-4" />
         </Button>
       </div>
     </div>
