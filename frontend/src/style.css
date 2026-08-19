@@ -76,36 +76,41 @@
   }
 
   .dark {
-    /* Brand colors stay the same; dark navy-black surfaces matching reference screenshot */
-    --toast-bg: #0d131f;
-    --toast-color: #ffffff;
-    --toast-border: #1b2537;
+    /* Black canvas with translucent white overlays, matching Figma demo */
+    --toast-bg: #0a0a0a;
+    --toast-color: #f5f5f5;
+    --toast-border: rgba(255, 255, 255, 0.1);
 
-    --color-bg: #080b11;
-    /* dark background */
-    --color-surface: #0a0e15;
-    /* dark navy-black card surface */
-    --color-surface-alt: #10131a;
-    /* inner inputs and buttons */
-    --color-surface-hover: #111316;
-    /* hover state */
-    --color-surface-muted: #161a21;
+    --color-bg: #0a0a0a;
+    /* app background */
+    --color-surface: rgba(255, 255, 255, 0.04);
+    /* cards / panels / modals / table */
+    --color-surface-alt: rgba(255, 255, 255, 0.05);
+    /* inputs, inner containers, chips */
+    --color-surface-hover: rgba(255, 255, 255, 0.07);
+    /* hover fills */
+    --color-surface-muted: rgba(255, 255, 255, 0.08);
+    /* tracks, thumbnails, disabled fills */
 
-    --color-text: #ffffff;
-    /* white primary text */
-    --color-text-muted: #94a3b8;
-    /* slate secondary text */
-    --color-text-subtle: #64748b;
-    --color-text-faint: #475569;
+    --color-text: #f5f5f5;
+    /* primary text */
+    --color-text-muted: rgba(255, 255, 255, 0.4);
+    /* secondary text */
+    --color-text-subtle: rgba(255, 255, 255, 0.35);
+    /* tertiary text */
+    --color-text-faint: rgba(255, 255, 255, 0.25);
+    /* faint text */
 
-    --color-border: #1b2537;
-    /* dark slate-navy border */
-    --color-border-strong: #1d273a;
-    --color-border-input: #233047;
+    --color-border: rgba(255, 255, 255, 0.08);
+    /* default borders */
+    --color-border-strong: rgba(255, 255, 255, 0.1);
+    /* stronger borders */
+    --color-border-input: rgba(255, 255, 255, 0.1);
+    /* form-control borders */
 
     /* ─── Sidebar (dark mode) ─────────────────────────────── */
     --color-sidebar-text: #ffffff;
-    --color-sidebar-text-muted: rgba(254, 202, 202, 0.75);
+    --color-sidebar-text-muted: rgba(255, 255, 255, 0.55);
 
     /* ─── Shadows (dark mode) ─────────────────────────────── */
     --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.4);

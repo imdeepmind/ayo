@@ -153,7 +153,7 @@ export default function Register() {
               </div>
             </div>
 
-            <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-800 p-5">
+            <div className="rounded-xl bg-amber-50 dark:bg-amber-500/10 border-2 border-amber-200 dark:border-amber-500/25 p-5">
               <div className="flex gap-3">
                 <div className="flex-shrink-0">
                   <svg
@@ -171,10 +171,10 @@ export default function Register() {
                   </svg>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-1">
+                  <p className="text-sm font-semibold text-amber-900 dark:text-amber-300 mb-1">
                     Critical: Store this key securely
                   </p>
-                  <p className="text-sm text-amber-800 dark:text-amber-200 leading-relaxed">
+                  <p className="text-sm text-amber-800 dark:text-amber-200/70 leading-relaxed">
                     You&apos;ll need this recovery key to reset your password. Without it, you
                     won&apos;t be able to recover your account or access your encrypted files.
                   </p>

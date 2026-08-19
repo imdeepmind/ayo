@@ -39,14 +39,14 @@ export default function Sidebar() {
   if (!session) return null;
 
   const navClass = (isActive: boolean) =>
-    `w-full flex items-center gap-3 py-2.5 px-4 text-sm font-bold transition-all ${
+    `w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] font-medium transition-all duration-150 ${
       isActive
         ? 'text-sidebar-text bg-red-500/30 rounded-r-[64px]'
-        : 'text-sidebar-muted hover:text-sidebar-text'
+        : 'text-white/[0.55] hover:text-white/[0.8] hover:bg-white/[0.07] rounded-xl'
     }`;
 
   const groupLabel =
-    'flex items-center gap-3 px-4 pt-4 text-xs font-bold uppercase tracking-wider text-sidebar-muted';
+    'flex items-center gap-3 px-3 pt-5 pb-1.5 text-[9px] font-bold uppercase tracking-[0.12em] text-white/[0.25]';
 
   return (
     <aside
@@ -58,12 +58,12 @@ export default function Sidebar() {
     >
       <div className="flex flex-col gap-2 mt-4">
         <NavLink to="/" onClick={clearSearch} className={({ isActive }) => navClass(isActive)}>
-          <HardDrive className="h-4 w-4 shrink-0" />
+          <HardDrive className="w-[15px] h-[15px] shrink-0" />
           <span>My Drive</span>
         </NavLink>
 
         <NavLink to="/upload" className={({ isActive }) => navClass(isActive)}>
-          <Upload className="h-4 w-4 shrink-0" />
+          <Upload className="w-[15px] h-[15px] shrink-0" />
           <span>Upload Files</span>
         </NavLink>
 
@@ -71,15 +71,15 @@ export default function Sidebar() {
           <span>Storage</span>
         </p>
         <NavLink to="/storage/providers" className={({ isActive }) => navClass(isActive)}>
-          <Cloud className="h-3.5 w-3.5 shrink-0" />
+          <Cloud className="w-[15px] h-[15px] shrink-0" />
           <span>Providers</span>
         </NavLink>
         <NavLink to="/storage/database" className={({ isActive }) => navClass(isActive)}>
-          <Database className="h-3.5 w-3.5 shrink-0" />
+          <Database className="w-[15px] h-[15px] shrink-0" />
           <span>Database</span>
         </NavLink>
         <NavLink to="/storage/erasure-coding" className={({ isActive }) => navClass(isActive)}>
-          <Layers className="h-3.5 w-3.5 shrink-0" />
+          <Layers className="w-[15px] h-[15px] shrink-0" />
           <span>Erasure Coding</span>
         </NavLink>
 
@@ -87,12 +87,12 @@ export default function Sidebar() {
           <span>Security</span>
         </p>
         <NavLink to="/security/key-management" className={({ isActive }) => navClass(isActive)}>
-          <KeyRound className="h-3.5 w-3.5 shrink-0" />
+          <KeyRound className="w-[15px] h-[15px] shrink-0" />
           <span>Key Management</span>
         </NavLink>
 
         <NavLink to="/settings" className={({ isActive }) => navClass(isActive)}>
-          <Settings className="h-4 w-4 shrink-0" />
+          <Settings className="w-[15px] h-[15px] shrink-0" />
           <span>Settings</span>
         </NavLink>
       </div>

@@ -97,16 +97,16 @@ export default function AccountSettings() {
           key={action.id}
           className={`rounded-2xl border-2 bg-surface p-6 transition-all duration-200 ${
             action.variant === 'danger'
-              ? 'border-red-200 dark:border-red-900/40'
-              : 'border-amber-200 dark:border-amber-900/40'
+              ? 'border-red-200 dark:border-red-500/25'
+              : 'border-amber-200 dark:border-amber-500/25'
           }`}
         >
           <div className="flex items-center gap-4">
             <div
               className={`shrink-0 rounded-xl p-2.5 ${
                 action.variant === 'danger'
-                  ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
-                  : 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
+                  ? 'bg-red-100 text-red-600 dark:bg-red-500/15 dark:text-red-400'
+                  : 'bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400'
               }`}
             >
               <action.icon className="h-5 w-5" />
@@ -117,8 +117,8 @@ export default function AccountSettings() {
                 <span
                   className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider ${
                     action.variant === 'danger'
-                      ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
-                      : 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
+                      ? 'bg-red-100 text-red-600 dark:bg-red-500/15 dark:text-red-400'
+                      : 'bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400'
                   }`}
                 >
                   {action.variant === 'danger' ? 'Danger' : 'Warning'}

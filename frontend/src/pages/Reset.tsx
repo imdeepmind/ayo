@@ -122,7 +122,7 @@ export default function Reset() {
               </div>
             </div>
 
-            <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-800 p-5">
+            <div className="rounded-xl bg-amber-50 dark:bg-amber-500/10 border-2 border-amber-200 dark:border-amber-500/25 p-5">
               <div className="flex gap-3">
                 <div className="flex-shrink-0">
                   <svg
@@ -140,10 +140,10 @@ export default function Reset() {
                   </svg>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-1">
+                  <p className="text-sm font-semibold text-amber-900 dark:text-amber-300 mb-1">
                     Important: Your old recovery key is invalid
                   </p>
-                  <p className="text-sm text-amber-800 dark:text-amber-200 leading-relaxed">
+                  <p className="text-sm text-amber-800 dark:text-amber-200/70 leading-relaxed">
                     Store this new recovery key in a safe place. Your previous recovery key will no
                     longer work for password resets.
                   </p>

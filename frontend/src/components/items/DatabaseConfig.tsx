@@ -169,8 +169,8 @@ export default function DatabaseConfig({
               {...register('password')}
             />
 
-            <div className="rounded-xl border-2 border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">
-              <p className="text-sm text-amber-800 dark:text-amber-200 leading-relaxed">
+            <div className="rounded-xl border-2 border-amber-200 bg-amber-50 p-4 dark:border-amber-500/25 dark:bg-amber-500/10">
+              <p className="text-sm text-amber-800 dark:text-amber-200/70 leading-relaxed">
                 Ayo will verify the database is reachable before creating your account. Your
                 connection details are encrypted and stored securely on this device.
               </p>

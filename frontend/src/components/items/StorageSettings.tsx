@@ -738,16 +738,16 @@ export default function StorageSettings() {
       {activeTab === 'ayo' && (
         <div className="space-y-6">
           {/* Warning */}
-          <div className="rounded-2xl border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50 p-6 dark:border-amber-700/60 dark:from-amber-950/20 dark:to-yellow-950/20">
+          <div className="rounded-2xl border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50 p-6 dark:border-amber-500/25 dark:from-amber-500/10 dark:to-amber-500/10">
             <div className="flex gap-4">
-              <div className="rounded-xl bg-amber-100 p-2.5 dark:bg-amber-900/30">
+              <div className="rounded-xl bg-amber-100 p-2.5 dark:bg-amber-500/15">
                 <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
               </div>
               <div className="flex-1">
-                <p className="text-base font-bold text-amber-900 dark:text-amber-100">
+                <p className="text-base font-bold text-amber-900 dark:text-amber-300">
                   Custom storage is more secure and cheaper
                 </p>
-                <p className="mt-2 text-sm text-amber-800 dark:text-amber-200 leading-relaxed">
+                <p className="mt-2 text-sm text-amber-800 dark:text-amber-200/70 leading-relaxed">
                   Use Ayo Provided Storage only if you want to avoid the technical difficulties of
                   setting up your own cloud storage. Your data will be stored on Ayo-managed
                   infrastructure.
