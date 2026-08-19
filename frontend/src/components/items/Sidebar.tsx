@@ -49,7 +49,13 @@ export default function Sidebar() {
     'flex items-center gap-3 px-4 pt-4 text-xs font-bold uppercase tracking-wider text-sidebar-muted';
 
   return (
-    <aside className="w-16 min-w-[15rem] h-full bg-gradient-to-b from-sidebar-bg to-sidebar-bg-dark text-sidebar-text rounded-tr-[64px] p-6 flex flex-col justify-between shrink-0 overflow-y-auto hidden md:flex my-0 ml-0 mb-0">
+    <aside
+      className="w-16 min-w-[15rem] h-full text-sidebar-text rounded-tr-[64px] p-6 flex flex-col justify-between shrink-0 overflow-y-auto hidden md:flex my-0 ml-0 mb-0"
+      style={{
+        background:
+          'linear-gradient(180deg, var(--color-sidebar-bg) 0%, var(--color-sidebar-bg-mid) 45%, var(--color-sidebar-bg-dark) 100%)',
+      }}
+    >
       <div className="flex flex-col gap-2 mt-4">
         <NavLink to="/" onClick={clearSearch} className={({ isActive }) => navClass(isActive)}>
           <HardDrive className="h-4 w-4 shrink-0" />
