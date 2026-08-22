@@ -22,26 +22,92 @@ import (
 // fails fast instead of hanging the settings save.
 const s3PingTimeout = 10 * time.Second
 
-// s3Client is a Client backed by an AWS S3 bucket. Every key is interpreted as
-// an S3 object key in the bucket configured at construction time. It exists so
-// shards can be written to and read back from a user's own bucket alongside the
-// local filesystem backend; the Client interface is the shared seam. It is only
+// s3Client is a Client backed by an S3-compatible bucket (AWS S3, MinIO,
+// Backblaze B2, Cloudflare R2 or Wasabi). Every key is interpreted as an object
+// key in the bucket configured at construction time. It exists so shards can be
+// written to and read back from a user's own bucket alongside the local
+// filesystem backend; the Client interface is the shared seam. It is only
 // constructed through the storage dispatch (OpenShardWriter/ResolveShard).
 type s3Client struct {
 	client *s3.Client
 	bucket string
 }
 
+// s3Endpoint returns the custom base endpoint and whether path-style addressing
+// is required for an S3-compatible provider. Hosted vendors (AWS, Backblaze,
+// Cloudflare R2, Wasabi) derive their endpoint from the key's region or account
+// id, so the endpoint stays hidden from the user. MinIO is self-hosted, so the
+// user-provided server URL (key.Endpoint) is used with path-style addressing.
+// An empty endpoint means the SDK's default AWS endpoint resolution applies.
+func s3Endpoint(key *settings.AWSKey) (endpoint string, forcePathStyle bool) {
+	switch key.Provider {
+	case settings.MinIO:
+		return key.Endpoint, true
+	case settings.Backblaze:
+		return "https://s3." + key.Region + ".backblazeb2.com", false
+	case settings.Cloudflare:
+		return "https://" + key.AccountID + ".r2.cloudflarestorage.com", false
+	case settings.Wasabi:
+		return "https://s3." + key.Region + ".wasabisys.com", false
+	default:
+		return "", false
+	}
+}
+
+// s3Region returns the AWS SDK region to use for a provider. Cloudflare R2 and
+// MinIO have no real region in the key, so a fixed value is used instead.
+func s3Region(key *settings.AWSKey) string {
+	switch key.Provider {
+	case settings.Cloudflare:
+		return "auto"
+	case settings.MinIO:
+		if key.Region == "" {
+			return "us-east-1"
+		}
+		return key.Region
+	default:
+		return key.Region
+	}
+}
+
+// providerDisplayName returns the user-facing name for a provider, used in
+// validation error messages.
+func providerDisplayName(p settings.Provider) string {
+	switch p {
+	case settings.AWS:
+		return "aws s3"
+	case settings.MinIO:
+		return "minio"
+	case settings.Backblaze:
+		return "backblaze b2"
+	case settings.Cloudflare:
+		return "cloudflare r2"
+	case settings.Wasabi:
+		return "wasabi"
+	default:
+		return string(p)
+	}
+}
+
 // newS3 returns a Client configured with static credentials for the given
-// bucket and region.
-func newS3(bucket, region, accessKeyID, secretAccessKey string) *s3Client {
+// S3-compatible key. The endpoint (hosted vendors derived, MinIO from the key)
+// and path-style flag are resolved per provider type.
+func newS3(key *settings.AWSKey) *s3Client {
+	endpoint, forcePathStyle := s3Endpoint(key)
 	cfg := aws.Config{
-		Region:      region,
-		Credentials: credentials.NewStaticCredentialsProvider(accessKeyID, secretAccessKey, ""),
+		Region:      s3Region(key),
+		Credentials: credentials.NewStaticCredentialsProvider(key.AccessKeyID, key.SecretAccessKey, ""),
+	}
+	var opts []func(*s3.Options)
+	if endpoint != "" {
+		cfg.BaseEndpoint = aws.String(endpoint)
+		if forcePathStyle {
+			opts = append(opts, func(o *s3.Options) { o.UsePathStyle = true })
+		}
 	}
 	return &s3Client{
-		client: s3.NewFromConfig(cfg),
-		bucket: bucket,
+		client: s3.NewFromConfig(cfg, opts...),
+		bucket: key.Bucket,
 	}
 }
 
@@ -103,13 +169,29 @@ func (s *s3Client) Remove(key string) error {
 }
 
 // Validate checks the provider's required fields are set and pings the bucket
-// with a HeadBucket call, confirming the credentials, region and bucket name
-// are correct. A PermanentRedirect is reported as a region misconfiguration
-// since the credentials otherwise resolved. It is used to check settings before
-// they are saved.
+// with a HeadBucket call, confirming the credentials and bucket name are
+// correct. A PermanentRedirect is reported as a region misconfiguration since
+// the credentials otherwise resolved. It is used to check settings before they
+// are saved.
 func (s *s3Client) Validate(key *settings.AWSKey) error {
-	if key.AccessKeyID == "" || key.SecretAccessKey == "" || key.Region == "" || key.Bucket == "" {
-		return fmt.Errorf("aws provider is incomplete: access key id, secret access key, region and bucket are required")
+	name := providerDisplayName(key.Provider)
+	if key.AccessKeyID == "" || key.SecretAccessKey == "" || key.Bucket == "" {
+		return fmt.Errorf("%s provider is incomplete: access key id, secret access key and bucket are required", name)
+	}
+
+	switch key.Provider {
+	case settings.AWS, settings.Backblaze, settings.Wasabi:
+		if key.Region == "" {
+			return fmt.Errorf("%s provider is incomplete: region is required", name)
+		}
+	case settings.Cloudflare:
+		if key.AccountID == "" {
+			return fmt.Errorf("%s provider is incomplete: account id is required", name)
+		}
+	case settings.MinIO:
+		if key.Endpoint == "" {
+			return fmt.Errorf("%s provider is incomplete: server url is required", name)
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), s3PingTimeout)
@@ -122,10 +204,10 @@ func (s *s3Client) Validate(key *settings.AWSKey) error {
 		if errors.As(err, &apiErr) && apiErr.ErrorCode() == "PermanentRedirect" {
 			return fmt.Errorf("bucket %q exists in a region other than %q: check the region setting", s.bucket, key.Region)
 		}
-		slog.Error("validate aws provider", "bucket", s.bucket, "error", err)
+		slog.Error("validate storage provider", "provider", key.Provider, "bucket", s.bucket, "error", err)
 		return fmt.Errorf(
-			"unable to connect to your aws bucket %q: check your access key, secret access key, region and bucket name",
-			s.bucket,
+			"unable to connect to your %s bucket %q: check your credentials and provider settings",
+			name, s.bucket,
 		)
 	}
 	return nil

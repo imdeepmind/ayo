@@ -12,10 +12,14 @@ const (
 	LocalStorage StorageMode = "local"
 	AyoStorage   StorageMode = "ayo"
 
-	AWS   Provider = "aws"
-	Azure Provider = "azure"
-	GCP   Provider = "gcp"
-	Local Provider = "local"
+	AWS        Provider = "aws"
+	MinIO      Provider = "minio"
+	Backblaze  Provider = "backblaze"
+	Cloudflare Provider = "cloudflare"
+	Wasabi     Provider = "wasabi"
+	Azure      Provider = "azure"
+	GCP        Provider = "gcp"
+	Local      Provider = "local"
 
 	EC22  ErasureCodingMode = "2+2"
 	EC63  ErasureCodingMode = "6+3"
