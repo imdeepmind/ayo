@@ -33,6 +33,20 @@ type EnqueuedJob struct {
 // Erasure* fields carry the reconstruction metadata that a manifest used to
 // hold: the exact encrypted size to trim Reed-Solomon padding and the shard
 // layout used to rebuild the file during download.
+//
+// fileNonce, encryptedFileKey and keyNonce carry the envelope-encryption
+// metadata, stored the same way the master key is (nonce + wrapped key as
+// raw byte columns, see the `users` table): encryptedFileKey is the per-file
+// Data Encryption Key sealed by the master key (ciphertext ‖ tag, 48 bytes),
+// keyNonce is the 12-byte nonce that sealed it, and fileNonce is the 12-byte
+// base nonce the file payload chunks were encrypted with. The encrypted
+// payload itself lives on the storage providers; nothing here is plaintext.
+//
+// These three fields are unexported because they are key material, internal to
+// package upload (only its repository populates them and its processor reads
+// them). Wails serializes only exported fields, so the wrapped DEK and nonces
+// can never reach the frontend. Keep them unexported; display queries must not
+// select the backing columns.
 type Upload struct {
 	ID         int64
 	JobID      int64
@@ -46,6 +60,10 @@ type Upload struct {
 	ParityShards  int
 	ShardSize     int
 	BlockCount    int
+
+	fileNonce        []byte
+	encryptedFileKey []byte
+	keyNonce         []byte
 
 	CreatedAt time.Time
 	UpdatedAt time.Time

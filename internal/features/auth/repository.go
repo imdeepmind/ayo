@@ -160,8 +160,8 @@ func (r *repository) CreateUser(
 	user := &User{
 		ID:           id,
 		Username:     username,
-		PasswordHash: passwordHash,
-		RecoveryKey:  recoveryKey,
+		passwordHash: passwordHash,
+		recoveryKey:  recoveryKey,
 	}
 
 	return user, nil
@@ -182,9 +182,9 @@ func (r *repository) GetUserByUsername(ctx context.Context, username string) (*U
 
 	var user User
 	err = row.Scan(
-		&user.ID, &user.Username, &user.PasswordHash, &user.RecoveryKey,
-		&user.PasswordSalt, &user.PasswordMasterKey, &user.PasswordNonce,
-		&user.RecoverySalt, &user.RecoveryMasterKey, &user.RecoveryNonce,
+		&user.ID, &user.Username, &user.passwordHash, &user.recoveryKey,
+		&user.passwordSalt, &user.passwordMasterKey, &user.passwordNonce,
+		&user.recoverySalt, &user.recoveryMasterKey, &user.recoveryNonce,
 	)
 	if err != nil {
 		if stderrors.Is(err, sql.ErrNoRows) {

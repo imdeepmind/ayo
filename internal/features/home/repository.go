@@ -56,6 +56,10 @@ func (r *repository) resolve() (*dbclient.Client, error) {
 // first, bounded by the given limit. Used by the Home dashboard's "Recent
 // Files" cards.
 func (r *repository) GetRecentFiles(ctx context.Context, limit int) ([]*upload.Upload, error) {
+	// List/display queries deliberately do not select the envelope-encryption
+	// columns (file_nonce, encrypted_file_key, key_nonce): they are key
+	// material only needed to decrypt a file, and these rows never leave the
+	// backend beyond the display DTOs.
 	query := `SELECT id, job_id, file, custom_name, size, tags,
 		encrypted_size, data_shards, parity_shards, shard_size, block_count,
 		created_at, updated_at FROM uploads ORDER BY created_at DESC LIMIT ?`

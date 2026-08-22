@@ -15,8 +15,9 @@ import (
 // real SQLite database.
 type Repository interface {
 	// CreateUpload inserts a stored-file record, including the reconstruction
-	// metadata from manifest, and returns it populated with its assigned ID and
-	// timestamps.
+	// metadata from manifest and the envelope-encryption metadata (the wrapped
+	// per-file DEK and its two nonces), and returns it populated with its
+	// assigned ID and timestamps.
 	CreateUpload(
 		ctx context.Context,
 		jobID int64,
@@ -25,6 +26,9 @@ type Repository interface {
 		size int64,
 		tags []string,
 		manifest shardManifest,
+		fileNonce []byte,
+		encryptedFileKey []byte,
+		keyNonce []byte,
 	) (*Upload, error)
 	// CreateChunks inserts one row per shard for the given file in a single
 	// transaction.
@@ -82,27 +86,33 @@ func (r *repository) resolve() (*dbclient.Client, error) {
 // collide even across users or uploads. The uploads table also carries the
 // reconstruction metadata (encrypted size, shard layout, block count) that a
 // local manifest used to hold, so a stored file can always be rebuilt from its
-// row. The DDL branches on the client's dialect (AUTOINCREMENT vs IDENTITY,
-// DATETIME vs TIMESTAMP, BIGINT for size columns).
+// row. It also carries the envelope-encryption metadata (the per-file DEK
+// wrapped by the master key and its two nonces) so a stored file can be
+// unwrapped and decrypted from its row alone. The DDL branches on the client's
+// dialect (AUTOINCREMENT vs IDENTITY, DATETIME vs TIMESTAMP, BIGINT for size
+// columns).
 func InitializeSchema(db *dbclient.Client) error {
 	var queries []string
 
 	if db.IsPostgres() {
 		queries = []string{
 			`CREATE TABLE IF NOT EXISTS uploads (
-				id             BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-				job_id         BIGINT NOT NULL UNIQUE,
-				file           TEXT NOT NULL,
-				custom_name    TEXT NOT NULL DEFAULT '',
-				size           BIGINT NOT NULL,
-				tags           TEXT NOT NULL DEFAULT '[]',
-				encrypted_size BIGINT NOT NULL,
-				data_shards    INTEGER NOT NULL,
-				parity_shards  INTEGER NOT NULL,
-				shard_size     BIGINT NOT NULL,
-				block_count    INTEGER NOT NULL,
-				created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-				updated_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+				id                 BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+				job_id             BIGINT NOT NULL UNIQUE,
+				file               TEXT NOT NULL,
+				custom_name        TEXT NOT NULL DEFAULT '',
+				size               BIGINT NOT NULL,
+				tags               TEXT NOT NULL DEFAULT '[]',
+				encrypted_size     BIGINT NOT NULL,
+				data_shards        INTEGER NOT NULL,
+				parity_shards      INTEGER NOT NULL,
+				shard_size         BIGINT NOT NULL,
+				block_count        INTEGER NOT NULL,
+				file_nonce         BYTEA NOT NULL,
+				encrypted_file_key BYTEA NOT NULL,
+				key_nonce          BYTEA NOT NULL,
+				created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 			)`,
 			`CREATE TABLE IF NOT EXISTS chunks (
 				id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -118,19 +128,22 @@ func InitializeSchema(db *dbclient.Client) error {
 	} else {
 		queries = []string{
 			`CREATE TABLE IF NOT EXISTS uploads (
-				id             INTEGER PRIMARY KEY AUTOINCREMENT,
-				job_id         INTEGER NOT NULL UNIQUE,
-				file           TEXT NOT NULL,
-				custom_name    TEXT NOT NULL DEFAULT '',
-				size           INTEGER NOT NULL,
-				tags           TEXT NOT NULL DEFAULT '[]',
-				encrypted_size INTEGER NOT NULL,
-				data_shards    INTEGER NOT NULL,
-				parity_shards  INTEGER NOT NULL,
-				shard_size     INTEGER NOT NULL,
-				block_count    INTEGER NOT NULL,
-				created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-				updated_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+				id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+				job_id             INTEGER NOT NULL UNIQUE,
+				file               TEXT NOT NULL,
+				custom_name        TEXT NOT NULL DEFAULT '',
+				size               INTEGER NOT NULL,
+				tags               TEXT NOT NULL DEFAULT '[]',
+				encrypted_size     INTEGER NOT NULL,
+				data_shards        INTEGER NOT NULL,
+				parity_shards      INTEGER NOT NULL,
+				shard_size         INTEGER NOT NULL,
+				block_count        INTEGER NOT NULL,
+				file_nonce         BLOB NOT NULL,
+				encrypted_file_key BLOB NOT NULL,
+				key_nonce          BLOB NOT NULL,
+				created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 			)`,
 			`CREATE TABLE IF NOT EXISTS chunks (
 				id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -159,6 +172,11 @@ func InitializeSchema(db *dbclient.Client) error {
 // previous run already stored this job (e.g. after an app crash between the
 // insert and the job's completion update), the existing row is returned instead
 // of failing on the job_id UNIQUE constraint.
+//
+// fileNonce is the 12-byte base nonce the file payload was encrypted with,
+// encryptedFileKey is the per-file DEK sealed by the master key (48 bytes:
+// ciphertext ‖ tag) and keyNonce the 12-byte nonce that sealed it. Together
+// they let a later download unwrap the DEK and decrypt the payload.
 func (r *repository) CreateUpload(
 	ctx context.Context,
 	jobID int64,
@@ -167,6 +185,9 @@ func (r *repository) CreateUpload(
 	size int64,
 	tags []string,
 	manifest shardManifest,
+	fileNonce []byte,
+	encryptedFileKey []byte,
+	keyNonce []byte,
 ) (*Upload, error) {
 	encodedTags, err := EncodeTags(tags)
 	if err != nil {
@@ -175,8 +196,9 @@ func (r *repository) CreateUpload(
 
 	query := `INSERT OR IGNORE INTO uploads
 		(job_id, file, custom_name, size, tags, encrypted_size, data_shards,
-		 parity_shards, shard_size, block_count)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		 parity_shards, shard_size, block_count, file_nonce, encrypted_file_key,
+		 key_nonce)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	client, err := r.resolve()
 	if err != nil {
@@ -188,15 +210,17 @@ func (r *repository) CreateUpload(
 		// does nothing on conflict and return the row ID directly.
 		query = `INSERT INTO uploads
 			(job_id, file, custom_name, size, tags, encrypted_size, data_shards,
-			 parity_shards, shard_size, block_count)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			 parity_shards, shard_size, block_count, file_nonce, encrypted_file_key,
+			 key_nonce)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT (job_id) DO NOTHING
 			RETURNING id`
 
 		var id int64
 		err := client.QueryRowContext(ctx, client.Rebind(query), jobID, file, customName, size,
 			encodedTags, manifest.EncryptedSize, manifest.DataShards,
-			manifest.ParityShards, manifest.ShardSize, manifest.BlockCount).Scan(&id)
+			manifest.ParityShards, manifest.ShardSize, manifest.BlockCount,
+			fileNonce, encryptedFileKey, keyNonce).Scan(&id)
 		if err == sql.ErrNoRows {
 			return r.getUploadByJob(ctx, jobID)
 		}
@@ -208,7 +232,8 @@ func (r *repository) CreateUpload(
 
 	result, err := client.ExecContext(ctx, client.Rebind(query), jobID, file, customName, size,
 		encodedTags, manifest.EncryptedSize, manifest.DataShards,
-		manifest.ParityShards, manifest.ShardSize, manifest.BlockCount)
+		manifest.ParityShards, manifest.ShardSize, manifest.BlockCount,
+		fileNonce, encryptedFileKey, keyNonce)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create upload: %w", err)
 	}
@@ -228,6 +253,7 @@ func (r *repository) CreateUpload(
 func (r *repository) getUpload(ctx context.Context, id int64) (*Upload, error) {
 	query := `SELECT id, job_id, file, custom_name, size, tags,
 		encrypted_size, data_shards, parity_shards, shard_size, block_count,
+		file_nonce, encrypted_file_key, key_nonce,
 		created_at, updated_at FROM uploads WHERE id = ?`
 
 	client, err := r.resolve()
@@ -249,6 +275,9 @@ func (r *repository) getUpload(ctx context.Context, id int64) (*Upload, error) {
 		&upload.ParityShards,
 		&upload.ShardSize,
 		&upload.BlockCount,
+		&upload.fileNonce,
+		&upload.encryptedFileKey,
+		&upload.keyNonce,
 		&upload.CreatedAt,
 		&upload.UpdatedAt,
 	)
@@ -264,6 +293,7 @@ func (r *repository) getUpload(ctx context.Context, id int64) (*Upload, error) {
 func (r *repository) getUploadByJob(ctx context.Context, jobID int64) (*Upload, error) {
 	query := `SELECT id, job_id, file, custom_name, size, tags,
 		encrypted_size, data_shards, parity_shards, shard_size, block_count,
+		file_nonce, encrypted_file_key, key_nonce,
 		created_at, updated_at FROM uploads WHERE job_id = ?`
 
 	client, err := r.resolve()
@@ -285,6 +315,9 @@ func (r *repository) getUploadByJob(ctx context.Context, jobID int64) (*Upload, 
 		&upload.ParityShards,
 		&upload.ShardSize,
 		&upload.BlockCount,
+		&upload.fileNonce,
+		&upload.encryptedFileKey,
+		&upload.keyNonce,
 		&upload.CreatedAt,
 		&upload.UpdatedAt,
 	)
@@ -354,7 +387,9 @@ func (r *repository) CreateChunks(ctx context.Context, fileID int64, chunks []Ch
 	return nil
 }
 
-// GetAll returns every stored file, newest first.
+// GetAll returns every stored file, newest first. It is a list/display query,
+// so it does not select the envelope-encryption columns (they are only needed
+// to decrypt a file, and this query's rows never leave the backend).
 func (r *repository) GetAll(ctx context.Context) ([]*Upload, error) {
 	query := `SELECT id, job_id, file, custom_name, size, tags,
 		encrypted_size, data_shards, parity_shards, shard_size, block_count,

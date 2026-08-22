@@ -40,23 +40,26 @@ const (
 // enqueued via Service and processed asynchronously here, dispatching on each
 // job's type.
 //
-// Upload pipeline (mirrors how settings are encrypted, then splits the
-// encrypted file into Reed-Solomon shards):
+// Upload pipeline (envelope encryption, then Reed-Solomon sharding):
 //
-//  1. The entire file is read, encrypted with the session master key via
-//     crypto.EncryptData, and the self-contained blob (nonce ‖ ciphertext) is
-//     written to data/encrypted/<jobID>.enc.
+//  1. A fresh 32-byte Data Encryption Key (DEK) is generated per file and
+//     wrapped by the session master key (crypto.WrapDEK). The file is streamed
+//     through crypto.StreamEncrypt with the DEK and a fresh file nonce, writing
+//     the encrypted blob (pure chunks, no header) to data/encrypted/<jobID>.enc.
 //  2. The blob is encoded into data + parity shards (the layout comes from the
 //     user's erasure-coding settings). Each shard is uploaded to a randomly
 //     chosen configured provider (a local folder or an S3 bucket).
-//  3. An uploads record (carrying the reconstruction metadata) and one chunks
-//     record per shard are persisted, then the job is marked completed.
+//  3. An uploads record (carrying the reconstruction metadata plus the wrapped
+//     DEK, key nonce and file nonce) and one chunks record per shard are
+//     persisted, then the job is marked completed.
 //
 // Download pipeline reverses that: the stored upload's shards are read back in
 // order from whichever provider holds them, reconstructed with Reed-Solomon,
-// concatenated, trimmed to the stored encrypted size and decrypted, then staged
-// under data/downloads/<jobID> until the user picks a destination. The frontend
-// triggers that final copy via Service.FinalizeDownload.
+// concatenated, trimmed to the stored encrypted size, then the DEK is unwrapped
+// from the master key (crypto.UnwrapDEK) and the blob streamed through
+// crypto.StreamDecrypt to plaintext under data/downloads/<jobID> until the user
+// picks a destination. The frontend triggers that final copy via
+// Service.FinalizeDownload.
 type Processor struct {
 	sessionProvider  SessionProvider
 	settingsProvider SettingsProvider
@@ -238,8 +241,41 @@ func (p *Processor) processUpload(job *queue.Job) {
 		return
 	}
 
-	// Stream encrypt: read from source, encrypt in chunks, write to encrypted file.
-	if err := crypto.StreamEncrypt(sourceFile, encryptedFile, session.MasterKey); err != nil {
+	// Envelope encryption: generate a fresh per-file DEK, wrap it with the
+	// master key, and generate the file's base nonce. The wrapped DEK, key
+	// nonce and file nonce are persisted on the uploads row so a download can
+	// unwrap the DEK and decrypt the payload without any key material in the
+	// blob itself.
+	dek, err := crypto.GenerateDEK()
+	if err != nil {
+		_ = encryptedFile.Close()
+		_ = p.local.Remove(encryptedPath)
+		slog.Error("encrypt file: generate dek", "error", err)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 0)
+		return
+	}
+
+	encryptedFileKey, keyNonce, err := crypto.WrapDEK(session.MasterKey(), dek)
+	if err != nil {
+		_ = encryptedFile.Close()
+		_ = p.local.Remove(encryptedPath)
+		slog.Error("encrypt file: wrap dek", "error", err)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 0)
+		return
+	}
+
+	fileNonce, err := crypto.GenerateNonce()
+	if err != nil {
+		_ = encryptedFile.Close()
+		_ = p.local.Remove(encryptedPath)
+		slog.Error("encrypt file: generate file nonce", "error", err)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 0)
+		return
+	}
+
+	// Stream encrypt: read from source, encrypt chunks with the DEK, write to
+	// encrypted file. The master key never encrypts file payload bytes.
+	if err := crypto.StreamEncrypt(sourceFile, encryptedFile, dek, fileNonce); err != nil {
 		_ = encryptedFile.Close()
 		_ = p.local.Remove(encryptedPath) // Clean up partial file
 		slog.Error("encrypt file: stream encrypt", "error", err)
@@ -291,6 +327,9 @@ func (p *Processor) processUpload(job *queue.Job) {
 		job.Size,
 		job.Tags,
 		manifest,
+		fileNonce,
+		encryptedFileKey,
+		keyNonce,
 	)
 	if err != nil {
 		slog.Error("persist upload", "error", err)
@@ -499,8 +538,23 @@ func (p *Processor) processDownload(job *queue.Job) {
 		return
 	}
 
-	// Stream decrypt: read encrypted file, decrypt in chunks, write plaintext to staging.
-	if err := crypto.StreamDecrypt(encryptedFile, stagingFile, session.MasterKey); err != nil {
+	// Unwrap the per-file DEK with the master key using the key nonce recorded
+	// at upload time. A corrupted wrapped DEK or key nonce fails the
+	// authentication check here, aborting the download securely before any
+	// payload bytes are processed.
+	dek, err := crypto.UnwrapDEK(session.MasterKey(), upload.encryptedFileKey, upload.keyNonce)
+	if err != nil {
+		_ = stagingFile.Close()
+		_ = p.local.Remove(tempEncryptedPath)
+		_ = p.local.Remove(stagingPath)
+		slog.Error("download: unwrap dek", "job", id, "error", err)
+		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusFailed, 90)
+		return
+	}
+
+	// Stream decrypt: read encrypted file, decrypt chunks with the DEK, write
+	// plaintext to staging.
+	if err := crypto.StreamDecrypt(encryptedFile, stagingFile, dek, upload.fileNonce); err != nil {
 		_ = stagingFile.Close()
 		_ = p.local.Remove(tempEncryptedPath)
 		_ = p.local.Remove(stagingPath)

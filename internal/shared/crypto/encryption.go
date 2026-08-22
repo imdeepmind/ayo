@@ -6,7 +6,11 @@
 // own flows rather than re-implementing crypto. The design follows a
 // master-key scheme:
 //
-//   - A random 256-bit master key encrypts the user's data (e.g. settings).
+//   - A random 256-bit master key wraps per-file Data Encryption Keys (DEKs);
+//     it never encrypts file payloads directly.
+//   - Large files use envelope encryption: each file gets a fresh 256-bit DEK,
+//     the payload is encrypted with the DEK, and the DEK is wrapped by the
+//     master key (see GenerateDEK/WrapDEK and StreamEncrypt/StreamDecrypt).
 //   - The master key is itself wrapped by KEKs derived with Argon2id from the
 //     user's password and recovery key, so it is never stored in plaintext.
 //   - Passwords and recovery keys are stored as self-describing Argon2id PHC
@@ -106,6 +110,35 @@ func GenerateMasterKey() ([]byte, error) {
 	return masterKey, nil
 }
 
+// GenerateDEK returns a new random 256-bit Data Encryption Key. Envelope
+// encryption generates one fresh DEK per file: the file payload is encrypted
+// with the DEK and the DEK itself is wrapped by the master key, so the master
+// key is never reused to encrypt payload bytes directly.
+func GenerateDEK() ([]byte, error) {
+	dek := make([]byte, KeySize)
+
+	_, err := io.ReadFull(rand.Reader, dek)
+	if err != nil {
+		return nil, err
+	}
+
+	return dek, nil
+}
+
+// GenerateNonce returns a random nonce of the AES-256-GCM nonce size (12
+// bytes). Callers that persist a nonce must store it alongside the ciphertext
+// it was used with.
+func GenerateNonce() ([]byte, error) {
+	nonce := make([]byte, 12)
+
+	_, err := io.ReadFull(rand.Reader, nonce)
+	if err != nil {
+		return nil, err
+	}
+
+	return nonce, nil
+}
+
 // EncryptMasterKey wraps a master key with a KEK using AES-256-GCM. It
 // returns the ciphertext and the random nonce that must be stored alongside
 // it for later decryption.
@@ -165,6 +198,23 @@ func DeriveKEK(password string, salt []byte) []byte {
 	return kek
 }
 
+// WrapDEK seals a Data Encryption Key with the master key using AES-256-GCM,
+// the "wrap" half of envelope encryption. It returns the wrapped key (a
+// single blob: ciphertext ‖ authentication tag, 48 bytes) and the fresh
+// 12-byte nonce that must be persisted alongside it for later unwrapping. The
+// master key only ever encrypts DEKs this way, never file payloads directly.
+func WrapDEK(masterKey []byte, dek []byte) ([]byte, []byte, error) {
+	return EncryptMasterKey(masterKey, dek)
+}
+
+// UnwrapDEK reverses WrapDEK: it opens the wrapped DEK with the master key and
+// the key nonce recorded at wrap time. A corrupted wrapped DEK or nonce fails
+// the authentication check and returns an error, so a tampered key tag aborts
+// decryption securely.
+func UnwrapDEK(masterKey []byte, wrappedDEK []byte, keyNonce []byte) ([]byte, error) {
+	return DecryptMasterKey(masterKey, wrappedDEK, keyNonce)
+}
+
 // EncryptData encrypts arbitrary plaintext (e.g. the settings JSON) with the
 // master key using AES-256-GCM. The random nonce is prepended to the returned
 // ciphertext, so the output carries everything DecryptData needs.
@@ -218,16 +268,22 @@ func DecryptData(key []byte, ciphertext []byte) ([]byte, error) {
 //
 // The output format is:
 //
-//	[16-byte salt][12-byte base nonce][chunk1+tag][chunk2+tag]...
+//	[chunk1+tag][chunk2+tag]...
 //
-// Each chunk carries its own 16-byte authentication tag. This trades ~28 bytes
-// per 64KB chunk (~0.04% overhead) for the ability to process files larger than
+// Each chunk carries its own 16-byte authentication tag. This trades ~16 bytes
+// per 64KB chunk (~0.02% overhead) for the ability to process files larger than
 // available memory.
+//
+// dek must be the per-file Data Encryption Key (see GenerateDEK) and fileNonce
+// the fresh 12-byte base nonce recorded for this file; together they let the
+// caller apply envelope encryption: encrypt the payload with the DEK and store
+// the DEK wrapped by the master key separately (see WrapDEK). The blob itself
+// carries no header and no key material.
 //
 // The reader is consumed entirely; the writer receives the full encrypted stream.
 // Both are the caller's responsibility to close.
-func StreamEncrypt(reader io.Reader, writer io.Writer, key []byte) error {
-	block, err := aes.NewCipher(key)
+func StreamEncrypt(reader io.Reader, writer io.Writer, dek []byte, fileNonce []byte) error {
+	block, err := aes.NewCipher(dek)
 	if err != nil {
 		return fmt.Errorf("create cipher: %w", err)
 	}
@@ -237,24 +293,8 @@ func StreamEncrypt(reader io.Reader, writer io.Writer, key []byte) error {
 		return fmt.Errorf("create gcm: %w", err)
 	}
 
-	// Generate random base nonce for this file. Each chunk derives its nonce
-	// from this base + chunk counter.
-	baseNonce := make([]byte, aead.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, baseNonce); err != nil {
-		return fmt.Errorf("generate base nonce: %w", err)
-	}
-
-	// Generate salt (currently unused but included for format consistency and
-	// future extensibility, e.g., key derivation per file).
-	salt := make([]byte, SaltSize)
-	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
-		return fmt.Errorf("generate salt: %w", err)
-	}
-
-	// Write header: salt, base nonce.
-	header := append(salt, baseNonce...)
-	if _, err := writer.Write(header); err != nil {
-		return fmt.Errorf("write header: %w", err)
+	if len(fileNonce) != aead.NonceSize() {
+		return fmt.Errorf("file nonce must be %d bytes, got %d", aead.NonceSize(), len(fileNonce))
 	}
 
 	// Encrypt and write chunks.
@@ -269,8 +309,8 @@ func StreamEncrypt(reader io.Reader, writer io.Writer, key []byte) error {
 			break
 		}
 
-		// Derive nonce for this chunk from base nonce + counter.
-		chunkNonce := deriveChunkNonce(baseNonce, counter)
+		// Derive nonce for this chunk from the file nonce + counter.
+		chunkNonce := deriveChunkNonce(fileNonce, counter)
 
 		// Encrypt chunk with its derived nonce. The tag is appended by Seal.
 		ciphertext := aead.Seal(nil, chunkNonce, chunk[:n], nil)
@@ -291,13 +331,15 @@ func StreamEncrypt(reader io.Reader, writer io.Writer, key []byte) error {
 }
 
 // StreamDecrypt decrypts data from reader to writer, reversing StreamEncrypt.
-// It reads the header (salt, base nonce), then decrypts each chunk using the
-// derived nonce (base + counter).
+// It decrypts each chunk using the file nonce + counter and the DEK that
+// encrypted the payload.
 //
+// dek must be the per-file Data Encryption Key unwrapped from the master key
+// (see UnwrapDEK) and fileNonce the 12-byte base nonce recorded for this file.
 // The reader must carry data encrypted by StreamEncrypt. The writer receives
 // the decrypted plaintext. Both are the caller's responsibility to close.
-func StreamDecrypt(reader io.Reader, writer io.Writer, key []byte) error {
-	block, err := aes.NewCipher(key)
+func StreamDecrypt(reader io.Reader, writer io.Writer, dek []byte, fileNonce []byte) error {
+	block, err := aes.NewCipher(dek)
 	if err != nil {
 		return fmt.Errorf("create cipher: %w", err)
 	}
@@ -307,14 +349,9 @@ func StreamDecrypt(reader io.Reader, writer io.Writer, key []byte) error {
 		return fmt.Errorf("create gcm: %w", err)
 	}
 
-	// Read header: salt, base nonce.
-	header := make([]byte, SaltSize+aead.NonceSize())
-	if _, err := io.ReadFull(reader, header); err != nil {
-		return fmt.Errorf("read header: %w", err)
+	if len(fileNonce) != aead.NonceSize() {
+		return fmt.Errorf("file nonce must be %d bytes, got %d", aead.NonceSize(), len(fileNonce))
 	}
-
-	// salt := header[:SaltSize] // reserved for future use
-	baseNonce := header[SaltSize:]
 
 	// Decrypt chunks.
 	// Each encrypted chunk is plaintext + 16-byte tag.
@@ -332,7 +369,7 @@ func StreamDecrypt(reader io.Reader, writer io.Writer, key []byte) error {
 		}
 
 		// Derive nonce for this chunk.
-		chunkNonce := deriveChunkNonce(baseNonce, counter)
+		chunkNonce := deriveChunkNonce(fileNonce, counter)
 
 		// Decrypt chunk.
 		plaintext, err := aead.Open(nil, chunkNonce, ciphertextChunk[:n], nil)
