@@ -36,7 +36,7 @@ export default function DatabaseSettings() {
   const isPostgres = info?.Type === 'postgresql';
 
   return (
-    <div className="w-full relative space-y-6">
+    <div className="w-full relative space-y-2">
       <div className="flex items-center justify-between py-2">
         <h1 className="text-2xl font-bold text-text">Database Settings</h1>
       </div>

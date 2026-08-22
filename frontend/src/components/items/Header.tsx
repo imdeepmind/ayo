@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { LogOut, Search, Settings } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useSearch } from '@/context/SearchContext';
-import logo from '@/assets/images/logo.png';
 
 export default function Header() {
   const { session, logout } = useAuth();
@@ -29,43 +28,46 @@ export default function Header() {
   };
 
   return (
-    <header className="w-full shrink-0 bg-background py-2 px-8 md:px-10">
-      <div className="flex items-center justify-between gap-4">
-        {/* Logo & Brand */}
-        <Link to="/" className="flex items-center shrink-0">
-          <img src={logo} alt="ayo" className="h-12 w-12 rounded-lg" />
-        </Link>
-
+    <header className="w-full h-10 shrink-0 bg-background pl-[75px] pr-4 [--wails-draggable:drag] select-none">
+      <div className="flex h-full items-center justify-between gap-4">
         {/* Central Search Drive Input (Only visible when logged in) */}
         {session ? (
-          <form onSubmit={handleSubmit} className="flex-1 max-w-xl mx-6" role="search">
-            <div className="relative w-full">
-              <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-text-faint">
-                <Search className="h-4 w-4" />
-              </span>
-              <input
-                type="search"
-                aria-label="Search Drive"
-                placeholder="Search Drive"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="w-full rounded-full border border-border bg-surface-alt/90 py-3 pl-11 pr-5 text-sm text-text placeholder:text-text-faint outline-none transition focus:bg-surface focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-border-strong dark:bg-surface-alt dark:text-text dark:focus:bg-surface"
-              />
-            </div>
-          </form>
+          <>
+            {/* Spacer mirroring the avatar so the search bar stays centered */}
+            <div className="w-8 shrink-0" aria-hidden="true" />
+            <form
+              onSubmit={handleSubmit}
+              className="flex-1 max-w-xl mx-auto px-2 [--wails-draggable:no-drag]"
+              role="search"
+            >
+              <div className="relative w-full">
+                <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-text-faint">
+                  <Search className="h-4 w-4" />
+                </span>
+                <input
+                  type="search"
+                  aria-label="Search Drive"
+                  placeholder="Search Drive"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  className="h-7 w-full rounded-full border border-border bg-surface-alt/90 pl-10 pr-4 text-sm text-text placeholder:text-text-faint outline-none transition focus:bg-surface focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-border-strong dark:bg-surface-alt dark:text-text dark:focus:bg-surface"
+                />
+              </div>
+            </form>
+          </>
         ) : (
           <div className="flex-1" />
         )}
 
         {/* Right Header Icons */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-3 shrink-0 self-start pt-1">
           {/* User Profile Avatar */}
           {session ? (
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setMenuOpen((o) => !o)}
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-primary font-bold text-white text-sm transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-primary font-bold text-white text-sm transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary/40 [--wails-draggable:no-drag]"
                 aria-label="Open account menu"
                 aria-expanded={menuOpen}
               >
@@ -79,7 +81,7 @@ export default function Header() {
                     onClick={() => setMenuOpen(false)}
                     aria-hidden="true"
                   />
-                  <div className="absolute right-0 z-50 mt-3 w-56 overflow-hidden rounded-xl border border-border bg-surface-elevated shadow-2xl dark:border-border-strong">
+                  <div className="absolute right-0 z-50 mt-3 w-56 overflow-hidden rounded-xl border border-border bg-surface-elevated shadow-2xl dark:border-border-strong [--wails-draggable:no-drag]">
                     <div className="border-b border-border px-4 py-3 dark:border-border-strong">
                       <p className="truncate text-sm font-bold text-text">{session.Username}</p>
                       <p className="truncate text-xs text-text-faint">
@@ -109,7 +111,10 @@ export default function Header() {
               )}
             </div>
           ) : (
-            <Link to="/auth/login" className="text-sm font-semibold text-primary hover:underline">
+            <Link
+              to="/auth/login"
+              className="text-sm font-semibold text-primary hover:underline [--wails-draggable:no-drag]"
+            >
               Sign In
             </Link>
           )}
