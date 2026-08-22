@@ -94,7 +94,7 @@ func (s *Service) GetSettings() (*Settings, error) {
 		return &Settings{}, nil
 	}
 
-	decryptedData, err := crypto.DecryptData(session.MasterKey, data)
+	decryptedData, err := crypto.DecryptData(session.MasterKey(), data)
 	if err != nil {
 		return nil, errors.AsInternalServerError("get settings: decrypt", err)
 	}
@@ -153,7 +153,7 @@ func (s *Service) UpdateSettings(input UpdateSettingsInput) error {
 		return errors.AsInternalServerError("update settings: marshal", err)
 	}
 
-	encryptedData, err := crypto.EncryptData(session.MasterKey, data)
+	encryptedData, err := crypto.EncryptData(session.MasterKey(), data)
 	if err != nil {
 		return errors.AsInternalServerError("update settings: encrypt", err)
 	}

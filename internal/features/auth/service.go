@@ -19,9 +19,12 @@ import (
 // the running process and is lost on app restart (the frontend re-checks it on
 // startup via GetSession).
 //
-// MasterKey is the decrypted key that encrypts all of the user's data. It is
+// masterKey is the decrypted key that encrypts all of the user's data. It is
 // kept alongside the session so services like settings can encrypt/decrypt
-// without re-deriving it from the password.
+// without re-deriving it from the password, and is exposed to them via the
+// MasterKey method. It is deliberately unexported: Session is serialized to the
+// frontend via GetSession/RequireSession, and the plaintext master key must
+// never reach the webview (Wails only serializes exported fields).
 //
 // The user's database configuration is deliberately NOT stored here: Session is
 // serialized to the frontend via GetSession, and exposing the PostgreSQL
@@ -30,7 +33,14 @@ import (
 type Session struct {
 	UserId    int64
 	Username  string
-	MasterKey []byte
+	masterKey []byte
+}
+
+// MasterKey returns the session's decrypted 32-byte master key. It is how
+// other services access the key without it ever being serialized to the
+// frontend.
+func (s *Session) MasterKey() []byte {
+	return s.masterKey
 }
 
 // Service implements the auth business logic and is the single source of truth
@@ -271,7 +281,7 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 	}
 
 	// comparing the password against the stored Argon2id PHC hash
-	ok, err := crypto.VerifyPasswordHash(input.Password, user.PasswordHash)
+	ok, err := crypto.VerifyPasswordHash(input.Password, user.passwordHash)
 	if err != nil || !ok {
 		s.conn.Close()
 		return false, errors.ErrInvalidPassword
@@ -299,7 +309,7 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 	s.session = &Session{
 		UserId:    user.ID,
 		Username:  user.Username,
-		MasterKey: masterKey,
+		masterKey: masterKey,
 	}
 	s.dbConfig = config
 
@@ -357,7 +367,7 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*RegisterResult, erro
 	}
 
 	// Verify the recovery key against the stored Argon2id PHC hash.
-	ok, err := crypto.VerifyPasswordHash(input.RecoveryKey, user.RecoveryKey)
+	ok, err := crypto.VerifyPasswordHash(input.RecoveryKey, user.recoveryKey)
 	if err != nil || !ok {
 		s.conn.Close()
 		return nil, errors.ErrInvalidRecoveryKey
@@ -499,12 +509,15 @@ func (s *Service) CurrentClient() (*dbclient.Client, error) {
 
 // DatabaseConfig returns the signed-in user's database configuration, or
 // ErrUnauthorized when signed out. Used by the settings service for the
-// read-only database display.
+// read-only database display. The password is stripped before returning so the
+// Wails-bound method can never leak it to the webview.
 func (s *Service) DatabaseConfig() (dbclient.Config, error) {
 	if s.session == nil {
 		return dbclient.Config{}, errors.ErrUnauthorized
 	}
-	return s.dbConfig, nil
+	config := s.dbConfig
+	config.Password = ""
+	return config, nil
 }
 
 // GetMasterKeyStorage reports where the signed-in user's encrypted master-key

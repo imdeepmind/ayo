@@ -51,6 +51,9 @@ type UploadRepository interface {
 		size int64,
 		tags []string,
 		manifest shardManifest,
+		fileNonce []byte,
+		encryptedFileKey []byte,
+		keyNonce []byte,
 	) (*Upload, error)
 	CreateChunks(ctx context.Context, fileID int64, chunks []ChunkInput) error
 	GetUpload(ctx context.Context, id int64) (*Upload, error)
