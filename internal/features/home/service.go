@@ -425,6 +425,14 @@ func providerLabel(t settings.Provider) string {
 	switch t {
 	case settings.AWS:
 		return "AWS S3"
+	case settings.MinIO:
+		return "MinIO"
+	case settings.Backblaze:
+		return "Backblaze B2"
+	case settings.Cloudflare:
+		return "Cloudflare R2"
+	case settings.Wasabi:
+		return "Wasabi"
 	case settings.Azure:
 		return "Azure Blob"
 	case settings.GCP:

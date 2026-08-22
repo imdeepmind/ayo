@@ -51,12 +51,13 @@ func ResolveShard(providers []settings.CloudKey, storageID, chunkID string) (Cli
 			return nil, "", fmt.Errorf("local provider %q is no longer configured", storageID)
 		}
 		return &LocalFilesystem{}, filepath.Join(folder, chunkID), nil
-	case string(settings.AWS):
-		key, ok := awsKeyForID(providers, storageID)
+	case string(settings.AWS), string(settings.MinIO), string(settings.Backblaze),
+		string(settings.Cloudflare), string(settings.Wasabi):
+		key, ok := s3KeyForID(providers, storageID)
 		if !ok {
-			return nil, "", fmt.Errorf("aws provider %q is no longer configured", storageID)
+			return nil, "", fmt.Errorf("s3 provider %q is no longer configured", storageID)
 		}
-		return newS3(key.Bucket, key.Region, key.AccessKeyID, key.SecretAccessKey), chunkID, nil
+		return newS3(key), chunkID, nil
 	default:
 		return nil, "", fmt.Errorf("storage provider %q is not supported yet", prefix)
 	}
@@ -72,7 +73,7 @@ func Validate(key settings.CloudKey) error {
 	case *settings.LocalKey:
 		return (&LocalFilesystem{}).Validate(k)
 	case *settings.AWSKey:
-		return newS3(k.Bucket, k.Region, k.AccessKeyID, k.SecretAccessKey).Validate(k)
+		return newS3(k).Validate(k)
 	default:
 		return fmt.Errorf("storage provider %q is not supported yet", key.GetProvider())
 	}
@@ -90,11 +91,11 @@ func openLocalShard(key *settings.LocalKey, chunkID string) (io.WriteCloser, err
 	return f, nil
 }
 
-// openS3Shard returns a writer that streams the shard into the configured AWS
-// bucket as a single object named chunkID. The write is buffered and uploaded
-// when the writer is closed.
+// openS3Shard returns a writer that streams the shard into the configured
+// S3-compatible bucket as a single object named chunkID. The write is buffered
+// and uploaded when the writer is closed.
 func openS3Shard(key *settings.AWSKey, chunkID string) (io.WriteCloser, error) {
-	w, err := newS3(key.Bucket, key.Region, key.AccessKeyID, key.SecretAccessKey).OpenWriter(chunkID)
+	w, err := newS3(key).OpenWriter(chunkID)
 	if err != nil {
 		return nil, fmt.Errorf("open s3 shard: %w", err)
 	}
@@ -113,9 +114,11 @@ func folderForID(providers []settings.CloudKey, storageID string) (string, bool)
 	return "", false
 }
 
-// awsKeyForID returns the configured AWS provider whose ID matches, so a shard
-// recorded against it can be read from or removed from its bucket.
-func awsKeyForID(providers []settings.CloudKey, storageID string) (*settings.AWSKey, bool) {
+// s3KeyForID returns the configured S3-compatible provider whose ID matches, so
+// a shard recorded against it can be read from or removed from its bucket. All
+// S3-compatible vendors (AWS, MinIO, Backblaze, Cloudflare, Wasabi) share the
+// AWSKey type.
+func s3KeyForID(providers []settings.CloudKey, storageID string) (*settings.AWSKey, bool) {
 	for _, k := range providers {
 		if key, ok := k.(*settings.AWSKey); ok && key.GetID() == storageID {
 			return key, true

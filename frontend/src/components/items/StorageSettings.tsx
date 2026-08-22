@@ -13,13 +13,40 @@ import { settings } from '../../../wailsjs/go/models';
 
 // ---------- Types ----------
 
-type ProviderType = 'aws' | 'azure' | 'gcp' | 'local';
+type ProviderType =
+  | 'aws'
+  | 'minio'
+  | 'backblaze'
+  | 'cloudflare'
+  | 'wasabi'
+  | 'azure'
+  | 'gcp'
+  | 'local';
 
-interface AWSFields {
+interface S3VendorFields {
   accessKeyId: string;
   secretAccessKey: string;
-  region: string;
   bucketName: string;
+}
+
+interface AWSFields extends S3VendorFields {
+  region: string;
+}
+
+interface BackblazeFields extends S3VendorFields {
+  region: string;
+}
+
+interface WasabiFields extends S3VendorFields {
+  region: string;
+}
+
+interface CloudflareFields extends S3VendorFields {
+  accountId: string;
+}
+
+interface MinIOFields extends S3VendorFields {
+  serverUrl: string;
 }
 
 interface AzureFields {
@@ -42,7 +69,15 @@ interface StorageProvider {
   id: string;
   providerId: string;
   type: ProviderType;
-  fields: AWSFields | AzureFields | GCPFields | LocalFields;
+  fields:
+    | AWSFields
+    | MinIOFields
+    | BackblazeFields
+    | CloudflareFields
+    | WasabiFields
+    | AzureFields
+    | GCPFields
+    | LocalFields;
   collapsed: boolean;
 }
 
@@ -76,9 +111,17 @@ function makeProviderId(type: ProviderType) {
   return `${type}_${random}`;
 }
 
-function emptyFields(type: ProviderType): AWSFields | AzureFields | GCPFields | LocalFields {
+function emptyFields(type: ProviderType): StorageProvider['fields'] {
   switch (type) {
     case 'aws':
+      return { accessKeyId: '', secretAccessKey: '', region: '', bucketName: '' };
+    case 'minio':
+      return { serverUrl: '', accessKeyId: '', secretAccessKey: '', bucketName: '' };
+    case 'backblaze':
+      return { accessKeyId: '', secretAccessKey: '', region: '', bucketName: '' };
+    case 'cloudflare':
+      return { accountId: '', accessKeyId: '', secretAccessKey: '', bucketName: '' };
+    case 'wasabi':
       return { accessKeyId: '', secretAccessKey: '', region: '', bucketName: '' };
     case 'azure':
       return { storageAccountName: '', storageAccountKey: '', containerName: '' };
@@ -90,23 +133,117 @@ function emptyFields(type: ProviderType): AWSFields | AzureFields | GCPFields | 
 }
 
 function providerLabel(type: ProviderType) {
-  return type === 'aws'
-    ? 'AWS S3'
-    : type === 'azure'
-      ? 'Azure Blob'
-      : type === 'gcp'
-        ? 'Google Cloud'
-        : 'Local System';
+  switch (type) {
+    case 'aws':
+      return 'AWS S3';
+    case 'minio':
+      return 'MinIO';
+    case 'backblaze':
+      return 'Backblaze B2';
+    case 'cloudflare':
+      return 'Cloudflare R2';
+    case 'wasabi':
+      return 'Wasabi';
+    case 'azure':
+      return 'Azure Blob';
+    case 'gcp':
+      return 'Google Cloud';
+    case 'local':
+      return 'Local System';
+  }
+}
+
+// providerResource returns the user-named bucket/container/folder a provider
+// maps to, used as the card subtitle and to tell providers apart.
+function providerResource(p: StorageProvider): string {
+  if (p.type === 'azure') return (p.fields as AzureFields).containerName;
+  if (p.type === 'gcp') return (p.fields as GCPFields).bucketName;
+  if (p.type === 'local') return (p.fields as LocalFields).folderName;
+  return (p.fields as S3VendorFields).bucketName;
 }
 
 function getBucketOrContainer(p: StorageProvider): string {
-  if (p.type === 'aws') return (p.fields as AWSFields).bucketName.trim().toLowerCase();
   if (p.type === 'azure') return (p.fields as AzureFields).containerName.trim().toLowerCase();
-  if (p.type === 'gcp') return (p.fields as GCPFields).bucketName.trim().toLowerCase();
-  return (p.fields as LocalFields).folderPath.trim().toLowerCase();
+  if (p.type === 'local') return (p.fields as LocalFields).folderPath.trim().toLowerCase();
+  return (p.fields as S3VendorFields).bucketName.trim().toLowerCase();
 }
 
 // ---------- Sub-components ----------
+
+// S3ProviderFields renders the credential inputs shared by every S3-compatible
+// vendor (AWS S3, MinIO, Backblaze B2, Cloudflare R2, Wasabi) plus the few
+// vendor-specific fields: Server URL for MinIO, Account ID for Cloudflare R2,
+// and Region for AWS/Backblaze/Wasabi. Hosted endpoints are derived in the
+// backend, so no endpoint field is shown.
+function S3ProviderFields({
+  provider,
+  update,
+  errors,
+}: {
+  provider: StorageProvider;
+  update: (key: string, value: string) => void;
+  errors: Record<string, string>;
+}) {
+  return (
+    <>
+      {provider.type === 'minio' && (
+        <TextInput
+          id={`${provider.id}-server-url`}
+          label="Server URL"
+          placeholder="http://localhost:9000"
+          value={(provider.fields as MinIOFields).serverUrl}
+          onChange={(e) => update('serverUrl', e.target.value)}
+          error={errors.serverUrl}
+        />
+      )}
+      {provider.type === 'cloudflare' && (
+        <TextInput
+          id={`${provider.id}-account-id`}
+          label="Account ID"
+          placeholder="Enter your R2 account ID"
+          value={(provider.fields as CloudflareFields).accountId}
+          onChange={(e) => update('accountId', e.target.value)}
+          error={errors.accountId}
+        />
+      )}
+      <TextInput
+        id={`${provider.id}-access-key`}
+        label="Access Key ID"
+        placeholder="AKIA..."
+        value={(provider.fields as S3VendorFields).accessKeyId}
+        onChange={(e) => update('accessKeyId', e.target.value)}
+        error={errors.accessKeyId}
+      />
+      <TextInput
+        id={`${provider.id}-secret-key`}
+        label="Secret Access Key"
+        type="password"
+        placeholder="Enter secret key"
+        value={(provider.fields as S3VendorFields).secretAccessKey}
+        onChange={(e) => update('secretAccessKey', e.target.value)}
+        error={errors.secretAccessKey}
+      />
+      {(provider.type === 'aws' || provider.type === 'backblaze' || provider.type === 'wasabi') && (
+        <TextInput
+          id={`${provider.id}-region`}
+          label={provider.type === 'backblaze' ? 'Region / Endpoint Code' : 'Region'}
+          placeholder={provider.type === 'backblaze' ? 'us-west-004' : 'us-east-1'}
+          value={(provider.fields as AWSFields).region}
+          onChange={(e) => update('region', e.target.value)}
+          error={errors.region}
+        />
+      )}
+      <TextInput
+        id={`${provider.id}-bucket`}
+        label="Bucket Name"
+        placeholder="my-bucket"
+        value={(provider.fields as S3VendorFields).bucketName}
+        onChange={(e) => update('bucketName', e.target.value)}
+        error={errors.bucketName}
+      />
+    </>
+  );
+}
 
 function ProviderForm({
   provider,
@@ -154,13 +291,7 @@ function ProviderForm({
           </span>
           {!provider.collapsed && (
             <span className="text-xs font-medium text-text-subtle">
-              {provider.type === 'aws'
-                ? (provider.fields as AWSFields).bucketName || 'Untitled'
-                : provider.type === 'azure'
-                  ? (provider.fields as AzureFields).containerName || 'Untitled'
-                  : provider.type === 'gcp'
-                    ? (provider.fields as GCPFields).bucketName || 'Untitled'
-                    : (provider.fields as LocalFields).folderName || 'Untitled'}
+              {providerResource(provider) || 'Untitled'}
             </span>
           )}
         </div>
@@ -175,42 +306,12 @@ function ProviderForm({
       {/* Body */}
       {!provider.collapsed && (
         <div className="space-y-4 border-t border-border px-6 pb-6 pt-5 dark:border-border-strong">
-          {provider.type === 'aws' && (
-            <>
-              <TextInput
-                id={`${provider.id}-access-key`}
-                label="Access Key ID"
-                placeholder="AKIA..."
-                value={(provider.fields as AWSFields).accessKeyId}
-                onChange={(e) => update('accessKeyId', e.target.value)}
-                error={errors.accessKeyId}
-              />
-              <TextInput
-                id={`${provider.id}-secret-key`}
-                label="Secret Access Key"
-                type="password"
-                placeholder="Enter secret key"
-                value={(provider.fields as AWSFields).secretAccessKey}
-                onChange={(e) => update('secretAccessKey', e.target.value)}
-                error={errors.secretAccessKey}
-              />
-              <TextInput
-                id={`${provider.id}-region`}
-                label="Region"
-                placeholder="us-east-1"
-                value={(provider.fields as AWSFields).region}
-                onChange={(e) => update('region', e.target.value)}
-                error={errors.region}
-              />
-              <TextInput
-                id={`${provider.id}-bucket`}
-                label="Bucket Name"
-                placeholder="my-bucket"
-                value={(provider.fields as AWSFields).bucketName}
-                onChange={(e) => update('bucketName', e.target.value)}
-                error={errors.bucketName}
-              />
-            </>
+          {(provider.type === 'aws' ||
+            provider.type === 'minio' ||
+            provider.type === 'backblaze' ||
+            provider.type === 'cloudflare' ||
+            provider.type === 'wasabi') && (
+            <S3ProviderFields provider={provider} update={update} errors={errors} />
           )}
 
           {provider.type === 'azure' && (
@@ -431,11 +532,29 @@ export default function StorageSettings() {
             const loadedProviders = srvSettings.CloudKeys.map((k: Record<string, string>) => {
               const providerType = k.Provider as ProviderType;
               let fields: StorageProvider['fields'] = emptyFields(providerType);
-              if (providerType === 'aws') {
+              if (
+                providerType === 'aws' ||
+                providerType === 'backblaze' ||
+                providerType === 'wasabi'
+              ) {
                 fields = {
                   accessKeyId: k.AccessKeyID || '',
                   secretAccessKey: k.SecretAccessKey || '',
                   region: k.Region || '',
+                  bucketName: k.Bucket || '',
+                };
+              } else if (providerType === 'cloudflare') {
+                fields = {
+                  accountId: k.AccountID || '',
+                  accessKeyId: k.AccessKeyID || '',
+                  secretAccessKey: k.SecretAccessKey || '',
+                  bucketName: k.Bucket || '',
+                };
+              } else if (providerType === 'minio') {
+                fields = {
+                  serverUrl: k.Endpoint || '',
+                  accessKeyId: k.AccessKeyID || '',
+                  secretAccessKey: k.SecretAccessKey || '',
                   bucketName: k.Bucket || '',
                 };
               } else if (providerType === 'azure') {
@@ -525,11 +644,23 @@ export default function StorageSettings() {
     for (const p of providers) {
       const errs: Record<string, string> = {};
 
-      if (p.type === 'aws') {
+      if (p.type === 'aws' || p.type === 'backblaze' || p.type === 'wasabi') {
         const f = p.fields as AWSFields;
         if (!f.accessKeyId.trim()) errs.accessKeyId = 'Access Key ID is required';
         if (!f.secretAccessKey.trim()) errs.secretAccessKey = 'Secret Access Key is required';
         if (!f.region.trim()) errs.region = 'Region is required';
+        if (!f.bucketName.trim()) errs.bucketName = 'Bucket Name is required';
+      } else if (p.type === 'minio') {
+        const f = p.fields as MinIOFields;
+        if (!f.serverUrl.trim()) errs.serverUrl = 'Server URL is required';
+        if (!f.accessKeyId.trim()) errs.accessKeyId = 'Access Key ID is required';
+        if (!f.secretAccessKey.trim()) errs.secretAccessKey = 'Secret Access Key is required';
+        if (!f.bucketName.trim()) errs.bucketName = 'Bucket Name is required';
+      } else if (p.type === 'cloudflare') {
+        const f = p.fields as CloudflareFields;
+        if (!f.accountId.trim()) errs.accountId = 'Account ID is required';
+        if (!f.accessKeyId.trim()) errs.accessKeyId = 'Access Key ID is required';
+        if (!f.secretAccessKey.trim()) errs.secretAccessKey = 'Secret Access Key is required';
         if (!f.bucketName.trim()) errs.bucketName = 'Bucket Name is required';
       } else if (p.type === 'azure') {
         const f = p.fields as AzureFields;
@@ -610,6 +741,46 @@ export default function StorageSettings() {
           AccessKeyID: fields.accessKeyId,
           SecretAccessKey: fields.secretAccessKey,
           Region: fields.region,
+          Bucket: fields.bucketName,
+        };
+      } else if (p.type === 'backblaze') {
+        const fields = p.fields as BackblazeFields;
+        return {
+          ID: p.providerId,
+          Provider: 'backblaze',
+          AccessKeyID: fields.accessKeyId,
+          SecretAccessKey: fields.secretAccessKey,
+          Region: fields.region,
+          Bucket: fields.bucketName,
+        };
+      } else if (p.type === 'wasabi') {
+        const fields = p.fields as WasabiFields;
+        return {
+          ID: p.providerId,
+          Provider: 'wasabi',
+          AccessKeyID: fields.accessKeyId,
+          SecretAccessKey: fields.secretAccessKey,
+          Region: fields.region,
+          Bucket: fields.bucketName,
+        };
+      } else if (p.type === 'cloudflare') {
+        const fields = p.fields as CloudflareFields;
+        return {
+          ID: p.providerId,
+          Provider: 'cloudflare',
+          AccountID: fields.accountId,
+          AccessKeyID: fields.accessKeyId,
+          SecretAccessKey: fields.secretAccessKey,
+          Bucket: fields.bucketName,
+        };
+      } else if (p.type === 'minio') {
+        const fields = p.fields as MinIOFields;
+        return {
+          ID: p.providerId,
+          Provider: 'minio',
+          Endpoint: fields.serverUrl,
+          AccessKeyID: fields.accessKeyId,
+          SecretAccessKey: fields.secretAccessKey,
           Bucket: fields.bucketName,
         };
       } else if (p.type === 'azure') {
@@ -733,7 +904,18 @@ export default function StorageSettings() {
                 <span className="text-sm font-semibold text-text-muted dark:text-text">
                   Add storage provider:
                 </span>
-                {(['aws', 'gcp', 'azure', 'local'] as ProviderType[]).map((type) => (
+                {(
+                  [
+                    'aws',
+                    'minio',
+                    'backblaze',
+                    'cloudflare',
+                    'wasabi',
+                    'gcp',
+                    'azure',
+                    'local',
+                  ] as ProviderType[]
+                ).map((type) => (
                   <button
                     key={type}
                     type="button"

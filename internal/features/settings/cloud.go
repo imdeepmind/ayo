@@ -17,6 +17,13 @@ type CloudKey interface {
 	SetID(id string)
 }
 
+// AWSKey holds the credentials and bucket for any S3-compatible provider (AWS
+// S3, MinIO, Backblaze B2, Cloudflare R2, Wasabi). The concrete vendor is
+// carried by Provider; the remaining fields are only used where relevant:
+// Region (AWS/Backblaze/Wasabi), AccountID (Cloudflare R2, used to derive the
+// endpoint) and Endpoint (MinIO/self-hosted server URL). Endpoints for hosted
+// vendors are derived from Provider at client construction time and are never
+// stored or exposed.
 type AWSKey struct {
 	ID              string // unique provider ID, e.g. "aws_ab12cd34"
 	Provider        Provider
@@ -24,6 +31,8 @@ type AWSKey struct {
 	SecretAccessKey string
 	Region          string
 	Bucket          string
+	AccountID       string
+	Endpoint        string
 }
 
 func (a AWSKey) GetProvider() Provider { return a.Provider }
@@ -87,7 +96,7 @@ func decodeCloudKeys(rawKeys []json.RawMessage) ([]CloudKey, error) {
 		}
 
 		switch base.Provider {
-		case AWS:
+		case AWS, MinIO, Backblaze, Cloudflare, Wasabi:
 			var key AWSKey
 			if err := json.Unmarshal(rawKey, &key); err != nil {
 				return nil, err
@@ -121,7 +130,7 @@ func decodeCloudKeys(rawKeys []json.RawMessage) ([]CloudKey, error) {
 
 const providerIDAlphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
 
-var providerIDPattern = regexp.MustCompile(`^(aws|azure|gcp|local)_[a-z0-9]{8}$`)
+var providerIDPattern = regexp.MustCompile(`^(aws|minio|backblaze|cloudflare|wasabi|azure|gcp|local)_[a-z0-9]{8}$`)
 
 // generateProviderID returns a new unique provider ID in the form
 // "<provider>_<8 random alphanumeric chars>", e.g. "aws_ab12cd34".
