@@ -7,7 +7,7 @@ Wails v2 desktop app (`ayo`): Go 1.24 backend + React 18 / TypeScript / Vite 3 /
 The Go backend is tiered under `internal/`:
 
 - `internal/features/` — business logic, one package per feature:
-  - `auth/` — Register/Login/ResetPassword/Logout + in-memory session (`MasterKey`). bcrypt + Argon2 + AES-GCM. Layered as `dto.go` / `model.go` / `repository.go` / `service.go`. The service owns the active per-user database connection (via `internal/clients/db`'s `Connection`) and opens/closes it on login/logout; the full DB config (incl. PostgreSQL password) stays on the service, never in `Session` (which is serialized to the frontend).
+  - `auth/` — Register/Login/ResetPassword/Logout + in-memory session (`MasterKey`). Argon2id + AES-GCM. Layered as `dto.go` / `model.go` / `repository.go` / `service.go`. The service owns the active per-user database connection (via `internal/clients/db`'s `Connection`) and opens/closes it on login/logout; the full DB config (incl. PostgreSQL password) stays on the service, never in `Session` (which is serialized to the frontend).
   - `dbconfig/` — dual-encrypted (password-KEK + recovery-KEK) per-user database credentials stored in the OS keyring under `ayo`/`dbcreds_{username}`. `model.go` / `crypto.go` / `repository.go`.
   - `settings/` — per-user settings stored in the OS keyring (`zalando/go-keyring`), encrypted with the session master key. Keyring persistence is in `repository.go`; cloud-key types in `cloud.go`; validated Wails-bound input in `dto.go`. `GetDatabaseInfo()` returns sanitized (no password) DB info for the read-only Database tab.
   - `recovery/` — save-file dialog for downloading the recovery key (shown after register/reset).

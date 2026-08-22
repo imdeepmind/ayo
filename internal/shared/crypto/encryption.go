@@ -1,5 +1,5 @@
 // Package crypto provides the low-level cryptographic primitives shared across
-// features: key generation, Argon2id key derivation and AES-256-GCM
+// features: key generation, Argon2id key derivation/hashing and AES-256-GCM
 // encrypt/decrypt.
 //
 // It belongs to the shared tier. Features compose these primitives into their
@@ -9,9 +9,14 @@
 //   - A random 256-bit master key encrypts the user's data (e.g. settings).
 //   - The master key is itself wrapped by KEKs derived with Argon2id from the
 //     user's password and recovery key, so it is never stored in plaintext.
+//   - Passwords and recovery keys are stored as self-describing Argon2id PHC
+//     hashes (see HashPassword/VerifyPasswordHash in hash.go).
 //
-// All constants below must be kept in sync across every use - changing the
-// Argon2 parameters would make previously derived KEKs unrecoverable.
+// The single argon2Params configuration feeds both the PHC password hashing
+// and the raw KEK derivation, so every Argon2id use in the codebase shares one
+// set of parameters. Password/recovery-key hashes are self-describing (their
+// parameters are embedded in the PHC string), but KEKs are not, so these
+// parameters must never change once material has been persisted.
 package crypto
 
 import (
@@ -24,6 +29,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/alexedwards/argon2id"
 	"golang.org/x/crypto/argon2"
 )
 
@@ -46,6 +52,18 @@ const (
 	// and performance.
 	ChunkSize = 64 * 1024 // 64 KB
 )
+
+// argon2Params is the single Argon2id configuration used across the codebase,
+// both for PHC password hashing and raw KEK derivation. It mirrors the
+// constants above; changing them would make previously derived KEKs
+// unrecoverable.
+var argon2Params = &argon2id.Params{
+	Memory:      Memory,
+	Iterations:  TimeCost,
+	Parallelism: Threads,
+	SaltLength:  SaltSize,
+	KeyLength:   KeySize,
+}
 
 // GenerateRecoveryKey returns a new random 256-bit recovery key encoded as a
 // URL-safe base64 string. The user is shown this value exactly once (at
@@ -132,16 +150,16 @@ func DecryptMasterKey(kek []byte, encryptedMasterKey []byte, nonce []byte) ([]by
 }
 
 // DeriveKEK derives a Key Encryption Key from a password and salt using
-// Argon2id. The result depends on TimeCost/Memory/Threads/KeySize, so those
-// constants must not change after keys have been persisted.
+// Argon2id. The result depends on argon2Params, so those parameters must not
+// change after keys have been persisted.
 func DeriveKEK(password string, salt []byte) []byte {
 	kek := argon2.IDKey(
 		[]byte(password),
 		salt,
-		TimeCost,
-		Memory,
-		Threads,
-		KeySize,
+		argon2Params.Iterations,
+		argon2Params.Memory,
+		argon2Params.Parallelism,
+		argon2Params.KeyLength,
 	)
 
 	return kek

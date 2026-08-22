@@ -6,8 +6,24 @@ import (
 	"os"
 	"path/filepath"
 
+	"ayo/internal/shared/paths"
+
 	_ "modernc.org/sqlite"
 )
+
+// ResolveSQLitePath fills in the app-data-directory path for SQLite databases
+// when the caller did not supply one, producing "{AppDataDir}/ayo/<username>.db".
+func ResolveSQLitePath(config Config, username string) (Config, error) {
+	if config.Type != SQLite || config.Path != "" {
+		return config, nil
+	}
+	dir, err := paths.GetAppDataDir()
+	if err != nil {
+		return config, err
+	}
+	config.Path = filepath.Join(dir, username+".db")
+	return config, nil
+}
 
 // openSQLite opens (creating if needed) a SQLite database at config.Path and
 // verifies the connection is live. Missing parent directories are created

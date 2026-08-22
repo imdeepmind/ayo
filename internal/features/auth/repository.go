@@ -195,10 +195,10 @@ func (r *repository) GetUserByUsername(ctx context.Context, username string) (*U
 	return &user, nil
 }
 
-// UpdateUserHashes replaces the password and recovery-key bcrypt hashes for the
-// given user. Used by the reset-password flow; the encrypted master-key material
-// is updated separately (see UpdateMasterKeyMaterial) so that keyring-stored
-// accounts keep junk in the database.
+// UpdateUserHashes replaces the password and recovery-key Argon2id hashes for
+// the given user. Used by the reset-password flow; the encrypted master-key
+// material is updated separately (see UpdateMasterKeyMaterial) so that
+// keyring-stored accounts keep junk in the database.
 func (r *repository) UpdateUserHashes(
 	ctx context.Context,
 	id int64,

@@ -12,11 +12,11 @@ type User struct {
 	ID       int64
 	Username string
 
-	// PasswordHash is the bcrypt hash of the account password. It is used to
-	// verify logins without ever holding the password itself.
+	// PasswordHash is the Argon2id PHC hash of the account password. It is used
+	// to verify logins without ever holding the password itself.
 	PasswordHash string
-	// RecoveryKey is the bcrypt hash of the recovery key. The raw recovery key
-	// is shown to the user exactly once at registration/reset time.
+	// RecoveryKey is the Argon2id PHC hash of the recovery key. The raw
+	// recovery key is shown to the user exactly once at registration/reset time.
 	RecoveryKey string
 
 	// The user's master key encrypts all of their data (e.g. settings). It is
