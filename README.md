@@ -58,7 +58,7 @@ flowchart TB
 ## Tech stack
 
 - Backend: Go 1.24, Wails v2
-- Crypto: AES-256-GCM, Argon2id, bcrypt, per-user salts/nonces
+- Crypto: AES-256-GCM, Argon2id, per-user salts/nonces
 - Database: SQLite (`modernc.org/sqlite`, pure Go, no cgo) by default, PostgreSQL (local or remote) for bring-your-own setups
 - Keyring: zalando/go-keyring
 - Frontend: React 18, TypeScript, Vite 3, Tailwind CSS, React Router, react-hook-form + Zod

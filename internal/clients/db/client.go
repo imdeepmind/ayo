@@ -15,6 +15,8 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+
+	sharederrors "ayo/internal/shared/errors"
 )
 
 // ErrNoConnection is returned by Connection.Current when no database connection
@@ -75,6 +77,24 @@ func Validate(config Config) error {
 		return err
 	}
 	return client.Close()
+}
+
+// ValidateConfig enforces type-specific field requirements on a database
+// configuration before it is used. SQLite needs no extra fields (its path is
+// auto-generated), while PostgreSQL requires connection details.
+func ValidateConfig(config Config) error {
+	switch config.Type {
+	case SQLite:
+		return nil
+	case PostgreSQL:
+		if config.Host == "" || config.Port == 0 || config.Database == "" ||
+			config.Username == "" || config.Password == "" {
+			return sharederrors.ErrInvalidInput
+		}
+		return nil
+	default:
+		return sharederrors.ErrInvalidInput
+	}
 }
 
 // IsPostgres reports whether the client is connected to PostgreSQL. Repositories

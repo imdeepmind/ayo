@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	stderrors "errors"
-	"path/filepath"
 	"regexp"
 
 	dbclient "ayo/internal/clients/db"
@@ -11,10 +10,8 @@ import (
 	"ayo/internal/features/masterkey"
 	"ayo/internal/shared/crypto"
 	"ayo/internal/shared/errors"
-	"ayo/internal/shared/paths"
 
 	"github.com/go-playground/validator/v10"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // Session holds the in-memory state of the currently signed-in user. It is the
@@ -107,7 +104,7 @@ func (s *Service) Register(input RegisterInput) (*RegisterResult, error) {
 	if err := s.validate.Struct(input); err != nil {
 		return nil, errors.ErrInvalidInput
 	}
-	if err := validateDBConfig(input.DBConfig); err != nil {
+	if err := dbclient.ValidateConfig(input.DBConfig); err != nil {
 		return nil, err
 	}
 
@@ -117,7 +114,7 @@ func (s *Service) Register(input RegisterInput) (*RegisterResult, error) {
 		return nil, errors.ErrInvalidInput
 	}
 
-	config, err := resolveSQLitePath(input.DBConfig, input.Username)
+	config, err := dbclient.ResolveSQLitePath(input.DBConfig, input.Username)
 	if err != nil {
 		return nil, errors.AsInternalServerError("register: resolve sqlite path", err)
 	}
@@ -152,12 +149,12 @@ func (s *Service) Register(input RegisterInput) (*RegisterResult, error) {
 		return nil, errors.AsInternalServerError("register: generate recovery key", err)
 	}
 
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+	hashedPassword, err := crypto.HashPassword(input.Password)
 	if err != nil {
 		return nil, errors.AsInternalServerError("register: hash password", err)
 	}
 
-	hashedRecoveryKey, err := bcrypt.GenerateFromPassword([]byte(recoveryKey), bcrypt.DefaultCost)
+	hashedRecoveryKey, err := crypto.HashPassword(recoveryKey)
 	if err != nil {
 		return nil, errors.AsInternalServerError("register: hash recovery key", err)
 	}
@@ -209,8 +206,8 @@ func (s *Service) Register(input RegisterInput) (*RegisterResult, error) {
 	user, err := s.repo.CreateUser(
 		context.Background(),
 		input.Username,
-		string(hashedPassword),
-		string(hashedRecoveryKey),
+		hashedPassword,
+		hashedRecoveryKey,
 		passwordSalt,
 		passwordNonce,
 		passwordEncryptedMasterKey,
@@ -250,7 +247,7 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 
 	// Decrypt the credentials with the password-derived KEK. A wrong password
 	// fails GCM authentication, which maps to the same user-facing error as the
-	// bcrypt check below.
+	// password-hash check below.
 	creds, err := dbconfig.DecryptDBCredentials(input.Password, blob)
 	if err != nil {
 		return false, errors.ErrInvalidPassword
@@ -273,8 +270,9 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 		return false, errors.AsInternalServerError("login: get user", err)
 	}
 
-	// comparing the password
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {
+	// comparing the password against the stored Argon2id PHC hash
+	ok, err := crypto.VerifyPasswordHash(input.Password, user.PasswordHash)
+	if err != nil || !ok {
 		s.conn.Close()
 		return false, errors.ErrInvalidPassword
 	}
@@ -358,7 +356,9 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*RegisterResult, erro
 		return nil, errors.AsInternalServerError("reset password: get user", err)
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.RecoveryKey), []byte(input.RecoveryKey)); err != nil {
+	// Verify the recovery key against the stored Argon2id PHC hash.
+	ok, err := crypto.VerifyPasswordHash(input.RecoveryKey, user.RecoveryKey)
+	if err != nil || !ok {
 		s.conn.Close()
 		return nil, errors.ErrInvalidRecoveryKey
 	}
@@ -371,14 +371,14 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*RegisterResult, erro
 	}
 
 	// hash the new password to store
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.NewPassword), bcrypt.DefaultCost)
+	hashedPassword, err := crypto.HashPassword(input.NewPassword)
 	if err != nil {
 		s.conn.Close()
 		return nil, errors.AsInternalServerError("reset password: hash password", err)
 	}
 
 	// hash the new recovery key to store
-	hashedRecoveryKey, err := bcrypt.GenerateFromPassword([]byte(newRecoveryKey), bcrypt.DefaultCost)
+	hashedRecoveryKey, err := crypto.HashPassword(newRecoveryKey)
 	if err != nil {
 		s.conn.Close()
 		return nil, errors.AsInternalServerError("reset password: hash recovery key", err)
@@ -420,8 +420,8 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*RegisterResult, erro
 	err = s.repo.UpdateUserHashes(
 		context.Background(),
 		user.ID,
-		string(hashedPassword),
-		string(hashedRecoveryKey),
+		hashedPassword,
+		hashedRecoveryKey,
 	)
 	if err != nil {
 		s.conn.Close()
@@ -624,35 +624,4 @@ func (s *Service) persistMasterKeyMaterial(ctx context.Context, user *User, mate
 		return s.mkey.Save(user.Username, material)
 	}
 	return s.repo.UpdateMasterKeyMaterial(ctx, user.ID, material)
-}
-
-// validateDBConfig enforces type-specific field requirements on the chosen
-// database configuration.
-func validateDBConfig(config dbclient.Config) error {
-	switch config.Type {
-	case dbclient.SQLite:
-		return nil // the SQLite path is auto-generated
-	case dbclient.PostgreSQL:
-		if config.Host == "" || config.Port == 0 || config.Database == "" ||
-			config.Username == "" || config.Password == "" {
-			return errors.ErrInvalidInput
-		}
-		return nil
-	default:
-		return errors.ErrInvalidInput
-	}
-}
-
-// resolveSQLitePath fills in the app-data-directory path for SQLite databases
-// when the caller did not supply one, producing "{AppDataDir}/ayo/<username>.db".
-func resolveSQLitePath(config dbclient.Config, username string) (dbclient.Config, error) {
-	if config.Type != dbclient.SQLite || config.Path != "" {
-		return config, nil
-	}
-	dir, err := paths.GetAppDataDir()
-	if err != nil {
-		return config, err
-	}
-	config.Path = filepath.Join(dir, username+".db")
-	return config, nil
 }
