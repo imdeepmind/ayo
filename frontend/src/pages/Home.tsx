@@ -315,7 +315,7 @@ export default function Home() {
   ];
 
   return (
-    <div className="w-full relative space-y-6">
+    <div className="w-full relative space-y-2">
       {!isSearching && (
         <DriveToolbar activeCategory={activeCategory} onUploadClick={() => navigate('/upload')} />
       )}

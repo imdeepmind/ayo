@@ -87,12 +87,9 @@ export default function Upload() {
   };
 
   return (
-    <div className="w-full relative space-y-6">
+    <div className="w-full relative space-y-2">
       <div className="py-2">
         <h1 className="text-2xl font-bold text-text">Upload Files</h1>
-        <p className="mt-1 text-sm text-text-muted leading-relaxed">
-          Drop files below or click to browse your computer.
-        </p>
       </div>
 
       {/* Dropzone Component */}

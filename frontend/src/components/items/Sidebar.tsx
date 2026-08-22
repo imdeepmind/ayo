@@ -39,7 +39,7 @@ export default function Sidebar() {
   if (!session) return null;
 
   const navClass = (isActive: boolean) =>
-    `w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] font-medium transition-all duration-150 ${
+    `w-full flex items-center gap-2.5 px-3 py-2.5 pl-6 text-[13px] font-medium transition-all duration-150 ${
       isActive
         ? 'text-sidebar-text bg-red-500/30 rounded-r-[64px]'
         : 'text-white/[0.55] hover:text-white/[0.8] hover:bg-white/[0.07] rounded-xl'
@@ -50,7 +50,7 @@ export default function Sidebar() {
 
   return (
     <aside
-      className="w-16 min-w-[15rem] h-full text-sidebar-text rounded-tr-[64px] p-6 flex flex-col justify-between shrink-0 overflow-y-auto hidden md:flex my-0 ml-0 mb-0"
+      className="w-16 min-w-[12rem] h-full text-sidebar-text rounded-tr-[64px] p-4 pl-0 flex flex-col justify-between shrink-0 overflow-y-auto hidden md:flex my-0 ml-0 mb-0"
       style={{
         background:
           'linear-gradient(180deg, var(--color-sidebar-bg) 0%, var(--color-sidebar-bg-mid) 45%, var(--color-sidebar-bg-dark) 100%)',
@@ -99,46 +99,54 @@ export default function Sidebar() {
 
       {/* Active transfers panel — shown only when something is in-flight */}
       {hasTransfers && (
-        <div className="pt-4 flex flex-col gap-3">
+        <div className="flex flex-col gap-3 rounded-2xl bg-white/[0.06] p-3 ml-4">
           {/* Status label + spinner */}
-          <div className="flex items-center justify-between gap-1.5">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-sidebar-muted" />
-              <span className="text-xs font-medium text-sidebar-muted truncate">
-                {statusParts.join(' · ')}
-              </span>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-sidebar-muted" />
+            <span className="text-xs font-medium text-sidebar-muted truncate">
+              {statusParts.join(' · ')}
+            </span>
+          </div>
+
+          {/* Overall progress bar + percentage */}
+          <div className="flex items-center gap-2">
+            <div className="h-1.5 flex-1 bg-sidebar-track rounded-full overflow-hidden">
+              <div
+                className="h-full bg-sidebar-fill rounded-full transition-all duration-500"
+                style={{ width: `${progress}%` }}
+              />
             </div>
-            <span className="text-xs font-medium text-sidebar-muted tabular-nums shrink-0">
+            <span className="text-xs font-semibold text-sidebar-text tabular-nums shrink-0 leading-none">
               {progress}%
             </span>
           </div>
 
-          {/* Overall progress bar */}
-          <div className="h-2 w-full bg-sidebar-track rounded-full overflow-hidden">
-            <div
-              className="h-full bg-sidebar-fill rounded-full transition-all duration-500"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-
-          {/* Per-file upload rows */}
+          {/* Per-file upload rows — stacked so filenames get the full width */}
           {visibleUploads.length > 0 && (
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-2.5">
               {visibleUploads.map((item) => (
-                <div key={item.File} className="flex items-center justify-between gap-2">
-                  <span
-                    className="flex-1 min-w-0 text-xs font-medium text-sidebar-muted truncate"
-                    title={item.CustomName || item.File}
-                  >
-                    {item.CustomName || item.File}
-                  </span>
-                  <span className="text-xs font-medium text-sidebar-muted tabular-nums shrink-0">
-                    {item.Progress}%
-                  </span>
+                <div key={item.File} className="flex flex-col gap-1">
+                  <div className="flex items-center justify-between gap-2 min-w-0">
+                    <span
+                      className="flex-1 min-w-0 text-xs font-medium text-sidebar-muted truncate"
+                      title={item.CustomName || item.File}
+                    >
+                      {item.CustomName || item.File}
+                    </span>
+                    <span className="text-[11px] font-medium text-sidebar-muted tabular-nums shrink-0 leading-none">
+                      {item.Progress}%
+                    </span>
+                  </div>
+                  <div className="h-1 bg-sidebar-track rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-sidebar-fill rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(100, Math.max(0, item.Progress))}%` }}
+                    />
+                  </div>
                 </div>
               ))}
               {hiddenUploads > 0 && (
-                <span className="text-xs font-medium text-sidebar-muted">
+                <span className="text-xs font-medium text-sidebar-muted/70">
                   +{hiddenUploads} more
                 </span>
               )}

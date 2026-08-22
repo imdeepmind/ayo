@@ -137,10 +137,10 @@ func main() {
 		DisableResize: false,
 		Mac: &mac.Options{
 			TitleBar: &mac.TitleBar{
-				TitlebarAppearsTransparent: false,
+				TitlebarAppearsTransparent: true,
 				HideTitle:                  false,
 				HideTitleBar:               false,
-				FullSizeContent:            false,
+				FullSizeContent:            true,
 				UseToolbar:                 false,
 				HideToolbarSeparator:       true,
 			},
