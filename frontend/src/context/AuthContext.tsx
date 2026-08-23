@@ -8,14 +8,31 @@ import {
   ResetPassword as ResetPasswordService,
 } from '../../wailsjs/go/auth/Service';
 import { auth } from '../../wailsjs/go/models';
+import { SaveRecoveryKey as SaveRecoveryKeyService } from '../../wailsjs/go/recovery/Service';
+
+export type RegisterDbConfig = {
+  type: 'sqlite' | 'postgresql';
+  host?: string;
+  port?: number;
+  database?: string;
+  username?: string;
+  password?: string;
+};
+
+export type RegisterInput = {
+  username: string;
+  password: string;
+  dbConfig: RegisterDbConfig;
+};
 
 interface AuthContextType {
   session: auth.Session | null;
   isLoading: boolean;
   login: (input: auth.LoginInput) => Promise<boolean>;
-  register: (input: auth.RegisterInput) => Promise<auth.RegisterResult | null>;
+  register: (input: RegisterInput) => Promise<auth.RegisterResult | null>;
   logout: () => Promise<void>;
   resetPassword: (input: auth.ResetPasswordInput) => Promise<auth.RegisterResult | null>;
+  saveRecoveryKey: (username: string, recoveryKey: string) => Promise<void>;
   refreshSession: () => Promise<void>;
 }
 
@@ -68,9 +85,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return success;
   };
 
-  const register = async (input: auth.RegisterInput) => {
+  const register = async (input: RegisterInput) => {
     try {
-      const result = await RegisterService(input);
+      const result = await RegisterService(
+        new auth.RegisterInput({
+          Username: input.username,
+          Password: input.password,
+          DBConfig: {
+            Type: input.dbConfig.type,
+            Path: '',
+            Host: input.dbConfig.host || '',
+            Port: input.dbConfig.port || 0,
+            Database: input.dbConfig.database || '',
+            Username: input.dbConfig.username || '',
+            Password: input.dbConfig.password || '',
+          },
+        })
+      );
 
       return result ?? null;
     } catch (error) {
@@ -94,9 +125,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const saveRecoveryKey = async (username: string, recoveryKey: string) => {
+    try {
+      await SaveRecoveryKeyService(username, recoveryKey);
+    } catch (error) {
+      console.error('Failed to save recovery key:', error);
+      throw error;
+    }
+  };
+
   return (
     <AuthContext.Provider
-      value={{ session, isLoading, login, register, logout, resetPassword, refreshSession }}
+      value={{
+        session,
+        isLoading,
+        login,
+        register,
+        logout,
+        resetPassword,
+        saveRecoveryKey,
+        refreshSession,
+      }}
     >
       {children}
     </AuthContext.Provider>

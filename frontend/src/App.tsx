@@ -11,11 +11,11 @@ import ProtectedRoute from '@/components/items/ProtectedRoute';
 import PublicRoute from '@/components/items/PublicRoute';
 import Sidebar from '@/components/items/Sidebar';
 
+import Login from '@/pages/auth/Login';
+import Register from '@/pages/auth/Register';
+import Reset from '@/pages/auth/Reset';
 import Home from '@/pages/Home';
-import Login from '@/pages/Login';
 import NotFound from '@/pages/NotFound';
-import Register from '@/pages/Register';
-import Reset from '@/pages/Reset';
 import SecurityKeyManagement from '@/pages/SecurityKeyManagement';
 import Settings from '@/pages/Settings';
 import StorageDatabase from '@/pages/StorageDatabase';

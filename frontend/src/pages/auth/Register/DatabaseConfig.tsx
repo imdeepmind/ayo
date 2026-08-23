@@ -2,6 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Database, Server } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
 
 import Button from '@/components/bits/Button';
@@ -22,21 +23,23 @@ export type DatabaseConfigData = {
   password?: string;
 };
 
-const postgresSchema = z.object({
-  host: z.string().min(1, 'Host is required'),
-  port: z
-    .string()
-    .regex(/^\d+$/, 'Port must be a number')
-    .refine((v) => {
-      const n = Number(v);
-      return n >= 1 && n <= 65535;
-    }, 'Port must be between 1 and 65535'),
-  database: z.string().min(1, 'Database name is required'),
-  username: z.string().min(1, 'Username is required'),
-  password: z.string().min(1, 'Password is required'),
-});
+type PostgresFormData = z.infer<ReturnType<typeof postgresSchema>>;
 
-type PostgresFormData = z.infer<typeof postgresSchema>;
+function postgresSchema(t: (key: string) => string) {
+  return z.object({
+    host: z.string().min(1, t('database.hostRequired')),
+    port: z
+      .string()
+      .regex(/^\d+$/, t('database.portMustBeNumber'))
+      .refine((v) => {
+        const n = Number(v);
+        return n >= 1 && n <= 65535;
+      }, t('database.portRange')),
+    database: z.string().min(1, t('database.databaseRequired')),
+    username: z.string().min(1, t('database.usernameRequired')),
+    password: z.string().min(1, t('database.passwordRequired')),
+  });
+}
 
 export default function DatabaseConfig({
   onComplete,
@@ -45,6 +48,7 @@ export default function DatabaseConfig({
   onComplete: (data: DatabaseConfigData) => void;
   onBack?: () => void;
 }) {
+  const { t } = useTranslation();
   const [type, setType] = useState<DatabaseType>('sqlite');
 
   const {
@@ -52,7 +56,7 @@ export default function DatabaseConfig({
     handleSubmit,
     formState: { errors },
   } = useForm<PostgresFormData>({
-    resolver: zodResolver(postgresSchema),
+    resolver: zodResolver(postgresSchema(t)),
     defaultValues: {
       host: 'localhost',
       port: '5432',
@@ -87,17 +91,15 @@ export default function DatabaseConfig({
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-bold text-text">Database Configuration</h3>
-        <p className="mt-1 text-sm text-text-muted">
-          Choose where your account and encrypted data will be stored.
-        </p>
+        <h3 className="text-lg font-bold text-text">{t('database.configTitle')}</h3>
+        <p className="mt-1 text-sm text-text-muted">{t('database.configDescription')}</p>
       </div>
 
       {/* Tabs */}
       <div className="flex border-b border-border dark:border-border-strong">
         <button type="button" className={tabClass('sqlite')} onClick={() => setType('sqlite')}>
           <Database className="h-4 w-4" />
-          SQLite
+          {t('database.sqlite')}
         </button>
         <button
           type="button"
@@ -105,7 +107,7 @@ export default function DatabaseConfig({
           onClick={() => setType('postgresql')}
         >
           <Server className="h-4 w-4" />
-          PostgreSQL
+          {t('database.postgresql')}
         </button>
       </div>
 
@@ -114,69 +116,69 @@ export default function DatabaseConfig({
           <WarningBanner
             variant="info"
             icon={Database}
-            title="Local storage"
-            description="Your data will be stored locally. The database file will be created automatically in the app data directory. No setup required."
+            title={t('database.localStorage')}
+            description={t('database.localStorageDescription')}
           />
         ) : (
           <form onSubmit={handleSubmit(submitPostgres)} className="space-y-5">
             <div className="grid gap-5 sm:grid-cols-2">
               <TextInput
                 id="db-host"
-                label="Host"
+                label={t('database.host')}
                 type="text"
-                placeholder="localhost"
+                placeholder={t('database.hostPlaceholder')}
                 error={errors.host?.message}
                 {...register('host')}
               />
               <TextInput
                 id="db-port"
-                label="Port"
+                label={t('database.port')}
                 type="number"
-                placeholder="5432"
+                placeholder={t('database.portPlaceholder')}
                 error={errors.port?.message}
                 {...register('port')}
               />
             </div>
             <TextInput
               id="db-database"
-              label="Database"
+              label={t('database.database')}
               type="text"
-              placeholder="Database name"
+              placeholder={t('database.databasePlaceholder')}
               error={errors.database?.message}
               {...register('database')}
             />
             <TextInput
               id="db-username"
-              label="Username"
+              label={t('database.username')}
               type="text"
               autoComplete="off"
-              placeholder="Database user"
+              placeholder={t('database.usernamePlaceholder')}
               error={errors.username?.message}
               {...register('username')}
             />
             <TextInput
               id="db-password"
-              label="Password"
+              label={t('database.password')}
               type="password"
-              placeholder="Database password"
+              placeholder={t('database.passwordPlaceholder')}
               error={errors.password?.message}
               {...register('password')}
             />
 
             <WarningBanner
               className="p-4"
-              title="Connection verification"
-              description="Ayo will verify the database is reachable before creating your account. Your connection details are encrypted and stored securely on this device."
+              title={t('database.connectionVerification')}
+              description={t('database.connectionVerificationDescription')}
             />
 
             <div className="flex gap-3 pt-2">
               {onBack && (
                 <Button type="button" variant="ghost" onClick={onBack}>
-                  Back
+                  {t('database.back')}
                 </Button>
               )}
               <Button type="submit" fullWidth>
-                Continue
+                {t('database.continue')}
               </Button>
             </div>
           </form>
@@ -187,11 +189,11 @@ export default function DatabaseConfig({
         <div className="flex gap-3">
           {onBack && (
             <Button type="button" variant="ghost" onClick={onBack}>
-              Back
+              {t('database.back')}
             </Button>
           )}
           <Button type="button" fullWidth onClick={submitSQLite}>
-            Continue
+            {t('database.continue')}
           </Button>
         </div>
       )}
