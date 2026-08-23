@@ -41,7 +41,7 @@ The Go backend is tiered under `internal/`:
 
 - **`frontend/wailsjs/go/**` is generated.** After adding, renaming, or changing a bound Go method, regenerate with `wails dev` or `wails build`. Never hand-edit `frontend/wailsjs/` or `frontend/package.json.md5`. Frontend code imports bindings like `../../wailsjs/go/auth/Service`.
 - **`go build` fails if `frontend/dist` is missing** (embedded by `assets.go`). CI builds the frontend first, uploads `frontend/dist` as an artifact, and downloads it before `go build`. When testing Go locally, run `wails build` or `npm --prefix frontend run build` first.
-- **Commit messages are enforced** by a pre-commit hook and CI (`scripts/commit-msg.sh`): format `type(scope): AYO-<N>: message`, types only `feat|chore|ci|bug`. Merge commits are skipped.
+- **Commit messages are enforced** by a pre-commit hook and CI (`scripts/commit-msg.sh`): format `type(scope): #<N>: message`, types only `feat|chore|ci|bug`. Merge commits are skipped.
 - CI runs on `main` and `develop` branches (push + PR).
 
 ## Conventions
