@@ -8,6 +8,7 @@ import {
   ResetPassword as ResetPasswordService,
 } from '../../wailsjs/go/auth/Service';
 import { auth } from '../../wailsjs/go/models';
+import { SaveRecoveryKey as SaveRecoveryKeyService } from '../../wailsjs/go/recovery/Service';
 
 interface AuthContextType {
   session: auth.Session | null;
@@ -16,6 +17,7 @@ interface AuthContextType {
   register: (input: auth.RegisterInput) => Promise<auth.RegisterResult | null>;
   logout: () => Promise<void>;
   resetPassword: (input: auth.ResetPasswordInput) => Promise<auth.RegisterResult | null>;
+  saveRecoveryKey: (username: string, recoveryKey: string) => Promise<void>;
   refreshSession: () => Promise<void>;
 }
 
@@ -94,9 +96,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const saveRecoveryKey = async (username: string, recoveryKey: string) => {
+    try {
+      await SaveRecoveryKeyService(username, recoveryKey);
+    } catch (error) {
+      console.error('Failed to save recovery key:', error);
+      throw error;
+    }
+  };
+
   return (
     <AuthContext.Provider
-      value={{ session, isLoading, login, register, logout, resetPassword, refreshSession }}
+      value={{
+        session,
+        isLoading,
+        login,
+        register,
+        logout,
+        resetPassword,
+        saveRecoveryKey,
+        refreshSession,
+      }}
     >
       {children}
     </AuthContext.Provider>

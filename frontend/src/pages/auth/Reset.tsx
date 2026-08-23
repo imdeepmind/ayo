@@ -2,6 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '@/context/AuthContext';
@@ -13,11 +14,11 @@ import Button from '@/components/bits/Button';
 import TextInput from '@/components/bits/Input';
 import PageSection from '@/components/bits/Section';
 import AuthCard from '@/components/items/AuthCard';
-
-import { SaveRecoveryKey } from '../../../wailsjs/go/recovery/Service';
+import NewRecoveryKey from '@/components/items/NewRecoveryKey';
 
 export default function Reset() {
-  const { resetPassword } = useAuth();
+  const { resetPassword, saveRecoveryKey } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [newRecoveryKey, setNewRecoveryKey] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -45,13 +46,13 @@ export default function Reset() {
       });
       if (result) {
         setNewRecoveryKey(result.RecoveryKey);
-        toast.success('Password reset successfully! Please download your new recovery key.');
+        toast.success(t('auth.passwordResetSuccess'));
       } else {
-        toast.error('Failed to reset password. Please try again.');
+        toast.error(t('auth.passwordResetFailed'));
       }
     } catch (err) {
       console.error(err);
-      toast.error(toErrorMessage(err, 'An unexpected error occurred'));
+      toast.error(toErrorMessage(err, t('auth.unexpectedError')));
     }
   };
 
@@ -61,12 +62,12 @@ export default function Reset() {
     setIsSaving(true);
     try {
       const username = getValues('username');
-      await SaveRecoveryKey(username, newRecoveryKey);
-      toast.success('New recovery key saved successfully! Redirecting to login...');
+      await saveRecoveryKey(username, newRecoveryKey);
+      toast.success(t('auth.recoveryKeySaved'));
       navigate('/auth/login');
     } catch (err) {
       console.error('Failed to save recovery key:', err);
-      toast.error('Failed to save recovery key. Please try again.');
+      toast.error(t('auth.recoveryKeySaveFailed'));
     } finally {
       setIsSaving(false);
     }
@@ -75,113 +76,47 @@ export default function Reset() {
   return (
     <PageSection>
       <AuthCard
-        title={newRecoveryKey ? 'Save your new recovery key' : 'Reset your password'}
+        title={newRecoveryKey ? t('auth.saveRecoveryKeyTitle') : t('auth.resetPasswordTitle')}
         description={
-          newRecoveryKey
-            ? 'Your password has been reset. Save your new recovery key securely.'
-            : 'Enter your username, recovery key, and choose a new password.'
+          newRecoveryKey ? t('auth.saveRecoveryKeyDescription') : t('auth.resetPasswordDescription')
         }
         footer={
           !newRecoveryKey && (
             <div className="flex items-center justify-center gap-1.5 text-sm text-text-muted">
-              <span>Remember your password?</span>
+              <span>{t('auth.rememberPassword')}</span>
               <Link
                 to="/auth/login"
                 className="font-semibold text-primary hover:text-primary-hover transition-colors"
               >
-                Sign in →
+                {t('auth.signInArrow')}
               </Link>
             </div>
           )
         }
       >
         {newRecoveryKey ? (
-          <div className="space-y-5">
-            <div className="relative overflow-hidden rounded-xl border border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 p-5">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400/10 rounded-full blur-2xl -mr-16 -mt-16" />
-              <div className="relative">
-                <div className="flex items-center gap-2 mb-3">
-                  <svg
-                    className="w-5 h-5 text-emerald-600 dark:text-emerald-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                  <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">
-                    Your New Recovery Key
-                  </p>
-                </div>
-                <div className="bg-background rounded-lg p-4 backdrop-blur-sm border border-emerald-200/50 dark:border-emerald-800/50">
-                  <p className="font-mono text-sm break-all text-text leading-relaxed">
-                    {newRecoveryKey}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/25 p-5">
-              <div className="flex gap-3">
-                <div className="flex-shrink-0">
-                  <svg
-                    className="w-6 h-6 text-amber-600 dark:text-amber-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-amber-900 dark:text-amber-300 mb-1">
-                    Important: Your old recovery key is invalid
-                  </p>
-                  <p className="text-sm text-amber-800 dark:text-amber-200/70 leading-relaxed">
-                    Store this new recovery key in a safe place. Your previous recovery key will no
-                    longer work for password resets.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <Button
-              type="button"
-              fullWidth
-              onClick={handleDownloadRecoveryKey}
-              className="mt-2"
-              disabled={isSaving}
-            >
-              {isSaving ? 'Saving...' : 'Download New Recovery Key'}
-            </Button>
-          </div>
+          <NewRecoveryKey
+            recoveryKey={newRecoveryKey}
+            isSaving={isSaving}
+            onDownload={handleDownloadRecoveryKey}
+          />
         ) : (
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             <TextInput
               id="reset-username"
-              label="Username"
+              label={t('auth.username')}
               type="text"
               autoComplete="off"
-              placeholder="Enter your username"
+              placeholder={t('auth.usernamePlaceholder')}
               error={errors.username?.message}
               {...register('username')}
             />
 
             <TextInput
               id="recovery-key"
-              label="Recovery Key"
+              label={t('auth.recoveryKey')}
               type="password"
-              placeholder="Enter your recovery key"
+              placeholder={t('auth.recoveryKeyPlaceholder')}
               error={errors.recoveryKey?.message}
               {...register('recoveryKey')}
             />
@@ -189,9 +124,9 @@ export default function Reset() {
             <div className="pt-1">
               <TextInput
                 id="reset-password"
-                label="New Password"
+                label={t('auth.newPassword')}
                 type="password"
-                placeholder="Choose a new password"
+                placeholder={t('auth.newPasswordPlaceholder')}
                 error={errors.newPassword?.message}
                 {...register('newPassword')}
               />
@@ -199,16 +134,16 @@ export default function Reset() {
 
             <TextInput
               id="reset-confirm-password"
-              label="Confirm Password"
+              label={t('auth.confirmPassword')}
               type="password"
-              placeholder="Re-enter your new password"
+              placeholder={t('auth.confirmPasswordPlaceholder')}
               error={errors.confirmPassword?.message}
               {...register('confirmPassword')}
             />
 
             <div className="pt-2">
               <Button type="submit" fullWidth isLoading={isSubmitting}>
-                Reset password
+                {t('auth.resetPassword')}
               </Button>
             </div>
           </form>
