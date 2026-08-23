@@ -149,8 +149,8 @@ func main() {
 			WindowIsTranslucent:  false,
 			About: &mac.AboutInfo{
 				Title:   "ayo",
-				Message: "A Wails Application",
-				Icon:    nil,
+				Message: "Privacy-focused encrypted storage. Secure, private, yours.",
+				Icon:    appIcon,
 			},
 		},
 		// Every service listed here is callable from the React frontend.
