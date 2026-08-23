@@ -6,10 +6,21 @@ type NewRecoveryKeyProps = {
   recoveryKey: string;
   isSaving: boolean;
   onDownload: () => void;
+  variant?: 'reset' | 'register';
 };
 
-export default function NewRecoveryKey({ recoveryKey, isSaving, onDownload }: NewRecoveryKeyProps) {
+export default function NewRecoveryKey({
+  recoveryKey,
+  isSaving,
+  onDownload,
+  variant = 'reset',
+}: NewRecoveryKeyProps) {
   const { t } = useTranslation();
+  const isRegister = variant === 'register';
+  const title = t(isRegister ? 'auth.yourRecoveryKey' : 'auth.yourNewRecoveryKey');
+  const warningTitle = t(isRegister ? 'auth.storeKeySecurely' : 'auth.oldRecoveryKeyInvalid');
+  const warningBody = t(isRegister ? 'auth.recoveryKeyWarning' : 'auth.storeNewRecoveryKey');
+  const buttonLabel = t(isRegister ? 'auth.downloadRecoveryKey' : 'auth.downloadNewRecoveryKey');
 
   return (
     <div className="space-y-5">
@@ -30,9 +41,7 @@ export default function NewRecoveryKey({ recoveryKey, isSaving, onDownload }: Ne
                 d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
               />
             </svg>
-            <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">
-              {t('auth.yourNewRecoveryKey')}
-            </p>
+            <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">{title}</p>
           </div>
           <div className="bg-background rounded-lg p-4 backdrop-blur-sm border border-emerald-200/50 dark:border-emerald-800/50">
             <p className="font-mono text-sm break-all text-text leading-relaxed">{recoveryKey}</p>
@@ -59,17 +68,17 @@ export default function NewRecoveryKey({ recoveryKey, isSaving, onDownload }: Ne
           </div>
           <div>
             <p className="text-sm font-semibold text-amber-900 dark:text-amber-300 mb-1">
-              {t('auth.oldRecoveryKeyInvalid')}
+              {warningTitle}
             </p>
             <p className="text-sm text-amber-800 dark:text-amber-200/70 leading-relaxed">
-              {t('auth.storeNewRecoveryKey')}
+              {warningBody}
             </p>
           </div>
         </div>
       </div>
 
       <Button type="button" fullWidth onClick={onDownload} className="mt-2" disabled={isSaving}>
-        {isSaving ? t('auth.saving') : t('auth.downloadNewRecoveryKey')}
+        {isSaving ? t('auth.saving') : buttonLabel}
       </Button>
     </div>
   );
