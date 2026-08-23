@@ -9,5 +9,12 @@
   "author": {
     "name": "Abhishek Chatterjee",
     "email": "abhishekchatterjeejit@gmail.com"
+  },
+  "info": {
+    "companyName": "Abhishek Chatterjee",
+    "productName": "ayo",
+    "productVersion": "0.1.0-alpha",
+    "copyright": "© 2026 Abhishek Chatterjee",
+    "comments": "Privacy-focused encrypted storage. Secure, private, yours."
   }
 }
