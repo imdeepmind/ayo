@@ -1,11 +1,13 @@
+import { zodResolver } from '@hookform/resolvers/zod';
+import { AlertTriangle, KeyRound, Trash2, type LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import toast from 'react-hot-toast';
-import { KeyRound, Trash2, AlertTriangle, type LucideIcon } from 'lucide-react';
-import TextInput from '@/components/bits/Input';
-import Button from '@/components/bits/Button';
+
 import { accountActionSchema, type AccountActionFormData } from '@/lib/validations';
+
+import Button from '@/components/bits/Button';
+import TextInput from '@/components/bits/Input';
 
 type ActionType = 'change-password' | 'delete-data' | 'delete-account' | null;
 

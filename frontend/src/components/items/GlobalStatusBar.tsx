@@ -1,5 +1,6 @@
-import { useAuth } from '@/context/AuthContext';
 import { useActiveTransfers } from '@/context/ActiveTransfersContext';
+import { useAuth } from '@/context/AuthContext';
+
 import DriveStatusBar from '@/components/items/DriveStatusBar';
 
 // GlobalStatusBar surfaces transfer progress and storage usage on every

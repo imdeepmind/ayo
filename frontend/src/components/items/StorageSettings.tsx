@@ -1,15 +1,18 @@
-import { useEffect, useState, useCallback } from 'react';
-import toast from 'react-hot-toast';
 import { ChevronDown } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
+
 import { toErrorMessage } from '@/lib/errors';
-import TextInput from '@/components/bits/Input';
+
 import Button from '@/components/bits/Button';
-import Toggle from '@/components/bits/Toggle';
 import ConfirmDialog from '@/components/bits/ConfirmDialog';
+import TextInput from '@/components/bits/Input';
+import Toggle from '@/components/bits/Toggle';
 import WarningBanner from '@/components/bits/WarningBanner';
 import { type ErasureCodingConfig } from '@/components/items/ErasureCodingSection';
-import { GetSettings, UpdateSettings, PickFolder } from '../../../wailsjs/go/settings/Service';
+
 import { settings } from '../../../wailsjs/go/models';
+import { GetSettings, PickFolder, UpdateSettings } from '../../../wailsjs/go/settings/Service';
 
 // ---------- Types ----------
 

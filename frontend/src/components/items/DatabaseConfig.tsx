@@ -1,10 +1,11 @@
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Database, Server } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Database, Server } from 'lucide-react';
-import TextInput from '@/components/bits/Input';
+
 import Button from '@/components/bits/Button';
+import TextInput from '@/components/bits/Input';
 import WarningBanner from '@/components/bits/WarningBanner';
 
 export type DatabaseType = 'sqlite' | 'postgresql';

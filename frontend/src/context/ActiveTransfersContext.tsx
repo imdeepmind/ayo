@@ -8,14 +8,16 @@ import {
   useState,
 } from 'react';
 import toast from 'react-hot-toast';
+
+import { useAuth } from '@/context/AuthContext';
+
+import { GetStorageUsed } from '../../wailsjs/go/home/Service';
+import { upload } from '../../wailsjs/go/models';
 import {
   FinalizeDownload,
   GetActiveTransfers,
   GetJobStatus,
 } from '../../wailsjs/go/upload/Service';
-import { GetStorageUsed } from '../../wailsjs/go/home/Service';
-import { upload } from '../../wailsjs/go/models';
-import { useAuth } from '@/context/AuthContext';
 
 const REFRESH_MS = 2000;
 

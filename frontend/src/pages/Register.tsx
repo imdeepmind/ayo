@@ -1,18 +1,22 @@
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { Link, useNavigate } from 'react-router-dom';
+
+import { useAuth } from '@/context/AuthContext';
+
 import { toErrorMessage } from '@/lib/errors';
+import { registerSchema, type RegisterFormData } from '@/lib/validations';
+
+import Button from '@/components/bits/Button';
+import TextInput from '@/components/bits/Input';
 import PageSection from '@/components/bits/Section';
 import AuthCard from '@/components/items/AuthCard';
-import TextInput from '@/components/bits/Input';
-import Button from '@/components/bits/Button';
 import DatabaseConfig, { type DatabaseConfigData } from '@/components/items/DatabaseConfig';
-import { useAuth } from '@/context/AuthContext';
-import { SaveRecoveryKey } from '../../wailsjs/go/recovery/Service';
+
 import { auth } from '../../wailsjs/go/models';
-import { registerSchema, type RegisterFormData } from '@/lib/validations';
+import { SaveRecoveryKey } from '../../wailsjs/go/recovery/Service';
 
 export default function Register() {
   const navigate = useNavigate();

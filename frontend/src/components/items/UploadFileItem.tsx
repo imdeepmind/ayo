@@ -1,5 +1,6 @@
+import { Check, Edit2, File as FileIcon, Tag as TagIcon, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
-import { File as FileIcon, Trash2, Edit2, Check, X, Tag as TagIcon } from 'lucide-react';
+
 import Button from '@/components/bits/Button';
 
 // Helper to format file size

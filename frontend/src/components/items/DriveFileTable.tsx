@@ -1,19 +1,20 @@
-import { useState } from 'react';
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Box,
   Download,
-  Trash2,
   Edit2,
   Eye,
-  MoreHorizontal,
-  Image,
+  FileText,
   Film,
   Headphones,
-  Box,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-  FileText,
+  Image,
+  MoreHorizontal,
+  Trash2,
 } from 'lucide-react';
+import { useState } from 'react';
+
 import type { FileItem } from '@/lib/files';
 import { formatSize, getFileTypeChip } from '@/lib/files';
 

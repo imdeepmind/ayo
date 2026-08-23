@@ -1,9 +1,12 @@
+import { Lock } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Lock } from 'lucide-react';
-import Toggle from '@/components/bits/Toggle';
-import ConfirmDialog from '@/components/bits/ConfirmDialog';
+
 import { toErrorMessage } from '@/lib/errors';
+
+import ConfirmDialog from '@/components/bits/ConfirmDialog';
+import Toggle from '@/components/bits/Toggle';
+
 import { GetMasterKeyStorage, SetMasterKeyStorage } from '../../wailsjs/go/auth/Service';
 
 type MasterKeyStorage = 'database' | 'keyring';

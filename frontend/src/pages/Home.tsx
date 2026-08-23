@@ -1,41 +1,45 @@
-import { useNavigate } from 'react-router-dom';
+import {
+  Box,
+  Download,
+  File,
+  FileText,
+  Film,
+  Grid3x3,
+  HardDrive,
+  Headphones,
+  Image,
+  Server,
+  Trash2,
+} from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
+
+import { useActiveTransfers } from '@/context/ActiveTransfersContext';
+import { useSearch } from '@/context/SearchContext';
+
+import { formatSize, getFileType, type FileItem } from '@/lib/files';
+
+import Button from '@/components/bits/Button';
+import ConfirmDialog from '@/components/bits/ConfirmDialog';
+import Pagination from '@/components/bits/Pagination';
+import DriveFileTable, {
+  type SortDirection,
+  type SortField,
+} from '@/components/items/DriveFileTable';
+import DriveToolbar from '@/components/items/DriveToolbar';
+import EditFileModal from '@/components/items/EditFileModal';
+import FileDetailsModal from '@/components/items/FileDetailsModal';
+
 import {
-  Download,
-  Trash2,
-  FileText,
-  Image,
-  Film,
-  Headphones,
-  Box,
-  File,
-  HardDrive,
-  Server,
-  Grid3x3,
-} from 'lucide-react';
-import { getFileType, formatSize, type FileItem } from '@/lib/files';
-import {
+  DeleteFiles,
+  DownloadFiles,
   GetFileDetails,
   GetHomeOverview,
   GetStoredFiles,
   UpdateFile,
-  DownloadFiles,
-  DeleteFiles,
 } from '../../wailsjs/go/home/Service';
 import { home } from '../../wailsjs/go/models';
-import { useActiveTransfers } from '@/context/ActiveTransfersContext';
-import { useSearch } from '@/context/SearchContext';
-import DriveToolbar from '@/components/items/DriveToolbar';
-import DriveFileTable, {
-  type SortField,
-  type SortDirection,
-} from '@/components/items/DriveFileTable';
-import EditFileModal from '@/components/items/EditFileModal';
-import FileDetailsModal from '@/components/items/FileDetailsModal';
-import Button from '@/components/bits/Button';
-import ConfirmDialog from '@/components/bits/ConfirmDialog';
-import Pagination from '@/components/bits/Pagination';
 
 function toFileItem(stored: home.StoredFile): FileItem {
   return {
