@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '@/context/AuthContext';
@@ -14,6 +15,7 @@ import PageSection from '@/components/bits/Section';
 import AuthCard from '@/components/items/AuthCard';
 
 export default function Login() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { login } = useAuth();
 
@@ -34,20 +36,18 @@ export default function Login() {
       const result = await login({ Username: data.username, Password: data.password });
 
       if (result) {
-        toast.success('Login successful!');
+        toast.success(t('auth.loginSuccessful'));
         navigate('/');
       } else {
-        toast.error('Invalid username or password.');
+        toast.error(t('auth.invalidCredentials'));
       }
     } catch (err) {
       console.error('Login error:', err);
       const message = String(err);
       if (message.toLowerCase().includes('database')) {
-        toast.error(
-          'Unable to connect to your database. Please check that the database is accessible and try again.'
-        );
+        toast.error(t('auth.databaseUnreachable'));
       } else {
-        toast.error(toErrorMessage(err, 'An unexpected error occurred. Please try again.'));
+        toast.error(toErrorMessage(err, t('common.unexpectedError')));
       }
     }
   };
@@ -55,24 +55,24 @@ export default function Login() {
   return (
     <PageSection>
       <AuthCard
-        title="Welcome back"
-        description={<>Sign in to access your secure, encrypted ayo drive</>}
+        title={t('auth.welcomeBack')}
+        description={<>{t('auth.signInDescription')}</>}
         footer={
           <div className="flex flex-col items-center justify-between gap-3 text-sm text-text-muted sm:flex-row">
             <div className="flex items-center gap-1.5">
-              <span>New to ayo?</span>
+              <span>{t('auth.newToAyo')}</span>
               <Link
                 to="/auth/register"
                 className="font-semibold text-primary hover:text-primary-hover transition-colors"
               >
-                Create an account →
+                {t('auth.createAccount')}
               </Link>
             </div>
             <Link
               to="/auth/reset"
               className="font-medium text-text-subtle hover:text-primary dark:hover:text-primary transition-colors"
             >
-              Forgot password?
+              {t('auth.forgotPassword')}
             </Link>
           </div>
         }
@@ -80,25 +80,25 @@ export default function Login() {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
           <TextInput
             id="username"
-            label="Username"
+            label={t('auth.username')}
             type="text"
             autoComplete="off"
-            placeholder="Enter your username"
+            placeholder={t('auth.usernamePlaceholder')}
             error={errors.username?.message}
             {...register('username')}
           />
 
           <TextInput
             id="password"
-            label="Password"
+            label={t('auth.password')}
             type="password"
-            placeholder="Enter your password"
+            placeholder={t('auth.passwordPlaceholder')}
             error={errors.password?.message}
             {...register('password')}
           />
 
           <Button type="submit" fullWidth className="mt-6" disabled={isSubmitting}>
-            {isSubmitting ? 'Signing in...' : 'Sign in'}
+            {isSubmitting ? t('auth.signingIn') : t('auth.signIn')}
           </Button>
         </form>
       </AuthCard>
