@@ -1,9 +1,11 @@
+import { Database, Server } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Database, Server } from 'lucide-react';
+
 import WarningBanner from '@/components/bits/WarningBanner';
-import { GetDatabaseInfo } from '../../../wailsjs/go/settings/Service';
+
 import { settings } from '../../../wailsjs/go/models';
+import { GetDatabaseInfo } from '../../../wailsjs/go/settings/Service';
 
 // Read-only display of the signed-in user's database configuration. The choice
 // of database is permanent and cannot be edited here; the password is never

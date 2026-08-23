@@ -1,6 +1,7 @@
+import { LogOut, Search, Settings } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { LogOut, Search, Settings } from 'lucide-react';
+
 import { useAuth } from '@/context/AuthContext';
 import { useSearch } from '@/context/SearchContext';
 

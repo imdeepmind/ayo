@@ -1,11 +1,15 @@
-import { X, HardDrive, Layers, Folder, Tags as TagIcon } from 'lucide-react';
+import { Folder, HardDrive, Layers, Tags as TagIcon, X } from 'lucide-react';
+
 import type { FileItem } from '@/lib/files';
 import { formatSize, getFileTypeChip, tagChipClass } from '@/lib/files';
-import type { home } from '../../../wailsjs/go/models';
+
 import Modal from '@/components/bits/Modal';
+
 import awsLogo from '@/assets/images/providers/aws.svg';
 import azureLogo from '@/assets/images/providers/azure.svg';
 import gcpLogo from '@/assets/images/providers/gcp.svg';
+
+import type { home } from '../../../wailsjs/go/models';
 
 type FileDetailsModalProps = {
   isOpen: boolean;

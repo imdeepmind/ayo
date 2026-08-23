@@ -1,5 +1,6 @@
+import { Loader2, Settings } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Settings, Loader2 } from 'lucide-react';
+
 import IconButton from '@/components/bits/IconButton';
 
 type UploadProgressItem = {

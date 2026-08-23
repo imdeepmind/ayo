@@ -1,4 +1,5 @@
-import { Moon, Sun, Check } from 'lucide-react';
+import { Check, Moon, Sun } from 'lucide-react';
+
 import { useTheme } from '@/theme/ThemeProvider';
 
 function ThemeSwatch({

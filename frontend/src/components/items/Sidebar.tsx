@@ -1,16 +1,17 @@
-import { NavLink } from 'react-router-dom';
 import {
-  HardDrive,
-  Upload,
-  Settings,
-  Loader2,
   Cloud,
   Database,
-  Layers,
+  HardDrive,
   KeyRound,
+  Layers,
+  Loader2,
+  Settings,
+  Upload,
 } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
+import { NavLink } from 'react-router-dom';
+
 import { useActiveTransfers } from '@/context/ActiveTransfersContext';
+import { useAuth } from '@/context/AuthContext';
 import { useSearch } from '@/context/SearchContext';
 
 function plural(count: number, noun: string): string {

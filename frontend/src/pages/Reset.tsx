@@ -1,16 +1,20 @@
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { Link, useNavigate } from 'react-router-dom';
+
+import { useAuth } from '@/context/AuthContext';
+
 import { toErrorMessage } from '@/lib/errors';
+import { resetPasswordSchema, type ResetPasswordFormData } from '@/lib/validations';
+
+import Button from '@/components/bits/Button';
+import TextInput from '@/components/bits/Input';
 import PageSection from '@/components/bits/Section';
 import AuthCard from '@/components/items/AuthCard';
-import TextInput from '@/components/bits/Input';
-import Button from '@/components/bits/Button';
-import { useAuth } from '@/context/AuthContext';
+
 import { SaveRecoveryKey } from '../../wailsjs/go/recovery/Service';
-import { resetPasswordSchema, type ResetPasswordFormData } from '@/lib/validations';
 
 export default function Reset() {
   const { resetPassword } = useAuth();

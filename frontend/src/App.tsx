@@ -1,25 +1,29 @@
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
 import { Info } from 'lucide-react';
-import Home from '@/pages/Home';
-import Login from '@/pages/Login';
-import Register from '@/pages/Register';
-import Reset from '@/pages/Reset';
-import NotFound from '@/pages/NotFound';
-import Settings from '@/pages/Settings';
-import Upload from '@/pages/Upload';
-import StorageProviders from '@/pages/StorageProviders';
-import StorageDatabase from '@/pages/StorageDatabase';
-import StorageErasureCoding from '@/pages/StorageErasureCoding';
-import SecurityKeyManagement from '@/pages/SecurityKeyManagement';
-import Header from '@/components/items/Header';
-import Sidebar from '@/components/items/Sidebar';
-import { ThemeProvider } from '@/theme/ThemeProvider';
-import { AuthProvider } from '@/context/AuthContext';
+import { Toaster } from 'react-hot-toast';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
+
 import { ActiveTransfersProvider } from '@/context/ActiveTransfersContext';
+import { AuthProvider } from '@/context/AuthContext';
 import { SearchProvider } from '@/context/SearchContext';
+
+import Header from '@/components/items/Header';
 import ProtectedRoute from '@/components/items/ProtectedRoute';
 import PublicRoute from '@/components/items/PublicRoute';
+import Sidebar from '@/components/items/Sidebar';
+
+import Home from '@/pages/Home';
+import Login from '@/pages/Login';
+import NotFound from '@/pages/NotFound';
+import Register from '@/pages/Register';
+import Reset from '@/pages/Reset';
+import SecurityKeyManagement from '@/pages/SecurityKeyManagement';
+import Settings from '@/pages/Settings';
+import StorageDatabase from '@/pages/StorageDatabase';
+import StorageErasureCoding from '@/pages/StorageErasureCoding';
+import StorageProviders from '@/pages/StorageProviders';
+import Upload from '@/pages/Upload';
+
+import { ThemeProvider } from '@/theme/ThemeProvider';
 
 function App() {
   return (

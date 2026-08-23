@@ -1,4 +1,4 @@
-import { UploadCloud, DownloadCloud, Loader2 } from 'lucide-react';
+import { DownloadCloud, Loader2, UploadCloud } from 'lucide-react';
 
 const formatBytes = (bytes: number, decimals = 2) => {
   if (!+bytes) return '0 Bytes';

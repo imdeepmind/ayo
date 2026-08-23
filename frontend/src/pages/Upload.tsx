@@ -1,14 +1,18 @@
+import { Cloud, Layers, Lock, UploadCloud } from 'lucide-react';
 import { useState } from 'react';
-import { Lock, Layers, Cloud, UploadCloud } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+import { useActiveTransfers } from '@/context/ActiveTransfersContext';
+
 import { toErrorMessage } from '@/lib/errors';
+
 import Button from '@/components/bits/Button';
+import PendingUploadItem from '@/components/items/PendingUploadItem';
 import UploadDropzone from '@/components/items/UploadDropzone';
 import UploadFileItem, { type UploadFile } from '@/components/items/UploadFileItem';
-import PendingUploadItem from '@/components/items/PendingUploadItem';
-import { useActiveTransfers } from '@/context/ActiveTransfersContext';
-import { EnqueueFiles, PickFiles } from '../../wailsjs/go/upload/Service';
+
 import { upload } from '../../wailsjs/go/models';
+import { EnqueueFiles, PickFiles } from '../../wailsjs/go/upload/Service';
 
 export default function Upload() {
   const [files, setFiles] = useState<UploadFile[]>([]);

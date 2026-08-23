@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
 import { UploadCloud } from 'lucide-react';
+import { useCallback, useState } from 'react';
 
 type UploadDropzoneProps = {
   onPick: () => void;

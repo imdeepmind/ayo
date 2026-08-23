@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
+
 import Button from '@/components/bits/Button';
 import ErasureCodingSection, {
   type ErasureCodingConfig,
 } from '@/components/items/ErasureCodingSection';
-import { GetSettings, UpdateSettings } from '../../wailsjs/go/settings/Service';
+
 import { settings } from '../../wailsjs/go/models';
+import { GetSettings, UpdateSettings } from '../../wailsjs/go/settings/Service';
 
 export default function StorageErasureCoding() {
   const [enabled, setEnabled] = useState(false);

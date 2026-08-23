@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
-import { X, Tag as TagIcon } from 'lucide-react';
+import { Tag as TagIcon, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+
 import type { FileItem } from '@/lib/files';
 import { getFileTypeChip, tagChipClass } from '@/lib/files';
-import TextInput from '@/components/bits/Input';
+
 import Button from '@/components/bits/Button';
+import TextInput from '@/components/bits/Input';
 import Modal from '@/components/bits/Modal';
 
 type EditFileModalProps = {

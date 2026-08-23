@@ -1,7 +1,8 @@
 import { useNavigate } from 'react-router-dom';
+
+import Button from '@/components/bits/Button';
 import PageSection from '@/components/bits/Section';
 import AuthCard from '@/components/items/AuthCard';
-import Button from '@/components/bits/Button';
 
 export default function NotFound() {
   const navigate = useNavigate();
