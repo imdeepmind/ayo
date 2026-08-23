@@ -1,11 +1,13 @@
 import { LogOut, Search, Settings } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '@/context/AuthContext';
 import { useSearch } from '@/context/SearchContext';
 
 export default function Header() {
+  const { t } = useTranslation();
   const { session, logout } = useAuth();
   const { query, setQuery, clear } = useSearch();
   const navigate = useNavigate();
@@ -47,8 +49,8 @@ export default function Header() {
                 </span>
                 <input
                   type="search"
-                  aria-label="Search Drive"
-                  placeholder="Search Drive"
+                  aria-label={t('header.searchDrive')}
+                  placeholder={t('header.searchDrive')}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   className="h-7 w-full rounded-full border border-border bg-surface-alt/90 pl-10 pr-4 text-sm text-text placeholder:text-text-faint outline-none transition focus:bg-surface focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-border-strong dark:bg-surface-alt dark:text-text dark:focus:bg-surface"
@@ -61,15 +63,15 @@ export default function Header() {
         )}
 
         {/* Right Header Icons */}
-        <div className="flex items-center gap-3 shrink-0 self-start pt-1">
+        <div className="flex shrink-0 items-center gap-3">
           {/* User Profile Avatar */}
-          {session ? (
+          {session && (
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setMenuOpen((o) => !o)}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-primary font-bold text-white text-sm transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary/40 [--wails-draggable:no-drag]"
-                aria-label="Open account menu"
+                className="flex h-6 w-6 items-center justify-center rounded-full bg-primary font-bold text-white text-sm transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary/40 [--wails-draggable:no-drag]"
+                aria-label={t('header.openAccountMenu')}
                 aria-expanded={menuOpen}
               >
                 {session.Username ? session.Username.charAt(0).toUpperCase() : 'U'}
@@ -86,7 +88,7 @@ export default function Header() {
                     <div className="border-b border-border px-4 py-3 dark:border-border-strong">
                       <p className="truncate text-sm font-bold text-text">{session.Username}</p>
                       <p className="truncate text-xs text-text-faint">
-                        Signed in as {session.Username}
+                        {t('header.signedInAs', { username: session.Username })}
                       </p>
                     </div>
                     <nav className="flex flex-col gap-1 p-1.5">
@@ -96,7 +98,7 @@ export default function Header() {
                         className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-text-muted transition hover:bg-surface-hover hover:text-text dark:text-text-muted dark:hover:bg-surface-hover dark:hover:text-text"
                       >
                         <Settings className="h-4 w-4 shrink-0" />
-                        Account Settings
+                        {t('header.accountSettings')}
                       </button>
                       <button
                         type="button"
@@ -104,20 +106,13 @@ export default function Header() {
                         className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-text-muted transition hover:bg-surface-hover hover:text-text dark:text-text-muted dark:hover:bg-surface-hover dark:hover:text-text"
                       >
                         <LogOut className="h-4 w-4 shrink-0" />
-                        Logout
+                        {t('header.logout')}
                       </button>
                     </nav>
                   </div>
                 </>
               )}
             </div>
-          ) : (
-            <Link
-              to="/auth/login"
-              className="text-sm font-semibold text-primary hover:underline [--wails-draggable:no-drag]"
-            >
-              Sign In
-            </Link>
           )}
         </div>
       </div>

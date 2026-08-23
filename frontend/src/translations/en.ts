@@ -64,6 +64,13 @@ const en = {
       "You'll need this recovery key to reset your password. Without it, you won't be able to recover your account or access your encrypted files.",
     downloadRecoveryKey: 'Download Recovery Key',
   },
+  header: {
+    searchDrive: 'Search Drive',
+    openAccountMenu: 'Open account menu',
+    signedInAs: 'Signed in as {{username}}',
+    accountSettings: 'Account Settings',
+    logout: 'Logout',
+  },
   database: {
     configTitle: 'Database Configuration',
     configDescription: 'Choose where your account and encrypted data will be stored.',
