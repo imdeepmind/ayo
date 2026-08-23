@@ -15,8 +15,8 @@ import PageSection from '@/components/bits/Section';
 import AuthCard from '@/components/items/AuthCard';
 import DatabaseConfig, { type DatabaseConfigData } from '@/components/items/DatabaseConfig';
 
-import { auth } from '../../wailsjs/go/models';
-import { SaveRecoveryKey } from '../../wailsjs/go/recovery/Service';
+import { auth } from '../../../wailsjs/go/models';
+import { SaveRecoveryKey } from '../../../wailsjs/go/recovery/Service';
 
 export default function Register() {
   const navigate = useNavigate();

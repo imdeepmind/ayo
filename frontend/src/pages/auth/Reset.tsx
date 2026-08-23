@@ -14,7 +14,7 @@ import TextInput from '@/components/bits/Input';
 import PageSection from '@/components/bits/Section';
 import AuthCard from '@/components/items/AuthCard';
 
-import { SaveRecoveryKey } from '../../wailsjs/go/recovery/Service';
+import { SaveRecoveryKey } from '../../../wailsjs/go/recovery/Service';
 
 export default function Reset() {
   const { resetPassword } = useAuth();

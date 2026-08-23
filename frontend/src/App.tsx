@@ -12,10 +12,12 @@ import PublicRoute from '@/components/items/PublicRoute';
 import Sidebar from '@/components/items/Sidebar';
 
 import Home from '@/pages/Home';
-import Login from '@/pages/Login';
+
+import Login from '@/pages/auth/Login';
+import Register from '@/pages/auth/Register';
+import Reset from '@/pages/auth/Reset';
+
 import NotFound from '@/pages/NotFound';
-import Register from '@/pages/Register';
-import Reset from '@/pages/Reset';
 import SecurityKeyManagement from '@/pages/SecurityKeyManagement';
 import Settings from '@/pages/Settings';
 import StorageDatabase from '@/pages/StorageDatabase';
