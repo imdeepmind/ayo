@@ -8,8 +8,8 @@ import { useAuth } from '@/context/AuthContext';
 import { toErrorMessage } from '@/lib/errors';
 import type { RegisterFormData } from '@/lib/validations';
 
-import PageSection from '@/components/bits/Section';
 import AuthCard from '@/components/items/AuthCard';
+import AuthLayout from '@/components/items/AuthLayout';
 import NewRecoveryKey from '@/components/items/NewRecoveryKey';
 
 import AccountDetailsForm from './AccountDetailsForm';
@@ -71,7 +71,7 @@ export default function Register() {
   };
 
   return (
-    <PageSection>
+    <AuthLayout>
       <AuthCard
         title={recoveryKey ? t('auth.saveRecoveryKeyTitle') : t('auth.createAccountTitle')}
         description={
@@ -113,6 +113,6 @@ export default function Register() {
           </>
         )}
       </AuthCard>
-    </PageSection>
+    </AuthLayout>
   );
 }

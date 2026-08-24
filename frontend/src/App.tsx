@@ -6,10 +6,9 @@ import { ActiveTransfersProvider } from '@/context/ActiveTransfersContext';
 import { AuthProvider } from '@/context/AuthContext';
 import { SearchProvider } from '@/context/SearchContext';
 
-import Header from '@/components/items/Header';
+import AppLayout from '@/components/items/AppLayout';
 import ProtectedRoute from '@/components/items/ProtectedRoute';
 import PublicRoute from '@/components/items/PublicRoute';
-import Sidebar from '@/components/items/Sidebar';
 
 import Login from '@/pages/auth/Login';
 import Register from '@/pages/auth/Register';
@@ -32,33 +31,26 @@ function App() {
         <ActiveTransfersProvider>
           <BrowserRouter>
             <SearchProvider>
-              <div className="h-screen w-full overflow-hidden bg-background font-sans text-text flex flex-col">
-                <Header />
-                <div className="flex flex-1 overflow-hidden">
-                  <Sidebar />
-                  <main className="flex-1 overflow-y-auto p-6 md:p-8">
-                    <Routes>
-                      <Route element={<ProtectedRoute />}>
-                        <Route path="/" element={<Home />} />
-                        <Route path="/settings" element={<Settings />} />
-                        <Route path="/upload" element={<Upload />} />
-                        <Route path="/storage/providers" element={<StorageProviders />} />
-                        <Route path="/storage/database" element={<StorageDatabase />} />
-                        <Route path="/storage/erasure-coding" element={<StorageErasureCoding />} />
-                        <Route
-                          path="/security/key-management"
-                          element={<SecurityKeyManagement />}
-                        />
-                      </Route>
-                      <Route element={<PublicRoute />}>
-                        <Route path="/auth/login" element={<Login />} />
-                        <Route path="/auth/register" element={<Register />} />
-                        <Route path="/auth/reset" element={<Reset />} />
-                      </Route>
-                      <Route path="*" element={<NotFound />} />
-                    </Routes>
-                  </main>
-                </div>
+              <div className="h-screen w-full overflow-hidden bg-background font-sans text-text">
+                <Routes>
+                  <Route element={<PublicRoute />}>
+                    <Route path="/auth/login" element={<Login />} />
+                    <Route path="/auth/register" element={<Register />} />
+                    <Route path="/auth/reset" element={<Reset />} />
+                  </Route>
+                  <Route element={<AppLayout />}>
+                    <Route element={<ProtectedRoute />}>
+                      <Route path="/" element={<Home />} />
+                      <Route path="/settings" element={<Settings />} />
+                      <Route path="/upload" element={<Upload />} />
+                      <Route path="/storage/providers" element={<StorageProviders />} />
+                      <Route path="/storage/database" element={<StorageDatabase />} />
+                      <Route path="/storage/erasure-coding" element={<StorageErasureCoding />} />
+                      <Route path="/security/key-management" element={<SecurityKeyManagement />} />
+                    </Route>
+                    <Route path="*" element={<NotFound />} />
+                  </Route>
+                </Routes>
               </div>
             </SearchProvider>
             <Toaster

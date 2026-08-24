@@ -12,8 +12,8 @@ import { resetPasswordSchema, type ResetPasswordFormData } from '@/lib/validatio
 
 import Button from '@/components/bits/Button';
 import TextInput from '@/components/bits/Input';
-import PageSection from '@/components/bits/Section';
 import AuthCard from '@/components/items/AuthCard';
+import AuthLayout from '@/components/items/AuthLayout';
 import NewRecoveryKey from '@/components/items/NewRecoveryKey';
 
 export default function Reset() {
@@ -74,7 +74,7 @@ export default function Reset() {
   };
 
   return (
-    <PageSection>
+    <AuthLayout>
       <AuthCard
         title={newRecoveryKey ? t('auth.saveRecoveryKeyTitle') : t('auth.resetPasswordTitle')}
         description={
@@ -149,6 +149,6 @@ export default function Reset() {
           </form>
         )}
       </AuthCard>
-    </PageSection>
+    </AuthLayout>
   );
 }

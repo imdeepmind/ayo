@@ -63,6 +63,16 @@ const en = {
     recoveryKeyWarning:
       "You'll need this recovery key to reset your password. Without it, you won't be able to recover your account or access your encrypted files.",
     downloadRecoveryKey: 'Download Recovery Key',
+    brandHeadline: 'Private by design. Yours by default.',
+    brandFeature1Title: 'End-to-end encryption',
+    brandFeature1Description:
+      'Your files are encrypted on your device with AES-256-GCM before they ever leave it.',
+    brandFeature2Title: 'You hold the keys',
+    brandFeature2Description:
+      'A master key derived from your password keeps your data readable only by you.',
+    brandFeature3Title: 'Zero-knowledge storage',
+    brandFeature3Description: "No backdoors, no peeking — even we can't read your files.",
+    brandFooter: 'Secure, encrypted, private.',
   },
   header: {
     searchDrive: 'Search Drive',
