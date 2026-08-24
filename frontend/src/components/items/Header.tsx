@@ -53,7 +53,7 @@ export default function Header() {
                   placeholder={t('header.searchDrive')}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  className="h-7 w-full rounded-full border border-border bg-surface-alt/90 pl-10 pr-4 text-sm text-text placeholder:text-text-faint outline-none transition focus:bg-surface focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-border-strong dark:bg-surface-alt dark:text-text dark:focus:bg-surface"
+                  className="h-7 w-full rounded-full border border-border bg-surface-alt/90 pl-10 pr-4 text-sm text-text placeholder:text-text-faint outline-none transition focus:bg-surface focus:outline-2 focus:outline-solid focus:outline-offset-1 focus:outline-primary dark:border-border-strong dark:bg-surface-alt dark:text-text dark:focus:bg-surface"
                 />
               </div>
             </form>

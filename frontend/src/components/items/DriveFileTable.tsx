@@ -195,7 +195,7 @@ export default function DriveFileTable({
                     if (input) input.indeterminate = someSelected;
                   }}
                   onChange={(e) => onSelectAllChange(e.target.checked)}
-                  className="h-4 w-4 rounded border-border-strong text-primary focus:ring-primary dark:border-border-input dark:bg-surface-alt"
+                  className="h-4 w-4 rounded border-border-strong text-primary dark:border-border-input dark:bg-surface-alt"
                 />
               </th>
               <th
@@ -237,7 +237,7 @@ export default function DriveFileTable({
                       type="checkbox"
                       checked={isSelected}
                       onChange={(e) => onSelectionChange(file.id, e.target.checked)}
-                      className="h-4 w-4 rounded border-border-strong text-primary focus:ring-primary dark:border-border-input dark:bg-surface-alt"
+                      className="h-4 w-4 rounded border-border-strong text-primary dark:border-border-input dark:bg-surface-alt"
                     />
                   </td>
                   <td className="px-4 py-3.5 text-text max-w-sm">

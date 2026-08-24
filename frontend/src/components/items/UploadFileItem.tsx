@@ -73,7 +73,7 @@ export default function UploadFileItem({ fileInfo, onRemove, onSaveEdit }: Uploa
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full max-w-[300px] rounded-xl border border-border-input bg-surface-alt px-3 py-1.5 text-sm font-medium text-text outline-none transition-all duration-200 focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  className="w-full max-w-[300px] rounded-xl border border-border-input bg-surface-alt px-3 py-1.5 text-sm font-medium text-text outline-none transition-all duration-200 focus:outline-2 focus:outline-solid focus:outline-offset-1 focus:outline-primary dark:border-border-input dark:bg-surface-alt dark:text-text"
                   autoFocus
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleSave();
@@ -132,7 +132,7 @@ export default function UploadFileItem({ fileInfo, onRemove, onSaveEdit }: Uploa
                         if (e.key === 'Escape') handleCancel();
                       }}
                       placeholder="Add tag..."
-                      className="w-36 rounded-xl border border-border-input bg-surface-alt py-1 pl-8 pr-3 text-xs font-medium text-text outline-none transition-all duration-200 focus:border-primary focus:ring-2 focus:ring-primary/20 placeholder:text-text-faint"
+                      className="w-36 rounded-xl border border-border-input bg-surface-alt py-1 pl-8 pr-3 text-xs font-medium text-text outline-none transition-all duration-200 focus:outline-2 focus:outline-solid focus:outline-offset-1 focus:outline-primary dark:border-border-input dark:bg-surface-alt dark:text-text placeholder:text-text-faint"
                     />
                   </div>
                   <Button
