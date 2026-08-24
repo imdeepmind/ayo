@@ -362,7 +362,7 @@ function ProviderForm({
                   placeholder='{"type": "service_account", ...}'
                   value={(provider.fields as GCPFields).serviceAccountJson}
                   onChange={(e) => update('serviceAccountJson', e.target.value)}
-                  className={`w-full rounded-xl border ${errors.serviceAccountJson ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20' : 'border-border-input focus:border-primary focus:ring-primary/20 dark:border-border-input dark:focus:border-primary'} bg-surface px-4 py-2.5 text-sm text-text placeholder:text-text-faint shadow-sm outline-none transition-all duration-200 focus:ring-4 dark:bg-surface dark:text-text dark:placeholder:text-text-subtle font-mono`}
+                  className={`w-full rounded-xl border ${errors.serviceAccountJson ? 'border-red-400 focus:outline-red-500' : 'border-border-input focus:outline-primary dark:border-border-input'} bg-surface px-4 py-2.5 text-sm text-text placeholder:text-text-faint shadow-sm outline-none transition-all duration-200 focus:outline-2 focus:outline-solid focus:outline-offset-1 dark:bg-surface dark:text-text dark:placeholder:text-text-subtle font-mono`}
                 />
                 {errors.serviceAccountJson && (
                   <p className="text-sm text-red-500 dark:text-red-400 flex items-center gap-1.5">
