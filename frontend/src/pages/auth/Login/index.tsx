@@ -11,8 +11,8 @@ import { loginSchema, type LoginFormData } from '@/lib/validations';
 
 import Button from '@/components/bits/Button';
 import TextInput from '@/components/bits/Input';
-import PageSection from '@/components/bits/Section';
 import AuthCard from '@/components/items/AuthCard';
+import AuthLayout from '@/components/items/AuthLayout';
 
 export default function Login() {
   const { t } = useTranslation();
@@ -53,7 +53,7 @@ export default function Login() {
   };
 
   return (
-    <PageSection>
+    <AuthLayout>
       <AuthCard
         title={t('auth.welcomeBack')}
         description={<>{t('auth.signInDescription')}</>}
@@ -102,6 +102,6 @@ export default function Login() {
           </Button>
         </form>
       </AuthCard>
-    </PageSection>
+    </AuthLayout>
   );
 }
