@@ -86,7 +86,7 @@ const en = {
     postgresql: 'PostgreSQL',
     localStorage: 'Local storage',
     localStorageDescription:
-      'Your data will be stored locally. The database file will be created automatically in the app data directory. No setup required.',
+      'All data is stored locally in a SQLite database. If the database file is lost or deleted, all your data will be gone forever.',
     host: 'Host',
     port: 'Port',
     database: 'Database',

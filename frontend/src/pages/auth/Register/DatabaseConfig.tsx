@@ -108,8 +108,6 @@ export default function DatabaseConfig({
 
       {type === 'sqlite' ? (
         <WarningBanner
-          variant="info"
-          icon={Database}
           title={t('database.localStorage')}
           description={t('database.localStorageDescription')}
         />
