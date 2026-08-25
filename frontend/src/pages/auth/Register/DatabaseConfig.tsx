@@ -90,11 +90,6 @@ export default function DatabaseConfig({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-bold text-text">{t('database.configTitle')}</h3>
-        <p className="mt-1 text-sm text-text-muted">{t('database.configDescription')}</p>
-      </div>
-
       {/* Tabs */}
       <div className="flex border-b border-border dark:border-border-strong">
         <button type="button" className={tabClass('sqlite')} onClick={() => setType('sqlite')}>
@@ -111,79 +106,71 @@ export default function DatabaseConfig({
         </button>
       </div>
 
-      <div className="rounded-2xl border border-border bg-surface backdrop-blur-sm p-6 dark:border-border-strong">
-        {type === 'sqlite' ? (
-          <WarningBanner
-            variant="info"
-            icon={Database}
-            title={t('database.localStorage')}
-            description={t('database.localStorageDescription')}
+      {type === 'sqlite' ? (
+        <WarningBanner
+          variant="info"
+          icon={Database}
+          title={t('database.localStorage')}
+          description={t('database.localStorageDescription')}
+        />
+      ) : (
+        <form onSubmit={handleSubmit(submitPostgres)} className="space-y-5">
+          <div className="grid gap-5 sm:grid-cols-2">
+            <TextInput
+              id="db-host"
+              label={t('database.host')}
+              type="text"
+              placeholder={t('database.hostPlaceholder')}
+              error={errors.host?.message}
+              {...register('host')}
+            />
+            <TextInput
+              id="db-port"
+              label={t('database.port')}
+              type="number"
+              placeholder={t('database.portPlaceholder')}
+              error={errors.port?.message}
+              {...register('port')}
+            />
+          </div>
+          <TextInput
+            id="db-database"
+            label={t('database.database')}
+            type="text"
+            placeholder={t('database.databasePlaceholder')}
+            error={errors.database?.message}
+            {...register('database')}
           />
-        ) : (
-          <form onSubmit={handleSubmit(submitPostgres)} className="space-y-5">
-            <div className="grid gap-5 sm:grid-cols-2">
-              <TextInput
-                id="db-host"
-                label={t('database.host')}
-                type="text"
-                placeholder={t('database.hostPlaceholder')}
-                error={errors.host?.message}
-                {...register('host')}
-              />
-              <TextInput
-                id="db-port"
-                label={t('database.port')}
-                type="number"
-                placeholder={t('database.portPlaceholder')}
-                error={errors.port?.message}
-                {...register('port')}
-              />
-            </div>
-            <TextInput
-              id="db-database"
-              label={t('database.database')}
-              type="text"
-              placeholder={t('database.databasePlaceholder')}
-              error={errors.database?.message}
-              {...register('database')}
-            />
-            <TextInput
-              id="db-username"
-              label={t('database.username')}
-              type="text"
-              autoComplete="off"
-              placeholder={t('database.usernamePlaceholder')}
-              error={errors.username?.message}
-              {...register('username')}
-            />
-            <TextInput
-              id="db-password"
-              label={t('database.password')}
-              type="password"
-              placeholder={t('database.passwordPlaceholder')}
-              error={errors.password?.message}
-              {...register('password')}
-            />
+          <TextInput
+            id="db-username"
+            label={t('database.username')}
+            type="text"
+            autoComplete="off"
+            placeholder={t('database.usernamePlaceholder')}
+            error={errors.username?.message}
+            {...register('username')}
+          />
+          <TextInput
+            id="db-password"
+            label={t('database.password')}
+            type="password"
+            placeholder={t('database.passwordPlaceholder')}
+            error={errors.password?.message}
+            {...register('password')}
+          />
 
-            <WarningBanner
-              className="p-4"
-              title={t('database.connectionVerification')}
-              description={t('database.connectionVerificationDescription')}
-            />
-
-            <div className="flex gap-3 pt-2">
-              {onBack && (
-                <Button type="button" variant="ghost" onClick={onBack}>
-                  {t('database.back')}
-                </Button>
-              )}
-              <Button type="submit" fullWidth>
-                {t('database.continue')}
+          <div className="flex gap-3 pt-2">
+            {onBack && (
+              <Button type="button" variant="ghost" onClick={onBack}>
+                {t('database.back')}
               </Button>
-            </div>
-          </form>
-        )}
-      </div>
+            )}
+            <Button type="submit" fullWidth>
+              {t('database.continue')}
+            </Button>
+          </div>
+        </form>
+      )}
 
       {type === 'sqlite' && (
         <div className="flex gap-3">
