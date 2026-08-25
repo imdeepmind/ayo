@@ -82,8 +82,6 @@ const en = {
     logout: 'Logout',
   },
   database: {
-    configTitle: 'Database Configuration',
-    configDescription: 'Choose where your account and encrypted data will be stored.',
     sqlite: 'SQLite',
     postgresql: 'PostgreSQL',
     localStorage: 'Local storage',
@@ -99,9 +97,6 @@ const en = {
     databasePlaceholder: 'Database name',
     usernamePlaceholder: 'Database user',
     passwordPlaceholder: 'Database password',
-    connectionVerification: 'Connection verification',
-    connectionVerificationDescription:
-      'Ayo will verify the database is reachable before creating your account. Your connection details are encrypted and stored securely on this device.',
     back: 'Back',
     continue: 'Continue',
     hostRequired: 'Host is required',
