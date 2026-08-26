@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '@/context/AuthContext';
 import { useSearch } from '@/context/SearchContext';
+import { useWindowDrag } from '@/hooks/useWindowDrag';
 
 export default function Header() {
   const { t } = useTranslation();
@@ -12,6 +13,7 @@ export default function Header() {
   const { query, setQuery, clear } = useSearch();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const { cursorClass, dragHandlers } = useWindowDrag();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,7 +33,10 @@ export default function Header() {
   };
 
   return (
-    <header className="w-full h-10 shrink-0 bg-background pl-[75px] pr-4 [--wails-draggable:drag] select-none">
+    <header
+      className={`w-full h-10 shrink-0 bg-background pl-[75px] pr-4 [--wails-draggable:drag] select-none ${cursorClass}`}
+      {...dragHandlers}
+    >
       <div className="flex h-full items-center justify-between gap-4">
         {/* Central Search Drive Input (Only visible when logged in) */}
         {session ? (
