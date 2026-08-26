@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import logo from '@/assets/images/logo.png';
+import { useWindowDrag } from '@/hooks/useWindowDrag';
 
 type AuthLayoutProps = {
   children: ReactNode;
@@ -28,11 +29,16 @@ const features = [
 
 export default function AuthLayout({ children }: AuthLayoutProps) {
   const { t } = useTranslation();
+  const asideDrag = useWindowDrag();
+  const mainDrag = useWindowDrag();
 
   return (
     <div className="h-full w-full">
       <div className="grid h-full lg:grid-cols-2">
-        <aside className="hidden min-h-0 flex-col justify-between overflow-hidden bg-surface-alt p-10 lg:flex [--wails-draggable:drag]">
+        <aside
+          className={`hidden min-h-0 flex-col justify-between overflow-hidden bg-surface-alt p-10 lg:flex [--wails-draggable:drag] ${asideDrag.cursorClass}`}
+          {...asideDrag.dragHandlers}
+        >
           <div className="flex flex-1 flex-col justify-center">
             <div className="flex justify-center">
               <img src={logo} alt="ayo" className="h-36 w-36 rounded-2xl object-contain" />
@@ -60,7 +66,10 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
           <p className="text-sm text-text-faint">{t('auth.brandFooter')}</p>
         </aside>
 
-        <main className="flex min-h-0 overflow-y-auto p-6 sm:p-10 [--wails-draggable:drag]">
+        <main
+          className={`flex min-h-0 overflow-y-auto p-6 sm:p-10 [--wails-draggable:drag] ${mainDrag.cursorClass}`}
+          {...mainDrag.dragHandlers}
+        >
           <div className="m-auto w-full max-w-md [--wails-draggable:no-drag]">{children}</div>
         </main>
       </div>
