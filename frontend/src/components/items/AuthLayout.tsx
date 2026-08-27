@@ -2,8 +2,9 @@ import { KeyRound, Lock, ShieldCheck } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import logo from '@/assets/images/logo.png';
 import { useWindowDrag } from '@/hooks/useWindowDrag';
+
+import logo from '@/assets/images/logo.png';
 
 type AuthLayoutProps = {
   children: ReactNode;
