@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"strings"
 
 	"ayo/internal/platform/keyring"
 )
@@ -23,6 +22,11 @@ type Repository interface {
 	Load(username string) ([]byte, error)
 	// Save replaces the encrypted credentials blob for the given user.
 	Save(username string, data []byte) error
+	// Exists reports whether a database-credentials entry is stored for the
+	// user. It is the machine-level account marker: every registered account
+	// saves an entry and never deletes it, so its presence means a username is
+	// already taken on this device.
+	Exists(username string) (bool, error)
 }
 
 type repository struct{}
@@ -42,7 +46,7 @@ func keyringUser(username string) string {
 func (r *repository) Load(username string) ([]byte, error) {
 	encoded, err := keyring.Get("ayo", keyringUser(username))
 	if err != nil {
-		if isKeyringNotFound(err) {
+		if keyring.IsNotFound(err) {
 			return nil, ErrCredentialsNotFound
 		}
 		return nil, fmt.Errorf("load database credentials from keyring: %w", err)
@@ -63,17 +67,6 @@ func (r *repository) Save(username string, data []byte) error {
 	return nil
 }
 
-// isKeyringNotFound reports whether a keyring lookup failed because nothing is
-// stored for the given user. The not-found marker differs across platforms and
-// OS versions, so this matches both the library's sentinel error and the
-// platform error text (e.g. macOS `security` prints "could not be found").
-func isKeyringNotFound(err error) bool {
-	if errors.Is(err, keyring.ErrNotFound) {
-		return true
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "could not be found") ||
-		strings.Contains(msg, "item not found") ||
-		strings.Contains(msg, "no entry") ||
-		strings.Contains(msg, "not exist")
+func (r *repository) Exists(username string) (bool, error) {
+	return keyring.Exists("ayo", keyringUser(username))
 }

@@ -124,6 +124,19 @@ func (s *Service) Register(input RegisterInput) (*RegisterResult, error) {
 		return nil, errors.ErrInvalidInput
 	}
 
+	// Reject usernames already taken on this machine: every registered account
+	// has a database-credentials entry in the OS keyring (dbcreds_{username})
+	// that is never deleted. Without this check, registering the same username
+	// against a different database would silently overwrite the existing
+	// account's keyring entry.
+	exists, err := s.dbCreds.Exists(input.Username)
+	if err != nil {
+		return nil, errors.AsInternalServerError("register: check keychain for existing account", err)
+	}
+	if exists {
+		return nil, errors.ErrUserAlreadyExists
+	}
+
 	config, err := dbclient.ResolveSQLitePath(input.DBConfig, input.Username)
 	if err != nil {
 		return nil, errors.AsInternalServerError("register: resolve sqlite path", err)
