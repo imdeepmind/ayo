@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
 	"ayo/internal/platform/keyring"
 )
@@ -51,7 +50,7 @@ func keyringUser(username string) string {
 func (r *repository) Load(username string) (*Material, error) {
 	encoded, err := keyring.Get("ayo", keyringUser(username))
 	if err != nil {
-		if isKeyringNotFound(err) {
+		if keyring.IsNotFound(err) {
 			return nil, ErrMasterKeyNotFound
 		}
 		return nil, fmt.Errorf("load master key from keyring: %w", err)
@@ -89,29 +88,7 @@ func (r *repository) Delete(username string) error {
 }
 
 func (r *repository) Exists(username string) (bool, error) {
-	_, err := r.Load(username)
-	if err != nil {
-		if errors.Is(err, ErrMasterKeyNotFound) {
-			return false, nil
-		}
-		return false, err
-	}
-	return true, nil
-}
-
-// isKeyringNotFound reports whether a keyring lookup failed because nothing is
-// stored for the given user. The not-found marker differs across platforms and
-// OS versions, so this matches both the library's sentinel error and the
-// platform error text (e.g. macOS `security` prints "could not be found").
-func isKeyringNotFound(err error) bool {
-	if errors.Is(err, keyring.ErrNotFound) {
-		return true
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "could not be found") ||
-		strings.Contains(msg, "item not found") ||
-		strings.Contains(msg, "no entry") ||
-		strings.Contains(msg, "not exist")
+	return keyring.Exists("ayo", keyringUser(username))
 }
 
 // GenerateJunk returns a Material filled with random bytes sized like real

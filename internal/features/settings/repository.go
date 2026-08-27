@@ -2,9 +2,7 @@ package settings
 
 import (
 	"encoding/base64"
-	"errors"
 	"fmt"
-	"strings"
 
 	"ayo/internal/platform/keyring"
 )
@@ -27,7 +25,7 @@ func NewRepository() Repository {
 func (r *repository) Load(username string) ([]byte, error) {
 	encoded, err := keyring.Get("ayo", username)
 	if err != nil {
-		if isKeyringNotFound(err) {
+		if keyring.IsNotFound(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("load settings from keyring: %w", err)
@@ -38,23 +36,6 @@ func (r *repository) Load(username string) ([]byte, error) {
 		return nil, fmt.Errorf("decode settings blob: %w", err)
 	}
 	return decoded, nil
-}
-
-// isKeyringNotFound reports whether a keyring lookup failed because nothing is
-// stored for the given user. A fresh account simply has no keyring entry yet,
-// and the not-found marker differs across platforms and OS versions, so this
-// matches both the library's sentinel error and the platform error text (e.g.
-// macOS `security` prints "could not be found"). Anything else is a real
-// keychain failure and should surface as an error.
-func isKeyringNotFound(err error) bool {
-	if errors.Is(err, keyring.ErrNotFound) {
-		return true
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "could not be found") ||
-		strings.Contains(msg, "item not found") ||
-		strings.Contains(msg, "no entry") ||
-		strings.Contains(msg, "not exist")
 }
 
 func (r *repository) Save(username string, data []byte) error {
