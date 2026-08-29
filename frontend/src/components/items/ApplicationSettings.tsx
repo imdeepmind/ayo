@@ -1,6 +1,11 @@
-import { Check, Moon, Sun } from 'lucide-react';
+import { Check, Clock, Moon, Sun } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 
 import { useTheme } from '@/theme/ThemeProvider';
+
+import { settings } from '../../../wailsjs/go/models';
+import { GetSettings, UpdateSettings } from '../../../wailsjs/go/settings/Service';
 
 function ThemeSwatch({
   active,
@@ -51,19 +56,94 @@ function ThemeSwatch({
   );
 }
 
+const timeoutOptions = [
+  { value: 1, label: '1 minute' },
+  { value: 5, label: '5 minutes' },
+  { value: 15, label: '15 minutes' },
+  { value: 30, label: '30 minutes' },
+  { value: 0, label: 'Disabled' },
+];
+
 export default function ApplicationSettings() {
   const { theme, setTheme } = useTheme();
   const isDark = theme === 'dark';
 
-  return (
-    <div className="rounded-2xl border border-border bg-surface backdrop-blur-sm dark:border-border-strong">
-      <div className="p-6">
-        <h3 className="text-base font-bold text-text">Appearance</h3>
-        <p className="mt-1 text-sm text-text-muted">Choose how ayo looks on your device.</p>
+  const [currentSettings, setCurrentSettings] = useState<settings.Settings | null>(null);
+  const [inactivityTimeout, setInactivityTimeout] = useState<number>(15);
 
-        <div className="mt-5 flex items-center gap-3">
-          <ThemeSwatch active={!isDark} dark={false} onClick={() => setTheme('light')} />
-          <ThemeSwatch active={isDark} dark onClick={() => setTheme('dark')} />
+  useEffect(() => {
+    GetSettings()
+      .then((s: settings.Settings) => {
+        if (s) {
+          setCurrentSettings(s);
+          const timeout = (s as unknown as { InactivityTimeoutMinutes?: number })
+            .InactivityTimeoutMinutes;
+          setInactivityTimeout(timeout ?? 15);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleTimeoutChange = async (minutes: number) => {
+    try {
+      const input = new settings.UpdateSettingsInput({
+        StorageMode: currentSettings?.StorageMode || 'local',
+        CloudKeys: currentSettings?.CloudKeys || [],
+        ErasureCoding: currentSettings?.ErasureCoding || false,
+        ErasureCodingConfig: currentSettings?.ErasureCodingConfig || '2+2',
+        InactivityTimeoutMinutes: minutes,
+      });
+
+      await UpdateSettings(input);
+      setInactivityTimeout(minutes);
+      toast.success('Inactivity timeout setting saved.');
+    } catch {
+      toast.error('Failed to update inactivity timeout.');
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-border bg-surface backdrop-blur-sm dark:border-border-strong">
+        <div className="p-6">
+          <h3 className="text-base font-bold text-text">Appearance</h3>
+          <p className="mt-1 text-sm text-text-muted">Choose how ayo looks on your device.</p>
+
+          <div className="mt-5 flex items-center gap-3">
+            <ThemeSwatch active={!isDark} dark={false} onClick={() => setTheme('light')} />
+            <ThemeSwatch active={isDark} dark onClick={() => setTheme('dark')} />
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-border bg-surface backdrop-blur-sm dark:border-border-strong">
+        <div className="p-6">
+          <div className="flex items-center gap-2">
+            <Clock className="h-5 w-5 text-primary" />
+            <h3 className="text-base font-bold text-text">Session Security & Auto-Lock</h3>
+          </div>
+          <p className="mt-1 text-sm text-text-muted">
+            Automatically lock your signed-in session and close the database connection after a
+            period of inactivity.
+          </p>
+
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
+            {timeoutOptions.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => handleTimeoutChange(opt.value)}
+                className={`flex items-center justify-between rounded-xl border p-3 text-xs font-semibold transition-all duration-200 ${
+                  inactivityTimeout === opt.value
+                    ? 'border-primary bg-primary/10 text-primary ring-2 ring-primary/20'
+                    : 'border-border text-text-muted hover:border-primary/50 dark:border-border-strong'
+                }`}
+              >
+                <span>{opt.label}</span>
+                {inactivityTimeout === opt.value && <Check className="h-3.5 w-3.5 text-primary" />}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>

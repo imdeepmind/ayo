@@ -8,10 +8,11 @@ import (
 // mirrors the Settings domain model so the wire format stays decoupled from the
 // stored entity, and its fields are validated by the service before use.
 type UpdateSettingsInput struct {
-	StorageMode         StorageMode `validate:"required,oneof=local ayo"`
-	CloudKeys           []CloudKey
-	ErasureCoding       bool
-	ErasureCodingConfig ErasureCodingMode `validate:"omitempty,oneof=2+2 6+3 10+4 17+3"`
+	StorageMode              StorageMode `validate:"required,oneof=local ayo"`
+	CloudKeys                []CloudKey
+	ErasureCoding            bool
+	ErasureCodingConfig      ErasureCodingMode `validate:"omitempty,oneof=2+2 6+3 10+4 17+3"`
+	InactivityTimeoutMinutes int               `validate:"gte=0,lte=1440"`
 }
 
 // UnmarshalJSON decodes CloudKeys into the concrete provider structs (AWSKey,
@@ -19,7 +20,8 @@ type UpdateSettingsInput struct {
 func (i *UpdateSettingsInput) UnmarshalJSON(data []byte) error {
 	type Alias UpdateSettingsInput
 	aux := &struct {
-		CloudKeys []json.RawMessage `json:"CloudKeys"`
+		InactivityTimeoutMinutes *int              `json:"InactivityTimeoutMinutes"`
+		CloudKeys                []json.RawMessage `json:"CloudKeys"`
 		*Alias
 	}{
 		Alias: (*Alias)(i),
@@ -34,5 +36,10 @@ func (i *UpdateSettingsInput) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	i.CloudKeys = keys
+	if aux.InactivityTimeoutMinutes != nil {
+		i.InactivityTimeoutMinutes = *aux.InactivityTimeoutMinutes
+	} else {
+		i.InactivityTimeoutMinutes = 15
+	}
 	return nil
 }

@@ -42,10 +42,18 @@ export function SaveRecoveryKey(arg1, arg2) {
   return window['go']['auth']['Service']['SaveRecoveryKey'](arg1, arg2);
 }
 
+export function SetInactivityTimeout(arg1) {
+  return window['go']['auth']['Service']['SetInactivityTimeout'](arg1);
+}
+
 export function SetMasterKeyStorage(arg1) {
   return window['go']['auth']['Service']['SetMasterKeyStorage'](arg1);
 }
 
 export function Startup(arg1) {
   return window['go']['auth']['Service']['Startup'](arg1);
+}
+
+export function TouchSession() {
+  return window['go']['auth']['Service']['TouchSession']();
 }

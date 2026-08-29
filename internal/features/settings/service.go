@@ -33,6 +33,11 @@ type ProviderValidator interface {
 	Validate(key CloudKey) error
 }
 
+// InactivityTimeoutSetter receives session inactivity timeout updates from settings.
+type InactivityTimeoutSetter interface {
+	SetInactivityTimeout(minutes int)
+}
+
 // DatabaseInfo is the sanitized, read-only description of the signed-in user's
 // database. It deliberately excludes the database password.
 type DatabaseInfo struct {
@@ -49,16 +54,18 @@ type Service struct {
 	sessionProvider   SessionProvider
 	dbConfigProvider  DatabaseConfigProvider
 	providerValidator ProviderValidator
+	timeoutSetter     InactivityTimeoutSetter
 	repo              Repository
 	validate          *validator.Validate
 }
 
 func NewService(sessionProvider SessionProvider, dbConfigProvider DatabaseConfigProvider,
-	providerValidator ProviderValidator, repo Repository) *Service {
+	providerValidator ProviderValidator, timeoutSetter InactivityTimeoutSetter, repo Repository) *Service {
 	return &Service{
 		sessionProvider:   sessionProvider,
 		dbConfigProvider:  dbConfigProvider,
 		providerValidator: providerValidator,
+		timeoutSetter:     timeoutSetter,
 		repo:              repo,
 		validate:          validator.New(),
 	}
@@ -91,7 +98,11 @@ func (s *Service) GetSettings() (*Settings, error) {
 	}
 
 	if len(data) == 0 {
-		return &Settings{}, nil
+		defaultSettings := &Settings{InactivityTimeoutMinutes: 15}
+		if s.timeoutSetter != nil {
+			s.timeoutSetter.SetInactivityTimeout(15)
+		}
+		return defaultSettings, nil
 	}
 
 	decryptedData, err := crypto.DecryptData(session.MasterKey(), data)
@@ -102,6 +113,9 @@ func (s *Service) GetSettings() (*Settings, error) {
 	var parsedSettings Settings
 	if err := json.Unmarshal(decryptedData, &parsedSettings); err != nil {
 		return nil, errors.AsInternalServerError("get settings: unmarshal", err)
+	}
+	if s.timeoutSetter != nil {
+		s.timeoutSetter.SetInactivityTimeout(parsedSettings.InactivityTimeoutMinutes)
 	}
 	return &parsedSettings, nil
 }
@@ -160,6 +174,9 @@ func (s *Service) UpdateSettings(input UpdateSettingsInput) error {
 
 	if err := s.repo.Save(session.Username, encryptedData); err != nil {
 		return errors.AsInternalServerError("update settings: save", err)
+	}
+	if s.timeoutSetter != nil {
+		s.timeoutSetter.SetInactivityTimeout(input.InactivityTimeoutMinutes)
 	}
 	return nil
 }
