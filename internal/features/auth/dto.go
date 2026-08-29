@@ -8,14 +8,14 @@ import (
 // tags are enforced by go-playground/validator in Service.Register; the DB
 // config is validated separately (type-specific fields).
 type RegisterInput struct {
-	Username string          `validate:"required,min=3,max=50,lowercase,alpha"`
+	Username string          `validate:"required,min=3,max=50,username_format"`
 	Password string          `validate:"required,min=8,password_strength"`
 	DBConfig dbclient.Config `json:"DBConfig"`
 }
 
 // LoginInput is the payload expected when signing in an existing account.
 type LoginInput struct {
-	Username string `validate:"required,lowercase,alpha"`
+	Username string `validate:"required,username_format"`
 	Password string `validate:"required"`
 }
 
@@ -23,7 +23,7 @@ type LoginInput struct {
 // password. The user must prove ownership by supplying the recovery key that
 // was shown at registration time.
 type ResetPasswordInput struct {
-	Username    string `validate:"required,lowercase,alpha"`
+	Username    string `validate:"required,username_format"`
 	NewPassword string `validate:"required,min=8,password_strength"`
 	RecoveryKey string `validate:"required"`
 }
