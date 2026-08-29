@@ -388,6 +388,7 @@ export namespace settings {
 	    CloudKeys: any[];
 	    ErasureCoding: boolean;
 	    ErasureCodingConfig: string;
+	    InactivityTimeoutMinutes: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Settings(source);
@@ -399,6 +400,7 @@ export namespace settings {
 	        this.CloudKeys = source["CloudKeys"];
 	        this.ErasureCoding = source["ErasureCoding"];
 	        this.ErasureCodingConfig = source["ErasureCodingConfig"];
+	        this.InactivityTimeoutMinutes = source["InactivityTimeoutMinutes"];
 	    }
 	}
 	export class UpdateSettingsInput {
@@ -406,6 +408,7 @@ export namespace settings {
 	    CloudKeys: any[];
 	    ErasureCoding: boolean;
 	    ErasureCodingConfig: string;
+	    InactivityTimeoutMinutes: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new UpdateSettingsInput(source);
@@ -417,6 +420,7 @@ export namespace settings {
 	        this.CloudKeys = source["CloudKeys"];
 	        this.ErasureCoding = source["ErasureCoding"];
 	        this.ErasureCodingConfig = source["ErasureCodingConfig"];
+	        this.InactivityTimeoutMinutes = source["InactivityTimeoutMinutes"];
 	    }
 	}
 

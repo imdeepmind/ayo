@@ -5,6 +5,8 @@ import (
 	stderrors "errors"
 	"os"
 	"regexp"
+	"sync"
+	"time"
 
 	dbclient "ayo/internal/clients/db"
 	"ayo/internal/shared/crypto"
@@ -31,9 +33,10 @@ import (
 // password would leak it to the webview. The config lives on the Service
 // (unexported) and is only exposed in sanitized form via DatabaseConfig.
 type Session struct {
-	UserId    int64
-	Username  string
-	masterKey []byte
+	UserId       int64
+	Username     string
+	masterKey    []byte
+	lastActiveAt time.Time
 }
 
 // MasterKey returns the session's decrypted 32-byte master key. It is how
@@ -57,12 +60,14 @@ func (s *Session) MasterKey() []byte {
 // replaced with the vague *errors.InternalServerError so that no implementation
 // detail ever leaks to the UI.
 type Service struct {
-	ctx      context.Context
-	conn     *dbclient.Connection
-	repo     Repository
-	session  *Session
-	dbConfig dbclient.Config
-	validate *validator.Validate
+	ctx                      context.Context
+	conn                     *dbclient.Connection
+	repo                     Repository
+	session                  *Session
+	dbConfig                 dbclient.Config
+	validate                 *validator.Validate
+	mu                       sync.Mutex
+	inactivityTimeoutMinutes int
 }
 
 // Startup stores the Wails application context, which native dialogs (e.g.
@@ -109,9 +114,10 @@ func NewService(conn *dbclient.Connection) *Service {
 	_ = validate.RegisterValidation("username_format", validateUsernameFormat)
 
 	return &Service{
-		conn:     conn,
-		repo:     NewRepository(conn),
-		validate: validate,
+		conn:                     conn,
+		repo:                     NewRepository(conn),
+		validate:                 validate,
+		inactivityTimeoutMinutes: 15,
 	}
 }
 
@@ -339,9 +345,10 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 
 	// session of the app
 	s.session = &Session{
-		UserId:    user.ID,
-		Username:  user.Username,
-		masterKey: masterKey,
+		UserId:       user.ID,
+		Username:     user.Username,
+		masterKey:    masterKey,
+		lastActiveAt: time.Now(),
 	}
 	s.dbConfig = config
 
@@ -512,16 +519,57 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*RegisterResult, erro
 	return &RegisterResult{User: user, RecoveryKey: string(newRecoveryKey)}, nil
 }
 
+// SetInactivityTimeout sets the session inactivity timeout in minutes (0 means disabled).
+func (s *Service) SetInactivityTimeout(minutes int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.inactivityTimeoutMinutes = minutes
+}
+
+// TouchSession updates the last active timestamp for the current session.
+func (s *Service) TouchSession() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.session != nil && !s.checkSessionTimeoutLocked() {
+		s.session.lastActiveAt = time.Now()
+	}
+}
+
+func (s *Service) checkSessionTimeoutLocked() bool {
+	if s.session == nil {
+		return false
+	}
+	if s.inactivityTimeoutMinutes > 0 &&
+		time.Since(s.session.lastActiveAt) > time.Duration(s.inactivityTimeoutMinutes)*time.Minute {
+		s.logoutLocked()
+		return true
+	}
+	return false
+}
+
+func (s *Service) logoutLocked() {
+	s.session = nil
+	s.dbConfig = dbclient.Config{}
+	if s.conn != nil {
+		s.conn.Close()
+	}
+}
+
 // Logout clears the in-memory session and closes the user's database
 // connection, ending the current user's access.
 func (s *Service) Logout() {
-	s.session = nil
-	s.dbConfig = dbclient.Config{}
-	s.conn.Close()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.logoutLocked()
 }
 
-// GetSession returns the current in-memory session, or nil when signed out.
+// GetSession returns the current in-memory session, or nil when signed out or expired.
 func (s *Service) GetSession() *Session {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.checkSessionTimeoutLocked() {
+		return nil
+	}
 	return s.session
 }
 
@@ -529,7 +577,9 @@ func (s *Service) GetSession() *Session {
 // de-facto auth guard used by other services (e.g. settings) to gate access to
 // signed-in-only operations.
 func (s *Service) RequireSession() (*Session, error) {
-	if s.session == nil {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.checkSessionTimeoutLocked() || s.session == nil {
 		return nil, errors.ErrUnauthorized
 	}
 	return s.session, nil
@@ -539,7 +589,9 @@ func (s *Service) RequireSession() (*Session, error) {
 // ErrUnauthorized when signed out. Other DB-backed services use it to resolve
 // the active client's dialect/connection when needed.
 func (s *Service) CurrentClient() (*dbclient.Client, error) {
-	if s.session == nil {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.checkSessionTimeoutLocked() || s.session == nil {
 		return nil, errors.ErrUnauthorized
 	}
 	return s.conn.Current()
@@ -550,7 +602,9 @@ func (s *Service) CurrentClient() (*dbclient.Client, error) {
 // read-only database display. The password is stripped before returning so the
 // Wails-bound method can never leak it to the webview.
 func (s *Service) DatabaseConfig() (dbclient.Config, error) {
-	if s.session == nil {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.checkSessionTimeoutLocked() || s.session == nil {
 		return dbclient.Config{}, errors.ErrUnauthorized
 	}
 	config := s.dbConfig

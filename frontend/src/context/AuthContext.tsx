@@ -7,6 +7,7 @@ import {
   Register as RegisterService,
   ResetPassword as ResetPasswordService,
   SaveRecoveryKey as SaveRecoveryKeyService,
+  TouchSession,
 } from '../../wailsjs/go/auth/Service';
 import { auth } from '../../wailsjs/go/models';
 
@@ -76,6 +77,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     refreshSession();
   }, []);
+
+  useEffect(() => {
+    if (!session) return;
+
+    let hasActivity = false;
+
+    const handleUserActivity = () => {
+      hasActivity = true;
+    };
+
+    window.addEventListener('mousemove', handleUserActivity, { passive: true });
+    window.addEventListener('keydown', handleUserActivity, { passive: true });
+    window.addEventListener('click', handleUserActivity, { passive: true });
+    window.addEventListener('scroll', handleUserActivity, { passive: true });
+
+    // Touch session every 10s if user performed interaction
+    const activityInterval = setInterval(() => {
+      if (hasActivity) {
+        hasActivity = false;
+        if (typeof TouchSession === 'function') {
+          TouchSession().catch(() => {});
+        }
+      }
+    }, 10000);
+
+    // Check for expiration every 5s
+    const checkInterval = setInterval(async () => {
+      try {
+        const currentSession = await GetSession();
+        if (!currentSession || currentSession.UserId === 0) {
+          setSession(null);
+        }
+      } catch {
+        setSession(null);
+      }
+    }, 5000);
+
+    return () => {
+      window.removeEventListener('mousemove', handleUserActivity);
+      window.removeEventListener('keydown', handleUserActivity);
+      window.removeEventListener('click', handleUserActivity);
+      window.removeEventListener('scroll', handleUserActivity);
+      clearInterval(activityInterval);
+      clearInterval(checkInterval);
+    };
+  }, [session]);
 
   const login = async (input: auth.LoginInput) => {
     const success = await LoginService(input);

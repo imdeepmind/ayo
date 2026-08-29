@@ -24,6 +24,10 @@ export function ResetPassword(arg1:auth.ResetPasswordInput):Promise<auth.Registe
 
 export function SaveRecoveryKey(arg1:string,arg2:string):Promise<void>;
 
+export function SetInactivityTimeout(arg1:number):Promise<void>;
+
 export function SetMasterKeyStorage(arg1:string):Promise<string>;
 
 export function Startup(arg1:context.Context):Promise<void>;
+
+export function TouchSession():Promise<void>;

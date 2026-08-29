@@ -73,7 +73,7 @@ func main() {
 	// with the session master key. Provider configs are validated through the
 	// storage package before saving.
 	settingsRepository := settings.NewRepository()
-	settingsService := settings.NewService(authService, authService, storageValidator{}, settingsRepository)
+	settingsService := settings.NewService(authService, authService, storageValidator{}, authService, settingsRepository)
 
 	// Queue service: persistent SQLite-backed job queue shared across features.
 	// It resolves the signed-in user's database connection per operation.

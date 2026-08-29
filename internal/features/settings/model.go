@@ -28,17 +28,19 @@ const (
 )
 
 type Settings struct {
-	StorageMode         StorageMode
-	CloudKeys           []CloudKey
-	ErasureCoding       bool
-	ErasureCodingConfig ErasureCodingMode
+	StorageMode              StorageMode
+	CloudKeys                []CloudKey
+	ErasureCoding            bool
+	ErasureCodingConfig      ErasureCodingMode
+	InactivityTimeoutMinutes int
 }
 
 // UnmarshalJSON reconstructs the polymorphic CloudKeys slice from raw JSON.
 func (s *Settings) UnmarshalJSON(data []byte) error {
 	type Alias Settings
 	aux := &struct {
-		CloudKeys []json.RawMessage `json:"CloudKeys"`
+		InactivityTimeoutMinutes *int              `json:"InactivityTimeoutMinutes"`
+		CloudKeys                []json.RawMessage `json:"CloudKeys"`
 		*Alias
 	}{
 		Alias: (*Alias)(s),
@@ -53,5 +55,10 @@ func (s *Settings) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	s.CloudKeys = keys
+	if aux.InactivityTimeoutMinutes != nil {
+		s.InactivityTimeoutMinutes = *aux.InactivityTimeoutMinutes
+	} else {
+		s.InactivityTimeoutMinutes = 15
+	}
 	return nil
 }
