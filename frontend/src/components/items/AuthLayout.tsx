@@ -45,23 +45,25 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
               <img src={logo} alt="ayo" className="h-36 w-36 rounded-2xl object-contain" />
             </div>
 
-            <h1 className="text-4xl font-bold leading-tight text-text">
-              {t('auth.brandHeadline')}
-            </h1>
+            <div className="mx-auto w-full max-w-md text-left">
+              <h1 className="text-4xl font-bold leading-tight text-text">
+                {t('auth.brandHeadline')}
+              </h1>
 
-            <ul className="mt-8 space-y-5">
-              {features.map(({ icon: Icon, titleKey, descriptionKey }) => (
-                <li key={titleKey} className="flex items-start gap-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-text">{t(titleKey)}</p>
-                    <p className="mt-0.5 text-sm text-text-muted">{t(descriptionKey)}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
+              <ul className="mt-8 space-y-5">
+                {features.map(({ icon: Icon, titleKey, descriptionKey }) => (
+                  <li key={titleKey} className="flex items-start gap-4">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-text">{t(titleKey)}</p>
+                      <p className="mt-0.5 text-sm text-text-muted">{t(descriptionKey)}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              </div>
           </div>
 
           <p className="text-sm text-text-faint">{t('auth.brandFooter')}</p>
