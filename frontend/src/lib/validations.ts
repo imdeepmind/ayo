@@ -1,13 +1,16 @@
 import { z } from 'zod';
 
-// Username validation: lowercase letters only, 3-50 characters
+// Username validation: letters, numbers, underscores, hyphens; 3-50 characters
 const usernameSchema = z
   .string({
     message: 'Username must be a string',
   })
   .min(3, 'Username must be at least 3 characters')
   .max(50, 'Username must be at most 50 characters')
-  .regex(/^[a-z]+$/, 'Username must contain only lowercase letters');
+  .regex(
+    /^[a-zA-Z0-9_-]+$/,
+    'Username can only contain letters, numbers, underscores, and hyphens'
+  );
 
 // Password validation: min 8 chars, must contain uppercase, lowercase, number, and symbol
 const passwordSchema = z

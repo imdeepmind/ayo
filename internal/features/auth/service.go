@@ -71,6 +71,15 @@ func (s *Service) Startup(ctx context.Context) {
 	s.ctx = ctx
 }
 
+var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+
+// validateUsernameFormat enforces that a username contains only letters,
+// digits, underscores, and hyphens. It is registered as the "username_format"
+// validator rule.
+func validateUsernameFormat(fl validator.FieldLevel) bool {
+	return usernameRegex.MatchString(fl.Field().String())
+}
+
 // validatePasswordStrength enforces that a password contains at least one
 // uppercase letter, one lowercase letter, one digit and one symbol. It is
 // registered as the "password_strength" validator rule.
@@ -91,12 +100,13 @@ func validatePasswordStrength(fl validator.FieldLevel) bool {
 
 // NewService wires a shared connection holder, the database-credentials
 // keyring repository, the master-key keyring repository and a validator with
-// the custom password strength rule into a ready-to-use auth Service.
+// the custom validation rules into a ready-to-use auth Service.
 func NewService(conn *dbclient.Connection) *Service {
 	validate := validator.New()
 
-	// Register custom password strength validator
+	// Register custom validators
 	_ = validate.RegisterValidation("password_strength", validatePasswordStrength)
+	_ = validate.RegisterValidation("username_format", validateUsernameFormat)
 
 	return &Service{
 		conn:     conn,
