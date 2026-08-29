@@ -2,9 +2,9 @@
 // platform-independent API.
 //
 // It lives in the shared tier: it hides the Wails runtime dependency so feature
-// packages (e.g. recovery) can prompt the user for file paths without importing
-// the runtime themselves. Add open-dir / open-file wrappers here as features
-// need them.
+// packages (e.g. auth, upload) can prompt the user for file paths without
+// importing the runtime themselves. Add open-dir / open-file wrappers here as
+// features need them.
 package dialog
 
 import (

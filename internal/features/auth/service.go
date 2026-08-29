@@ -3,10 +3,12 @@ package auth
 import (
 	"context"
 	stderrors "errors"
+	"os"
 	"regexp"
 
 	dbclient "ayo/internal/clients/db"
 	"ayo/internal/shared/crypto"
+	"ayo/internal/shared/dialog"
 	"ayo/internal/shared/errors"
 
 	"github.com/go-playground/validator/v10"
@@ -55,11 +57,18 @@ func (s *Session) MasterKey() []byte {
 // replaced with the vague *errors.InternalServerError so that no implementation
 // detail ever leaks to the UI.
 type Service struct {
+	ctx      context.Context
 	conn     *dbclient.Connection
 	repo     Repository
 	session  *Session
 	dbConfig dbclient.Config
 	validate *validator.Validate
+}
+
+// Startup stores the Wails application context, which native dialogs (e.g.
+// SaveRecoveryKey) require.
+func (s *Service) Startup(ctx context.Context) {
+	s.ctx = ctx
 }
 
 // validatePasswordStrength enforces that a password contains at least one
@@ -656,4 +665,29 @@ func (s *Service) persistMasterKeyMaterial(ctx context.Context, user *User, mate
 		return s.repo.SaveMasterKeyKeyring(user.Username, material)
 	}
 	return s.repo.UpdateMasterKeyMaterial(ctx, user.ID, material)
+}
+
+// SaveRecoveryKey opens a save file dialog and writes the recovery key to the
+// selected location. It is the frontend-facing counterpart of the recovery-key
+// flow in Register and ResetPassword: after either, the user downloads the key
+// so it can be stored somewhere safe. The recovery key is passed in (the user
+// is not signed in during these flows), never read from the session.
+func (s *Service) SaveRecoveryKey(username, recoveryKey string) error {
+	filePath, err := dialog.SaveFile(s.ctx, dialog.Options{
+		DefaultFilename:   "recovery-key-" + username + ".txt",
+		Title:             "Save Recovery Key",
+		FileFilterName:    "Text Files (*.txt)",
+		FileFilterPattern: "*.txt",
+	})
+	if err != nil {
+		return err
+	}
+
+	// User cancelled the dialog
+	if filePath == "" {
+		return nil
+	}
+
+	// Write the recovery key to the file
+	return os.WriteFile(filePath, []byte(recoveryKey), 0600)
 }

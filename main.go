@@ -8,7 +8,6 @@ import (
 	"ayo/internal/clients/storage"
 	"ayo/internal/features/auth"
 	"ayo/internal/features/home"
-	"ayo/internal/features/recovery"
 	"ayo/internal/features/settings"
 	"ayo/internal/features/upload"
 	"ayo/internal/platform/queue"
@@ -70,9 +69,6 @@ func main() {
 	// table; the auth service migrates between the two via Get/SetMasterKeyStorage.
 	authService := auth.NewService(conn)
 
-	// Recovery service: native save dialogs for downloading the recovery key.
-	recoveryService := recovery.NewService()
-
 	// Settings service: stores per-user settings in the OS keyring, encrypted
 	// with the session master key. Provider configs are validated through the
 	// storage package before saving.
@@ -125,7 +121,7 @@ func main() {
 		OnStartup: func(ctx context.Context) {
 			app.startup(ctx)
 			// Only services that need the Wails context receive it here.
-			recoveryService.Startup(ctx)
+			authService.Startup(ctx)
 			uploadService.Startup(ctx)
 			settingsService.Startup(ctx)
 		},
@@ -152,7 +148,6 @@ func main() {
 		Bind: []interface{}{
 			app,
 			authService,
-			recoveryService,
 			settingsService,
 			uploadService,
 			homeService,

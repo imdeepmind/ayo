@@ -38,6 +38,14 @@ export function ResetPassword(arg1) {
   return window['go']['auth']['Service']['ResetPassword'](arg1);
 }
 
+export function SaveRecoveryKey(arg1, arg2) {
+  return window['go']['auth']['Service']['SaveRecoveryKey'](arg1, arg2);
+}
+
 export function SetMasterKeyStorage(arg1) {
   return window['go']['auth']['Service']['SetMasterKeyStorage'](arg1);
+}
+
+export function Startup(arg1) {
+  return window['go']['auth']['Service']['Startup'](arg1);
 }
