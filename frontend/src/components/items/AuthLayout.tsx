@@ -63,7 +63,7 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
                   </li>
                 ))}
               </ul>
-              </div>
+            </div>
           </div>
 
           <p className="text-sm text-text-faint">{t('auth.brandFooter')}</p>
