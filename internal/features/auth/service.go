@@ -3,12 +3,12 @@ package auth
 import (
 	"context"
 	stderrors "errors"
+	"os"
 	"regexp"
 
 	dbclient "ayo/internal/clients/db"
-	"ayo/internal/features/dbconfig"
-	"ayo/internal/features/masterkey"
 	"ayo/internal/shared/crypto"
+	"ayo/internal/shared/dialog"
 	"ayo/internal/shared/errors"
 
 	"github.com/go-playground/validator/v10"
@@ -57,13 +57,18 @@ func (s *Session) MasterKey() []byte {
 // replaced with the vague *errors.InternalServerError so that no implementation
 // detail ever leaks to the UI.
 type Service struct {
+	ctx      context.Context
 	conn     *dbclient.Connection
-	dbCreds  dbconfig.Repository
-	mkey     masterkey.Repository
 	repo     Repository
 	session  *Session
 	dbConfig dbclient.Config
 	validate *validator.Validate
+}
+
+// Startup stores the Wails application context, which native dialogs (e.g.
+// SaveRecoveryKey) require.
+func (s *Service) Startup(ctx context.Context) {
+	s.ctx = ctx
 }
 
 // validatePasswordStrength enforces that a password contains at least one
@@ -87,7 +92,7 @@ func validatePasswordStrength(fl validator.FieldLevel) bool {
 // NewService wires a shared connection holder, the database-credentials
 // keyring repository, the master-key keyring repository and a validator with
 // the custom password strength rule into a ready-to-use auth Service.
-func NewService(conn *dbclient.Connection, dbCreds dbconfig.Repository, mkey masterkey.Repository) *Service {
+func NewService(conn *dbclient.Connection) *Service {
 	validate := validator.New()
 
 	// Register custom password strength validator
@@ -95,8 +100,6 @@ func NewService(conn *dbclient.Connection, dbCreds dbconfig.Repository, mkey mas
 
 	return &Service{
 		conn:     conn,
-		dbCreds:  dbCreds,
-		mkey:     mkey,
 		repo:     NewRepository(conn),
 		validate: validate,
 	}
@@ -129,7 +132,7 @@ func (s *Service) Register(input RegisterInput) (*RegisterResult, error) {
 	// that is never deleted. Without this check, registering the same username
 	// against a different database would silently overwrite the existing
 	// account's keyring entry.
-	exists, err := s.dbCreds.Exists(input.Username)
+	exists, err := s.repo.CredentialsExists(input.Username)
 	if err != nil {
 		return nil, errors.AsInternalServerError("register: check keychain for existing account", err)
 	}
@@ -171,8 +174,12 @@ func (s *Service) Register(input RegisterInput) (*RegisterResult, error) {
 	if err != nil {
 		return nil, errors.AsInternalServerError("register: generate recovery key", err)
 	}
+	defer crypto.Wipe(recoveryKey)
 
-	hashedPassword, err := crypto.HashPassword(input.Password)
+	passwordBytes := []byte(input.Password)
+	defer crypto.Wipe(passwordBytes)
+
+	hashedPassword, err := crypto.HashPassword(passwordBytes)
 	if err != nil {
 		return nil, errors.AsInternalServerError("register: hash password", err)
 	}
@@ -199,9 +206,13 @@ func (s *Service) Register(input RegisterInput) (*RegisterResult, error) {
 	if err != nil {
 		return nil, errors.AsInternalServerError("register: generate master key", err)
 	}
+	// Registration does not create a session, so the master key is transient
+	// and must be scrubbed once the wrapped copies are produced.
+	defer crypto.Wipe(masterKey)
 
 	// encrypt master key with password
-	passwordKek := crypto.DeriveKEK(input.Password, passwordSalt)
+	passwordKek := crypto.DeriveKEK(passwordBytes, passwordSalt)
+	defer crypto.Wipe(passwordKek)
 	passwordEncryptedMasterKey, passwordNonce, err := crypto.EncryptMasterKey(passwordKek, masterKey)
 	if err != nil {
 		return nil, errors.AsInternalServerError("register: encrypt master key with password", err)
@@ -209,6 +220,7 @@ func (s *Service) Register(input RegisterInput) (*RegisterResult, error) {
 
 	// encrypt master key with recovery key
 	recoveryKek := crypto.DeriveKEK(recoveryKey, recoverySalt)
+	defer crypto.Wipe(recoveryKek)
 	recoveryEncryptedMasterKey, recoveryNonce, err := crypto.EncryptMasterKey(recoveryKek, masterKey)
 	if err != nil {
 		return nil, errors.AsInternalServerError("register: encrypt master key with recovery key", err)
@@ -216,12 +228,8 @@ func (s *Service) Register(input RegisterInput) (*RegisterResult, error) {
 
 	// Dual-encrypt the database credentials and persist them in the keyring so
 	// login can re-open the user's database and reset can re-wrap them.
-	creds := dbconfig.FromConfig(config)
-	encryptedCreds, err := dbconfig.EncryptDBCredentials(input.Password, recoveryKey, creds)
-	if err != nil {
-		return nil, errors.AsInternalServerError("register: encrypt database credentials", err)
-	}
-	if err := s.dbCreds.Save(input.Username, encryptedCreds); err != nil {
+	creds := FromConfig(config)
+	if err := s.repo.SaveCredentials(input.Username, passwordBytes, recoveryKey, creds); err != nil {
 		return nil, errors.AsInternalServerError("register: save database credentials", err)
 	}
 
@@ -245,8 +253,10 @@ func (s *Service) Register(input RegisterInput) (*RegisterResult, error) {
 		return nil, errors.AsInternalServerError("register: create user", err)
 	}
 
-	// return the original recovery key to the user so they can store it
-	return &RegisterResult{User: user, RecoveryKey: recoveryKey}, nil
+	// return the original recovery key to the user so they can store it. The
+	// []byte buffer is wiped on the way out; this string conversion is the one
+	// immutable copy Wails needs for serialization.
+	return &RegisterResult{User: user, RecoveryKey: string(recoveryKey)}, nil
 }
 
 // Login verifies the password, unwraps the master key with the password-derived
@@ -258,22 +268,19 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 		return false, errors.ErrInvalidInput
 	}
 
-	// Load the user's encrypted database credentials from the keyring. A
-	// missing entry means no such account exists.
-	blob, err := s.dbCreds.Load(input.Username)
+	passwordBytes := []byte(input.Password)
+	defer crypto.Wipe(passwordBytes)
+
+	// Load and decrypt the user's database credentials with the password-derived
+	// KEK. A missing keyring entry means no such account exists; a wrong password
+	// fails GCM authentication, which maps to the same user-facing error as the
+	// password-hash check below.
+	creds, err := s.repo.LoadCredentials(input.Username, passwordBytes, true)
 	if err != nil {
-		if stderrors.Is(err, dbconfig.ErrCredentialsNotFound) {
+		if stderrors.Is(err, ErrCredentialsNotFound) {
 			return false, errors.ErrUserNotFound
 		}
 		return false, errors.AsInternalServerError("login: load database credentials", err)
-	}
-
-	// Decrypt the credentials with the password-derived KEK. A wrong password
-	// fails GCM authentication, which maps to the same user-facing error as the
-	// password-hash check below.
-	creds, err := dbconfig.DecryptDBCredentials(input.Password, blob)
-	if err != nil {
-		return false, errors.ErrInvalidPassword
 	}
 	config := creds.ToConfig()
 
@@ -294,7 +301,7 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 	}
 
 	// comparing the password against the stored Argon2id PHC hash
-	ok, err := crypto.VerifyPasswordHash(input.Password, user.passwordHash)
+	ok, err := crypto.VerifyPasswordHash(passwordBytes, user.passwordHash)
 	if err != nil || !ok {
 		s.conn.Close()
 		return false, errors.ErrInvalidPassword
@@ -309,7 +316,9 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 	}
 
 	// deriving the KEK from the password and the stored salt
-	kek := crypto.DeriveKEK(input.Password, material.PasswordSalt)
+	kek := crypto.DeriveKEK(passwordBytes, material.PasswordSalt)
+	// The KEK is only needed to unwrap the master key; scrub it afterwards.
+	defer crypto.Wipe(kek)
 
 	// decrypting the master key
 	masterKey, err := crypto.DecryptMasterKey(kek, material.PasswordMasterKey, material.PasswordNonce)
@@ -341,17 +350,18 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*RegisterResult, erro
 		return nil, errors.ErrInvalidInput
 	}
 
-	blob, err := s.dbCreds.Load(input.Username)
-	if err != nil {
-		if stderrors.Is(err, dbconfig.ErrCredentialsNotFound) {
-			return nil, errors.ErrUserNotFound
-		}
-		return nil, errors.AsInternalServerError("reset password: load database credentials", err)
-	}
+	recoveryKeyBytes := []byte(input.RecoveryKey)
+	defer crypto.Wipe(recoveryKeyBytes)
+	newPasswordBytes := []byte(input.NewPassword)
+	defer crypto.Wipe(newPasswordBytes)
 
 	// The recovery key unwraps both the master key and the database credentials.
-	creds, err := dbconfig.DecryptDBCredentialsWithRecovery(input.RecoveryKey, blob)
+	// A missing keyring entry means no such account exists.
+	creds, err := s.repo.LoadCredentials(input.Username, recoveryKeyBytes, false)
 	if err != nil {
+		if stderrors.Is(err, ErrCredentialsNotFound) {
+			return nil, errors.ErrUserNotFound
+		}
 		return nil, errors.ErrInvalidRecoveryKey
 	}
 	config := creds.ToConfig()
@@ -380,7 +390,7 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*RegisterResult, erro
 	}
 
 	// Verify the recovery key against the stored Argon2id PHC hash.
-	ok, err := crypto.VerifyPasswordHash(input.RecoveryKey, user.recoveryKey)
+	ok, err := crypto.VerifyPasswordHash(recoveryKeyBytes, user.recoveryKey)
 	if err != nil || !ok {
 		s.conn.Close()
 		return nil, errors.ErrInvalidRecoveryKey
@@ -392,9 +402,10 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*RegisterResult, erro
 		s.conn.Close()
 		return nil, errors.AsInternalServerError("reset password: generate recovery key", err)
 	}
+	defer crypto.Wipe(newRecoveryKey)
 
 	// hash the new password to store
-	hashedPassword, err := crypto.HashPassword(input.NewPassword)
+	hashedPassword, err := crypto.HashPassword(newPasswordBytes)
 	if err != nil {
 		s.conn.Close()
 		return nil, errors.AsInternalServerError("reset password: hash password", err)
@@ -416,15 +427,21 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*RegisterResult, erro
 	}
 
 	// extract the original master key using the provided recovery key
-	recoveryKek := crypto.DeriveKEK(input.RecoveryKey, material.RecoverySalt)
+	recoveryKek := crypto.DeriveKEK(recoveryKeyBytes, material.RecoverySalt)
 	masterKey, err := crypto.DecryptMasterKey(recoveryKek, material.RecoveryMasterKey, material.RecoveryNonce)
 	if err != nil {
 		s.conn.Close()
 		return nil, errors.AsInternalServerError("reset password: decrypt master key", err)
 	}
+	// This KEK is reassigned below, so scrub it now rather than deferring.
+	crypto.Wipe(recoveryKek)
+	// Reset does not sign the user in, so the unwrapped master key is transient
+	// and must be scrubbed once the re-wrapped copies are produced.
+	defer crypto.Wipe(masterKey)
 
 	// generate the new encrypted master key using password
-	passwordKek := crypto.DeriveKEK(input.NewPassword, material.PasswordSalt)
+	passwordKek := crypto.DeriveKEK(newPasswordBytes, material.PasswordSalt)
+	defer crypto.Wipe(passwordKek)
 	passwordEncryptedMasterKey, passwordNonce, err := crypto.EncryptMasterKey(passwordKek, masterKey)
 	if err != nil {
 		s.conn.Close()
@@ -438,6 +455,7 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*RegisterResult, erro
 		s.conn.Close()
 		return nil, errors.AsInternalServerError("reset password: encrypt master key with recovery key", err)
 	}
+	crypto.Wipe(recoveryKek)
 
 	// update the password and recovery key hashes
 	err = s.repo.UpdateUserHashes(
@@ -465,12 +483,7 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*RegisterResult, erro
 
 	// Re-encrypt the database credentials with the new password and recovery
 	// key so the account keeps its database.
-	encryptedCreds, err := dbconfig.EncryptDBCredentials(input.NewPassword, newRecoveryKey, creds)
-	if err != nil {
-		s.conn.Close()
-		return nil, errors.AsInternalServerError("reset password: re-encrypt database credentials", err)
-	}
-	if err := s.dbCreds.Save(input.Username, encryptedCreds); err != nil {
+	if err := s.repo.SaveCredentials(input.Username, newPasswordBytes, newRecoveryKey, creds); err != nil {
 		s.conn.Close()
 		return nil, errors.AsInternalServerError("reset password: save database credentials", err)
 	}
@@ -484,7 +497,9 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*RegisterResult, erro
 		}
 	}
 
-	return &RegisterResult{User: user, RecoveryKey: newRecoveryKey}, nil
+	// The []byte buffer is wiped on the way out; this string conversion is the
+	// one immutable copy Wails needs for serialization.
+	return &RegisterResult{User: user, RecoveryKey: string(newRecoveryKey)}, nil
 }
 
 // Logout clears the in-memory session and closes the user's database
@@ -557,8 +572,8 @@ func (s *Service) SetMasterKeyStorage(storage string) (string, error) {
 	if _, err := s.RequireSession(); err != nil {
 		return "", err
 	}
-	target := masterkey.Storage(storage)
-	if target != masterkey.StorageDatabase && target != masterkey.StorageKeyring {
+	target := Storage(storage)
+	if target != StorageDatabase && target != StorageKeyring {
 		return "", errors.ErrInvalidInput
 	}
 
@@ -581,13 +596,13 @@ func (s *Service) SetMasterKeyStorage(storage string) (string, error) {
 		return "", errors.AsInternalServerError("set master key storage: load material", err)
 	}
 
-	if target == masterkey.StorageKeyring {
+	if target == StorageKeyring {
 		// Move the real material into the keyring and fill the database columns
 		// with indistinguishable random junk.
-		if err := s.mkey.Save(s.session.Username, material); err != nil {
+		if err := s.repo.SaveMasterKeyKeyring(s.session.Username, material); err != nil {
 			return "", errors.AsInternalServerError("set master key storage: save to keyring", err)
 		}
-		junk, err := masterkey.GenerateJunk()
+		junk, err := GenerateJunk()
 		if err != nil {
 			return "", errors.AsInternalServerError("set master key storage: generate junk", err)
 		}
@@ -600,7 +615,7 @@ func (s *Service) SetMasterKeyStorage(storage string) (string, error) {
 		if err := s.repo.UpdateMasterKeyMaterial(context.Background(), user.ID, material); err != nil {
 			return "", errors.AsInternalServerError("set master key storage: restore database", err)
 		}
-		if err := s.mkey.Delete(s.session.Username); err != nil {
+		if err := s.repo.DeleteMasterKeyKeyring(s.session.Username); err != nil {
 			return "", errors.AsInternalServerError("set master key storage: delete keyring", err)
 		}
 	}
@@ -611,27 +626,27 @@ func (s *Service) SetMasterKeyStorage(storage string) (string, error) {
 // masterKeyStorage reports whether a keyring entry exists for the user. It is
 // the single source of truth for the storage state: present => keyring storage,
 // absent => database storage.
-func (s *Service) masterKeyStorage(username string) (masterkey.Storage, error) {
-	exists, err := s.mkey.Exists(username)
+func (s *Service) masterKeyStorage(username string) (Storage, error) {
+	exists, err := s.repo.MasterKeyKeyringExists(username)
 	if err != nil {
 		return "", err
 	}
 	if exists {
-		return masterkey.StorageKeyring, nil
+		return StorageKeyring, nil
 	}
-	return masterkey.StorageDatabase, nil
+	return StorageDatabase, nil
 }
 
 // loadMasterKeyMaterial returns a user's encrypted master-key material from
 // whichever source it currently lives in: the OS keyring when an entry exists,
 // otherwise the users table row.
-func (s *Service) loadMasterKeyMaterial(user *User) (*masterkey.Material, error) {
-	exists, err := s.mkey.Exists(user.Username)
+func (s *Service) loadMasterKeyMaterial(user *User) (*Material, error) {
+	exists, err := s.repo.MasterKeyKeyringExists(user.Username)
 	if err != nil {
 		return nil, err
 	}
 	if exists {
-		return s.mkey.Load(user.Username)
+		return s.repo.LoadMasterKeyKeyring(user.Username)
 	}
 	return user.MasterKeyMaterial(), nil
 }
@@ -641,13 +656,38 @@ func (s *Service) loadMasterKeyMaterial(user *User) (*masterkey.Material, error)
 // otherwise the users table). The other source is left untouched, so the
 // keyring entry and the database junk stay consistent for keyring-stored
 // accounts.
-func (s *Service) persistMasterKeyMaterial(ctx context.Context, user *User, material *masterkey.Material) error {
-	exists, err := s.mkey.Exists(user.Username)
+func (s *Service) persistMasterKeyMaterial(ctx context.Context, user *User, material *Material) error {
+	exists, err := s.repo.MasterKeyKeyringExists(user.Username)
 	if err != nil {
 		return err
 	}
 	if exists {
-		return s.mkey.Save(user.Username, material)
+		return s.repo.SaveMasterKeyKeyring(user.Username, material)
 	}
 	return s.repo.UpdateMasterKeyMaterial(ctx, user.ID, material)
+}
+
+// SaveRecoveryKey opens a save file dialog and writes the recovery key to the
+// selected location. It is the frontend-facing counterpart of the recovery-key
+// flow in Register and ResetPassword: after either, the user downloads the key
+// so it can be stored somewhere safe. The recovery key is passed in (the user
+// is not signed in during these flows), never read from the session.
+func (s *Service) SaveRecoveryKey(username, recoveryKey string) error {
+	filePath, err := dialog.SaveFile(s.ctx, dialog.Options{
+		DefaultFilename:   "recovery-key-" + username + ".txt",
+		Title:             "Save Recovery Key",
+		FileFilterName:    "Text Files (*.txt)",
+		FileFilterPattern: "*.txt",
+	})
+	if err != nil {
+		return err
+	}
+
+	// User cancelled the dialog
+	if filePath == "" {
+		return nil
+	}
+
+	// Write the recovery key to the file
+	return os.WriteFile(filePath, []byte(recoveryKey), 0600)
 }

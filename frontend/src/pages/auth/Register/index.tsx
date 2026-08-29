@@ -60,6 +60,10 @@ export default function Register() {
     setIsSaving(true);
     try {
       await saveRecoveryKey(accountData.username, recoveryKey);
+      // The key is only ever shown once; drop the reference as soon as the
+      // save completes so the JS heap copy is released promptly.
+      setRecoveryKey(null);
+      setAccountData(null);
       toast.success(t('auth.recoveryKeySaved'));
       navigate('/auth/login');
     } catch (err) {

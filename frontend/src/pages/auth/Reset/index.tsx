@@ -63,6 +63,9 @@ export default function Reset() {
     try {
       const username = getValues('username');
       await saveRecoveryKey(username, newRecoveryKey);
+      // The key is only ever shown once; drop the reference as soon as the
+      // save completes so the JS heap copy is released promptly.
+      setNewRecoveryKey(null);
       toast.success(t('auth.recoveryKeySaved'));
       navigate('/auth/login');
     } catch (err) {

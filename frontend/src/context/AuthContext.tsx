@@ -6,9 +6,9 @@ import {
   Logout as LogoutService,
   Register as RegisterService,
   ResetPassword as ResetPasswordService,
+  SaveRecoveryKey as SaveRecoveryKeyService,
 } from '../../wailsjs/go/auth/Service';
 import { auth } from '../../wailsjs/go/models';
-import { SaveRecoveryKey as SaveRecoveryKeyService } from '../../wailsjs/go/recovery/Service';
 
 export type RegisterDbConfig = {
   type: 'sqlite' | 'postgresql';

@@ -29,6 +29,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -70,17 +71,19 @@ var argon2Params = &argon2id.Params{
 }
 
 // GenerateRecoveryKey returns a new random 256-bit recovery key encoded as a
-// URL-safe base64 string. The user is shown this value exactly once (at
-// registration/reset) and must store it somewhere safe.
-func GenerateRecoveryKey() (string, error) {
+// URL-safe base64 string. The returned []byte is a zeroable buffer so the
+// caller can scrub it (see Wipe) after showing the value; it must be converted
+// to a string only at the point of display. The user is shown this value
+// exactly once (at registration/reset) and must store it somewhere safe.
+func GenerateRecoveryKey() ([]byte, error) {
 	const size = 32 // 256 bits
 
 	b := make([]byte, size)
 	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("failed to generate random bytes: %w", err)
+		return nil, fmt.Errorf("failed to generate random bytes: %w", err)
 	}
 
-	return base64.RawURLEncoding.EncodeToString(b), nil
+	return []byte(base64.RawURLEncoding.EncodeToString(b)), nil
 }
 
 // GenerateSalt returns a random salt for use with DeriveKEK. Salts are
@@ -185,9 +188,9 @@ func DecryptMasterKey(kek []byte, encryptedMasterKey []byte, nonce []byte) ([]by
 // DeriveKEK derives a Key Encryption Key from a password and salt using
 // Argon2id. The result depends on argon2Params, so those parameters must not
 // change after keys have been persisted.
-func DeriveKEK(password string, salt []byte) []byte {
+func DeriveKEK(password []byte, salt []byte) []byte {
 	kek := argon2.IDKey(
-		[]byte(password),
+		password,
 		salt,
 		argon2Params.Iterations,
 		argon2Params.Memory,
@@ -259,6 +262,83 @@ func DecryptData(key []byte, ciphertext []byte) ([]byte, error) {
 
 	nonce, encryptedData := ciphertext[:nonceSize], ciphertext[nonceSize:]
 	return aead.Open(nil, nonce, encryptedData, nil)
+}
+
+// dualEncryptedBlob is the JSON shape persisted for a value wrapped twice:
+// once with a KEK derived from a password and once with a KEK derived from a
+// recovery key, each with its own random salt. Each ciphertext carries its own
+// embedded nonce (see EncryptData), so a password reset can re-wrap the value
+// using the recovery-key copy without the old password.
+type dualEncryptedBlob struct {
+	PasswordSalt      []byte `json:"PasswordSalt"`
+	PasswordEncrypted []byte `json:"PasswordEncrypted"`
+	RecoverySalt      []byte `json:"RecoverySalt"`
+	RecoveryEncrypted []byte `json:"RecoveryEncrypted"`
+}
+
+// DualEncrypt wraps plaintext with both a password-derived and a
+// recovery-key-derived KEK using AES-256-GCM, mirroring the master-key pattern.
+// The returned blob is the JSON form ready to persist. password and recoveryKey
+// must be mutable copies of the secrets (see Wipe); the derived KEKs are
+// scrubbed before returning. The caller owns plaintext and should wipe it.
+func DualEncrypt(plaintext, password, recoveryKey []byte) ([]byte, error) {
+	passwordSalt, err := GenerateSalt()
+	if err != nil {
+		return nil, err
+	}
+	passwordKek := DeriveKEK(password, passwordSalt)
+	defer Wipe(passwordKek)
+	passwordEncrypted, err := EncryptData(passwordKek, plaintext)
+	if err != nil {
+		return nil, err
+	}
+
+	recoverySalt, err := GenerateSalt()
+	if err != nil {
+		return nil, err
+	}
+	recoveryKek := DeriveKEK(recoveryKey, recoverySalt)
+	defer Wipe(recoveryKek)
+	recoveryEncrypted, err := EncryptData(recoveryKek, plaintext)
+	if err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(dualEncryptedBlob{
+		PasswordSalt:      passwordSalt,
+		PasswordEncrypted: passwordEncrypted,
+		RecoverySalt:      recoverySalt,
+		RecoveryEncrypted: recoveryEncrypted,
+	})
+}
+
+// DualDecrypt unwraps a blob previously produced by DualEncrypt. fromPassword
+// selects the password-derived KEK (used on login); otherwise the
+// recovery-key-derived KEK is used (used on password reset). A wrong secret
+// fails GCM authentication and returns an error. secret must be a mutable copy
+// (see Wipe); the transient KEK and plaintext are scrubbed before returning.
+func DualDecrypt(blob, secret []byte, fromPassword bool) ([]byte, error) {
+	var e dualEncryptedBlob
+	if err := json.Unmarshal(blob, &e); err != nil {
+		return nil, err
+	}
+
+	var kek []byte
+	var encrypted []byte
+	if fromPassword {
+		kek = DeriveKEK(secret, e.PasswordSalt)
+		encrypted = e.PasswordEncrypted
+	} else {
+		kek = DeriveKEK(secret, e.RecoverySalt)
+		encrypted = e.RecoveryEncrypted
+	}
+	defer Wipe(kek)
+
+	plaintext, err := DecryptData(kek, encrypted)
+	if err != nil {
+		return nil, err
+	}
+	return plaintext, nil
 }
 
 // StreamEncrypt encrypts data from reader to writer in fixed-size chunks,

@@ -6,8 +6,8 @@ import (
 
 	dbclient "ayo/internal/clients/db"
 	"ayo/internal/features/auth"
-	"ayo/internal/platform/dialog"
 	"ayo/internal/shared/crypto"
+	"ayo/internal/shared/dialog"
 	"ayo/internal/shared/errors"
 
 	"github.com/go-playground/validator/v10"
