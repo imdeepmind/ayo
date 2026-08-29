@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 
-	"ayo/internal/platform/dialog"
+	"ayo/internal/shared/dialog"
 )
 
 // Service handles saving the user's recovery key to a file. It is the

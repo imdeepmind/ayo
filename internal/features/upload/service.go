@@ -9,8 +9,8 @@ import (
 	"ayo/internal/clients/storage"
 	"ayo/internal/features/auth"
 	"ayo/internal/features/settings"
-	"ayo/internal/platform/dialog"
 	"ayo/internal/platform/queue"
+	"ayo/internal/shared/dialog"
 	"ayo/internal/shared/errors"
 
 	"github.com/go-playground/validator/v10"

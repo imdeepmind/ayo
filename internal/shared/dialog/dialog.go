@@ -1,10 +1,10 @@
 // Package dialog wraps Wails' native desktop dialogs behind a small,
 // platform-independent API.
 //
-// It belongs to the platform tier: it hides the Wails runtime dependency so
-// feature packages (e.g. recovery) can prompt the user for file paths without
-// importing the runtime themselves. Add open-dir / open-file wrappers here as
-// features need them.
+// It lives in the shared tier: it hides the Wails runtime dependency so feature
+// packages (e.g. recovery) can prompt the user for file paths without importing
+// the runtime themselves. Add open-dir / open-file wrappers here as features
+// need them.
 package dialog
 
 import (
