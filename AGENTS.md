@@ -7,8 +7,7 @@ Wails v2 desktop app (`ayo`): Go 1.24 backend + React 18 / TypeScript / Vite 3 /
 The Go backend is tiered under `internal/`:
 
 - `internal/features/` — business logic, one package per feature:
-  - `auth/` — Register/Login/ResetPassword/Logout + in-memory session (`MasterKey`). Argon2id + AES-GCM. Layered as `dto.go` / `model.go` / `repository.go` / `service.go`. The service owns the active per-user database connection (via `internal/clients/db`'s `Connection`) and opens/closes it on login/logout; the full DB config (incl. PostgreSQL password) stays on the service, never in `Session` (which is serialized to the frontend).
-  - `dbconfig/` — dual-encrypted (password-KEK + recovery-KEK) per-user database credentials stored in the OS keyring under `ayo`/`dbcreds_{username}`. `model.go` / `crypto.go` / `repository.go`.
+  - `auth/` — Register/Login/ResetPassword/Logout + in-memory session (`MasterKey`). Argon2id + AES-GCM. Layered as `dto.go` / `model.go` / `repository.go` / `service.go`. The service owns the active per-user database connection (via `internal/clients/db`'s `Connection`) and opens/closes it on login/logout; the full DB config (incl. PostgreSQL password) stays on the service, never in `Session` (which is serialized to the frontend). `auth` also persists database credentials (`dbcreds_{username}`, dual-encrypted via `crypto.DualEncrypt`) and encrypted master-key material (`mkey_{username}`) in the OS keyring through its `Repository`.
   - `settings/` — per-user settings stored in the OS keyring (`zalando/go-keyring`), encrypted with the session master key. Keyring persistence is in `repository.go`; cloud-key types in `cloud.go`; validated Wails-bound input in `dto.go`. `GetDatabaseInfo()` returns sanitized (no password) DB info for the read-only Database tab.
   - `recovery/` — save-file dialog for downloading the recovery key (shown after register/reset).
   - `queue/` — dead code: not wired into `main.go`, and its SQL is MySQL-flavored (`AUTO_INCREMENT`, `JSON` type, `ON UPDATE CURRENT_TIMESTAMP`) and will not run on SQLite. Don't build on it.
@@ -21,7 +20,7 @@ The Go backend is tiered under `internal/`:
   - `queue/` — job queue (one `Job` per queued file, with status + progress) backed by the signed-in user's database. Wired in `main.go` and consumed by the `upload` feature's business logic through a narrow interface; prefer keeping that dependency behind the feature's own repository if possible.
 - `internal/shared/` — cross-cutting code:
   - `errors/` — sentinel errors with user-facing messages; return these (not wrapped fmt errors) so the frontend can display them. Also the `InternalServerError` type, `ErrDatabaseUnavailable` and `ErrNoStorageProvider`.
-  - `crypto/` — Argon2 KEK derivation + AES-256-GCM encrypt/decrypt primitives.
+  - `crypto/` — Argon2 KEK derivation + AES-256-GCM encrypt/decrypt primitives. Includes `DualEncrypt`/`DualDecrypt` (password-KEK + recovery-KEK dual wrap) and `Wipe` for scrubbing plaintext key material; all crypto lives here, never in features.
   - `paths/` — `GetAppDataDir()` for the OS app data directory where per-user SQLite files live.
 - `main.go` — entrypoint. Wires `auth`, `settings`, `recovery`, `upload` services and binds them to the frontend via `wails.Run`. No global database: a shared `dbclient.Connection` is created and passed to auth/queue/upload.
 - `assets.go` — `//go:embed all:frontend/dist`; the compiled frontend is embedded into the Go binary.
@@ -46,6 +45,7 @@ The Go backend is tiered under `internal/`:
 
 ## Conventions
 
+- **Service calls the repository; the repository interacts with clients/platform.** A feature's service never touches `internal/clients` or `internal/platform` directly — all persistence (DB via `internal/clients/db`, keyring via `internal/platform/keyring`) goes through the feature's single `Repository`. One repository per file, one service per file.
 - Auth validation uses `go-playground/validator` with a custom `password_strength` rule: passwords must contain upper + lower + digit + symbol.
 - Repositories write queries with `?` placeholders and run them through the client's `Rebind()` (a no-op on SQLite, `?`→`$N` on PostgreSQL). `initializeTable` and insert-ID retrieval (`LastInsertId` vs `RETURNING id`) branch on the dialect.
 - Frontend: TypeScript, ESLint, Prettier; commit formatted/linted code (`format` + `lint` pass in CI).

@@ -2,20 +2,26 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
+	"encoding/json"
 	stderrors "errors"
 	"fmt"
 	"strings"
 	"sync"
 
 	dbclient "ayo/internal/clients/db"
-	"ayo/internal/features/masterkey"
+	"ayo/internal/platform/keyring"
+	"ayo/internal/shared/crypto"
 	"ayo/internal/shared/errors"
 )
 
-// Repository abstracts persistence for the auth module. Keeping it behind an
-// interface makes the service testable with a fake implementation instead of a
-// real SQLite database.
+// Repository abstracts persistence for the auth module. It is the only thing
+// that touches the database (via internal/clients/db) and the OS keyring (via
+// internal/platform/keyring); the service calls the repository and never
+// reaches into clients/platform directly. Keeping it behind an interface makes
+// the service testable with a fake implementation instead of a real database.
 type Repository interface {
 	CreateUser(
 		ctx context.Context,
@@ -36,7 +42,14 @@ type Repository interface {
 		passwordHash string,
 		recoveryKey string,
 	) error
-	UpdateMasterKeyMaterial(ctx context.Context, id int64, material *masterkey.Material) error
+	UpdateMasterKeyMaterial(ctx context.Context, id int64, material *Material) error
+	CredentialsExists(username string) (bool, error)
+	SaveCredentials(username string, password, recoveryKey []byte, creds DBCredentials) error
+	LoadCredentials(username string, secret []byte, fromPassword bool) (DBCredentials, error)
+	MasterKeyKeyringExists(username string) (bool, error)
+	SaveMasterKeyKeyring(username string, material *Material) error
+	LoadMasterKeyKeyring(username string) (*Material, error)
+	DeleteMasterKeyKeyring(username string) error
 }
 
 type repository struct {
@@ -226,7 +239,7 @@ func (r *repository) UpdateUserHashes(
 // given user. It is used to migrate the material between the users table and
 // the OS keyring: when the material moves to the keyring, this writes
 // indistinguishable random junk; when it moves back, it writes the real values.
-func (r *repository) UpdateMasterKeyMaterial(ctx context.Context, id int64, material *masterkey.Material) error {
+func (r *repository) UpdateMasterKeyMaterial(ctx context.Context, id int64, material *Material) error {
 	query := `UPDATE users SET password_salt = ?, password_nonce = ?, ` +
 		`password_master_key = ?, recovery_salt = ?, recovery_nonce = ?, ` +
 		`recovery_master_key = ? WHERE id = ?`
@@ -246,4 +259,252 @@ func (r *repository) UpdateMasterKeyMaterial(ctx context.Context, id int64, mate
 		return fmt.Errorf("failed to update master key material: %w", err)
 	}
 	return nil
+}
+
+// ErrCredentialsNotFound is returned by loadDBCreds when no keyring entry exists
+// for the user. It is an internal marker (mapped by the service to
+// ErrUserNotFound) rather than a user-facing message.
+var ErrCredentialsNotFound = stderrors.New("database credentials not found in keyring")
+
+// CredentialsExists reports whether a database-credentials keyring entry exists
+// for the user. It is the machine-level account marker: every registered
+// account saves an entry and never deletes it, so its presence means a username
+// is already taken on this device.
+func (r *repository) CredentialsExists(username string) (bool, error) {
+	return dbCredsExists(username)
+}
+
+// SaveCredentials serializes creds, dual-encrypts them (password-KEK +
+// recovery-KEK) and persists the blob in the OS keyring. password and
+// recoveryKey must be mutable copies of the secrets (see crypto.Wipe).
+func (r *repository) SaveCredentials(username string, password, recoveryKey []byte, creds DBCredentials) error {
+	encrypted, err := encryptDBCreds(password, recoveryKey, creds)
+	if err != nil {
+		return err
+	}
+	return saveDBCreds(username, encrypted)
+}
+
+// LoadCredentials loads the encrypted database-credentials blob and unwraps it
+// with the given secret. fromPassword selects the password-derived KEK (login)
+// or the recovery-key-derived KEK (password reset). secret must be a mutable
+// copy (see crypto.Wipe). A wrong secret fails GCM authentication and returns
+// an error.
+func (r *repository) LoadCredentials(username string, secret []byte, fromPassword bool) (DBCredentials, error) {
+	blob, err := loadDBCreds(username)
+	if err != nil {
+		return DBCredentials{}, err
+	}
+	return decryptDBCreds(secret, blob, fromPassword)
+}
+
+// MasterKeyKeyringExists reports whether a master-key keyring entry exists for
+// the user. It is the source of truth for the storage state: present => keyring
+// storage, absent => database storage.
+func (r *repository) MasterKeyKeyringExists(username string) (bool, error) {
+	return masterKeyKeyringExists(username)
+}
+
+// SaveMasterKeyKeyring replaces the user's encrypted master-key material in the
+// OS keyring.
+func (r *repository) SaveMasterKeyKeyring(username string, material *Material) error {
+	return saveMasterKeyKeyring(username, material)
+}
+
+// LoadMasterKeyKeyring returns the user's encrypted master-key material from
+// the OS keyring, or ErrMasterKeyNotFound when no entry exists.
+func (r *repository) LoadMasterKeyKeyring(username string) (*Material, error) {
+	return loadMasterKeyKeyring(username)
+}
+
+// DeleteMasterKeyKeyring removes the user's master-key keyring entry. Removing
+// an entry that does not exist is not an error.
+func (r *repository) DeleteMasterKeyKeyring(username string) error {
+	return deleteMasterKeyKeyring(username)
+}
+
+// dbCredsKeyringUser maps an account username to the keyring entry holding its
+// database credentials, keeping it separate from the "ayo" entries used by
+// settings and the "mkey_" entries used by the master-key keyring.
+func dbCredsKeyringUser(username string) string {
+	return "dbcreds_" + username
+}
+
+// loadDBCreds returns the encrypted database-credentials blob for the user, or
+// ErrCredentialsNotFound when nothing has been saved yet.
+func loadDBCreds(username string) ([]byte, error) {
+	encoded, err := keyring.Get("ayo", dbCredsKeyringUser(username))
+	if err != nil {
+		if keyring.IsNotFound(err) {
+			return nil, ErrCredentialsNotFound
+		}
+		return nil, fmt.Errorf("load database credentials from keyring: %w", err)
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("decode database credentials blob: %w", err)
+	}
+	return decoded, nil
+}
+
+// saveDBCreds replaces the encrypted database-credentials blob for the user.
+func saveDBCreds(username string, data []byte) error {
+	encoded := base64.StdEncoding.EncodeToString(data)
+	if err := keyring.Set("ayo", dbCredsKeyringUser(username), encoded); err != nil {
+		return fmt.Errorf("save database credentials to keyring: %w", err)
+	}
+	return nil
+}
+
+// dbCredsExists reports whether a database-credentials entry is stored for the
+// user. It is the machine-level account marker: every registered account saves
+// an entry and never deletes it, so its presence means a username is already
+// taken on this device.
+func dbCredsExists(username string) (bool, error) {
+	return keyring.Exists("ayo", dbCredsKeyringUser(username))
+}
+
+// encryptDBCreds serializes creds and dual-encrypts them (password-KEK +
+// recovery-KEK) via crypto.DualEncrypt. password and recoveryKey must be
+// mutable copies of the secrets (see crypto.Wipe); the transient plaintext JSON
+// is scrubbed before returning.
+func encryptDBCreds(password, recoveryKey []byte, creds DBCredentials) ([]byte, error) {
+	plaintext, err := json.Marshal(creds)
+	if err != nil {
+		return nil, err
+	}
+	defer crypto.Wipe(plaintext)
+	return crypto.DualEncrypt(plaintext, password, recoveryKey)
+}
+
+// decryptDBCreds unwraps a blob previously produced by encryptDBCreds.
+// fromPassword selects the password-derived KEK (login) or the
+// recovery-key-derived KEK (password reset). secret must be a mutable copy of
+// the secret (see crypto.Wipe); the transient plaintext JSON is scrubbed before
+// returning.
+func decryptDBCreds(secret []byte, blob []byte, fromPassword bool) (DBCredentials, error) {
+	plaintext, err := crypto.DualDecrypt(blob, secret, fromPassword)
+	if err != nil {
+		return DBCredentials{}, err
+	}
+	defer crypto.Wipe(plaintext)
+
+	var creds DBCredentials
+	if err := json.Unmarshal(plaintext, &creds); err != nil {
+		return DBCredentials{}, err
+	}
+	return creds, nil
+}
+
+// ErrMasterKeyNotFound is returned by loadMasterKeyKeyring when no keyring entry
+// exists for the user. It signals database storage (see masterKeyKeyringExists).
+var ErrMasterKeyNotFound = stderrors.New("master key not found in keyring")
+
+// masterKeyKeyringUser maps an account username to the keyring entry holding its
+// encrypted master-key material.
+func masterKeyKeyringUser(username string) string {
+	return "mkey_" + username
+}
+
+// loadMasterKeyKeyring returns the user's encrypted master-key material from the
+// OS keyring, or ErrMasterKeyNotFound when no entry exists.
+func loadMasterKeyKeyring(username string) (*Material, error) {
+	encoded, err := keyring.Get("ayo", masterKeyKeyringUser(username))
+	if err != nil {
+		if keyring.IsNotFound(err) {
+			return nil, ErrMasterKeyNotFound
+		}
+		return nil, fmt.Errorf("load master key from keyring: %w", err)
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("decode master key blob: %w", err)
+	}
+
+	var material Material
+	if err := json.Unmarshal(decoded, &material); err != nil {
+		return nil, fmt.Errorf("unmarshal master key blob: %w", err)
+	}
+	return &material, nil
+}
+
+// saveMasterKeyKeyring replaces the user's encrypted master-key material in the
+// OS keyring.
+func saveMasterKeyKeyring(username string, material *Material) error {
+	raw, err := json.Marshal(material)
+	if err != nil {
+		return fmt.Errorf("marshal master key blob: %w", err)
+	}
+	encoded := base64.StdEncoding.EncodeToString(raw)
+	if err := keyring.Set("ayo", masterKeyKeyringUser(username), encoded); err != nil {
+		return fmt.Errorf("save master key to keyring: %w", err)
+	}
+	return nil
+}
+
+// deleteMasterKeyKeyring removes the user's master-key keyring entry. Removing
+// an entry that does not exist is not an error.
+func deleteMasterKeyKeyring(username string) error {
+	if err := keyring.Delete("ayo", masterKeyKeyringUser(username)); err != nil {
+		return fmt.Errorf("delete master key from keyring: %w", err)
+	}
+	return nil
+}
+
+// masterKeyKeyringExists reports whether a keyring entry is stored for the user.
+// It is the source of truth for the storage state: present => keyring storage,
+// absent => database storage.
+func masterKeyKeyringExists(username string) (bool, error) {
+	return keyring.Exists("ayo", masterKeyKeyringUser(username))
+}
+
+// GenerateJunk returns a Material filled with random bytes sized like real
+// encrypted master-key material. It is written to the users table columns while
+// the real material lives in the OS keyring, so a stolen database offers no
+// usable key material and the junk is indistinguishable from the real ciphertext
+// (same lengths: 16-byte salts, 12-byte nonces, 48-byte wrapped keys).
+func GenerateJunk() (*Material, error) {
+	bytes := func(n int) ([]byte, error) {
+		b := make([]byte, n)
+		if _, err := rand.Read(b); err != nil {
+			return nil, err
+		}
+		return b, nil
+	}
+
+	passwordSalt, err := bytes(16)
+	if err != nil {
+		return nil, fmt.Errorf("generate junk password salt: %w", err)
+	}
+	passwordNonce, err := bytes(12)
+	if err != nil {
+		return nil, fmt.Errorf("generate junk password nonce: %w", err)
+	}
+	passwordMasterKey, err := bytes(48)
+	if err != nil {
+		return nil, fmt.Errorf("generate junk password master key: %w", err)
+	}
+	recoverySalt, err := bytes(16)
+	if err != nil {
+		return nil, fmt.Errorf("generate junk recovery salt: %w", err)
+	}
+	recoveryNonce, err := bytes(12)
+	if err != nil {
+		return nil, fmt.Errorf("generate junk recovery nonce: %w", err)
+	}
+	recoveryMasterKey, err := bytes(48)
+	if err != nil {
+		return nil, fmt.Errorf("generate junk recovery master key: %w", err)
+	}
+
+	return &Material{
+		PasswordSalt:      passwordSalt,
+		PasswordNonce:     passwordNonce,
+		PasswordMasterKey: passwordMasterKey,
+		RecoverySalt:      recoverySalt,
+		RecoveryNonce:     recoveryNonce,
+		RecoveryMasterKey: recoveryMasterKey,
+	}, nil
 }

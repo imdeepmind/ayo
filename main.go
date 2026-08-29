@@ -7,9 +7,7 @@ import (
 	dbclient "ayo/internal/clients/db"
 	"ayo/internal/clients/storage"
 	"ayo/internal/features/auth"
-	"ayo/internal/features/dbconfig"
 	"ayo/internal/features/home"
-	"ayo/internal/features/masterkey"
 	"ayo/internal/features/recovery"
 	"ayo/internal/features/settings"
 	"ayo/internal/features/upload"
@@ -66,14 +64,11 @@ func main() {
 	// the in-memory session, the master key and the active database connection,
 	// and is injected into the settings service (which needs the session to
 	// gate access and the master key to encrypt/decrypt stored settings).
-	// Database credentials are persisted in the OS keyring through the dbconfig
-	// feature. The encrypted master-key material can likewise live in the OS
-	// keyring (account-scoped "mkey_{username}") or in the users table; the
-	// masterkey repository is the keyring side of that choice, and the auth
-	// service migrates between the two via Get/SetMasterKeyStorage.
-	dbconfigRepository := dbconfig.NewRepository()
-	masterkeyRepository := masterkey.NewRepository()
-	authService := auth.NewService(conn, dbconfigRepository, masterkeyRepository)
+	// Database credentials are persisted in the OS keyring through the auth
+	// feature's keyring helpers. The encrypted master-key material can likewise
+	// live in the OS keyring (account-scoped "mkey_{username}") or in the users
+	// table; the auth service migrates between the two via Get/SetMasterKeyStorage.
+	authService := auth.NewService(conn)
 
 	// Recovery service: native save dialogs for downloading the recovery key.
 	recoveryService := recovery.NewService()
