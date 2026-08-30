@@ -154,7 +154,7 @@ func (s *Service) Register(input RegisterInput) (*RegisterResult, error) {
 	// Registration targets the new user's own database, which would disconnect
 	// any active session. Refuse while signed in.
 	if s.session != nil {
-		return nil, errors.ErrInvalidInput
+		return nil, errors.ErrAlreadySignedIn
 	}
 
 	// Reject usernames already taken on this machine: every registered account
@@ -301,6 +301,12 @@ func (s *Service) Register(input RegisterInput) (*RegisterResult, error) {
 func (s *Service) Login(input LoginInput) (bool, error) {
 	if err := s.validate.Struct(input); err != nil {
 		return false, errors.ErrInvalidInput
+	}
+
+	// Login targets the (potential) new user's own database, which would
+	// disconnect any active session. Refuse while signed in.
+	if s.session != nil {
+		return false, errors.ErrAlreadySignedIn
 	}
 
 	passwordBytes := []byte(input.Password)

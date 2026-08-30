@@ -61,6 +61,12 @@ var (
 		"you must be logged in to access this resource",
 	)
 
+	// ErrAlreadySignedIn means a sign-in was attempted while a session is
+	// already active. Callers must sign out before signing in as another user.
+	ErrAlreadySignedIn = errors.New(
+		"you are already signed in. Please sign out before signing in as another user",
+	)
+
 	// ErrJobNotFound means the requested queue entry does not exist.
 	ErrJobNotFound = errors.New(
 		"the file entry you are looking for no longer exists",
