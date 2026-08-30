@@ -15,6 +15,7 @@ import (
 	"ayo/internal/shared/dialog"
 	"ayo/internal/shared/errors"
 
+	"github.com/awnumar/memguard"
 	"github.com/go-playground/validator/v10"
 	passwordvalidator "github.com/wagslane/go-password-validator"
 )
@@ -37,12 +38,10 @@ const minPasswordEntropy = 70.0
 // the running process and is lost on app restart (the frontend re-checks it on
 // startup via GetSession).
 //
-// masterKey is the decrypted key that encrypts all of the user's data. It is
-// kept alongside the session so services like settings can encrypt/decrypt
-// without re-deriving it from the password, and is exposed to them via the
-// MasterKey method. It is deliberately unexported: Session is serialized to the
-// frontend via GetSession/RequireSession, and the plaintext master key must
-// never reach the webview (Wails only serializes exported fields).
+// enclave holds Piece A of the XOR-split master key inside unswappable,
+// encrypted RAM managed by memguard. Piece B lives in the OS Keyring.
+// Plaintext master keys are reconstructed dynamically via WithMasterKey and
+// destroyed immediately after use.
 //
 // The user's database configuration is deliberately NOT stored here: Session is
 // serialized to the frontend via GetSession, and exposing the PostgreSQL
@@ -51,15 +50,8 @@ const minPasswordEntropy = 70.0
 type Session struct {
 	UserId       int64
 	Username     string
-	masterKey    []byte
+	enclave      *memguard.Enclave
 	lastActiveAt time.Time
-}
-
-// MasterKey returns the session's decrypted 32-byte master key. It is how
-// other services access the key without it ever being serialized to the
-// frontend.
-func (s *Session) MasterKey() []byte {
-	return s.masterKey
 }
 
 // Service implements the auth business logic and is the single source of truth
@@ -418,17 +410,33 @@ func (s *Service) Login(input LoginInput) (ok bool, err error) {
 	defer crypto.Wipe(kek)
 
 	// decrypting the master key
-	masterKey, err := crypto.DecryptMasterKey(kek, material.PasswordMasterKey, material.PasswordNonce)
+	rawMasterKey, err := crypto.DecryptMasterKey(kek, material.PasswordMasterKey, material.PasswordNonce)
 	if err != nil {
 		s.conn.Close()
 		return false, errors.AsInternalServerError("login: decrypt master key", err)
 	}
+	defer crypto.Wipe(rawMasterKey)
+
+	pieceA, pieceB, err := crypto.SplitKey(rawMasterKey)
+	if err != nil {
+		s.conn.Close()
+		return false, errors.AsInternalServerError("login: split master key", err)
+	}
+	defer crypto.Wipe(pieceA)
+	defer crypto.Wipe(pieceB)
+
+	if err := s.repo.SaveMasterKeyPieceB(user.Username, pieceB); err != nil {
+		s.conn.Close()
+		return false, errors.AsInternalServerError("login: save master key piece B", err)
+	}
+
+	enclave := memguard.NewEnclave(pieceA)
 
 	// session of the app
 	s.session = &Session{
 		UserId:       user.ID,
 		Username:     user.Username,
-		masterKey:    masterKey,
+		enclave:      enclave,
 		lastActiveAt: time.Now(),
 	}
 	s.dbConfig = config
@@ -645,7 +653,11 @@ func (s *Service) checkSessionTimeoutLocked() bool {
 }
 
 func (s *Service) logoutLocked() {
-	s.session = nil
+	if s.session != nil {
+		_ = s.repo.DeleteMasterKeyPieceB(s.session.Username)
+		s.session.enclave = nil
+		s.session = nil
+	}
 	s.dbConfig = dbclient.Config{}
 	if s.conn != nil {
 		s.conn.Close()
@@ -680,6 +692,42 @@ func (s *Service) RequireSession() (*Session, error) {
 		return nil, errors.ErrUnauthorized
 	}
 	return s.session, nil
+}
+
+// WithMasterKey executes a function with the reconstructed 32-byte master key.
+// The master key is temporarily reconstructed in locked, unswappable memory
+// using Piece A (from memguard enclave) and Piece B (from OS Keyring), and is
+// explicitly destroyed immediately after fn completes.
+func (s *Service) WithMasterKey(fn func(masterKey []byte) error) error {
+	s.mu.Lock()
+	if s.checkSessionTimeoutLocked() || s.session == nil || s.session.enclave == nil {
+		s.mu.Unlock()
+		return errors.ErrUnauthorized
+	}
+	session := s.session
+	repo := s.repo
+	s.mu.Unlock()
+
+	pieceB, err := repo.LoadMasterKeyPieceB(session.Username)
+	if err != nil {
+		return errors.AsInternalServerError("with master key: load piece B", err)
+	}
+	defer crypto.Wipe(pieceB)
+
+	lockedA, err := session.enclave.Open()
+	if err != nil {
+		return errors.AsInternalServerError("with master key: open enclave", err)
+	}
+	defer lockedA.Destroy()
+
+	reconstructedBuf := memguard.NewBuffer(crypto.KeySize)
+	defer reconstructedBuf.Destroy()
+
+	if err := crypto.CombineKeyToBuffer(lockedA.Bytes(), pieceB, reconstructedBuf.Bytes()); err != nil {
+		return errors.AsInternalServerError("with master key: combine key", err)
+	}
+
+	return fn(reconstructedBuf.Bytes())
 }
 
 // CurrentClient returns the signed-in user's active database connection, or
