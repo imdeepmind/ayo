@@ -34,6 +34,8 @@ import (
 	"fmt"
 	"io"
 
+	sharederrors "ayo/internal/shared/errors"
+
 	"github.com/alexedwards/argon2id"
 	"golang.org/x/crypto/argon2"
 )
@@ -261,7 +263,11 @@ func DecryptData(key []byte, ciphertext []byte) ([]byte, error) {
 	}
 
 	nonce, encryptedData := ciphertext[:nonceSize], ciphertext[nonceSize:]
-	return aead.Open(nil, nonce, encryptedData, nil)
+	plaintext, err := aead.Open(nil, nonce, encryptedData, nil)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", sharederrors.ErrInvalidSecret, err)
+	}
+	return plaintext, nil
 }
 
 // dualEncryptedBlob is the JSON shape persisted for a value wrapped twice:

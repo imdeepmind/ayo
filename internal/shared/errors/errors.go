@@ -56,6 +56,21 @@ var (
 		"the recovery key you entered is incorrect. Please check it and try again",
 	)
 
+	// ErrInvalidSecret is an internal marker, not a user-facing message. It is
+	// returned when AES-GCM authentication fails during decryption, i.e. the
+	// supplied key does not match the ciphertext (or the ciphertext was
+	// tampered with). Callers use it to tell a wrong password or recovery key
+	// apart from internal decryption failures.
+	ErrInvalidSecret = errors.New("invalid secret: ciphertext authentication failed")
+
+	// ErrTooManyAttempts means too many consecutive failed attempts for one
+	// action, so further attempts are rejected until the lockout window passes.
+	// Services wrap it with the remaining wait time so the message tells the user
+	// when they can retry.
+	ErrTooManyAttempts = errors.New(
+		"too many failed attempts. Please wait and try again later",
+	)
+
 	// ErrUnauthorized means the caller is not signed in.
 	ErrUnauthorized = errors.New(
 		"you must be logged in to access this resource",
