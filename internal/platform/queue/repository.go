@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
-	"sync"
 
 	dbclient "ayo/internal/clients/db"
 	"ayo/internal/shared/errors"
@@ -36,9 +35,7 @@ type Repository interface {
 }
 
 type repository struct {
-	conn       *dbclient.Connection
-	initMu     sync.Mutex
-	initClient *dbclient.Client
+	conn *dbclient.Connection
 }
 
 // NewRepository returns a repository bound to the shared connection holder. The
@@ -48,63 +45,12 @@ func NewRepository(conn *dbclient.Connection) Repository {
 	return &repository{conn: conn}
 }
 
-// resolve returns the active client for the current session, creating the
-// feature's tables on it the first time it is seen.
+// resolve returns the active database client for the current session. The
+// schema is guaranteed to be up-to-date before any repository method is
+// called, because migrations run inside Connection.SetAndMigrate at login and
+// registration time.
 func (r *repository) resolve() (*dbclient.Client, error) {
-	c, err := r.conn.Current()
-	if err != nil {
-		return nil, err
-	}
-	r.initMu.Lock()
-	defer r.initMu.Unlock()
-	if r.initClient != c {
-		if err := initializeTable(c); err != nil {
-			return nil, err
-		}
-		r.initClient = c
-	}
-	return c, nil
-}
-
-// initializeTable idempotently ensures the queue table exists and has all
-// expected columns. Type is the operation kind (upload/download/delete), stored
-// as TEXT and constrained to the enum values; status and timestamps are stored
-// as TEXT/DATETIME (TIMESTAMP on PostgreSQL), progress as an INTEGER (0-100),
-// and tags as a JSON-encoded TEXT array. The id column and timestamp type
-// branch on the client's dialect.
-func initializeTable(db *dbclient.Client) error {
-	idColumn := "id INTEGER PRIMARY KEY AUTOINCREMENT"
-	timestampType := "DATETIME"
-	if db.IsPostgres() {
-		idColumn = "id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY"
-		timestampType = "TIMESTAMP"
-	}
-
-	query := `CREATE TABLE IF NOT EXISTS queue (
-		` + idColumn + `,
-		type        TEXT NOT NULL DEFAULT 'upload' CHECK (type IN ('upload', 'download', 'delete')),
-		file_id     BIGINT NOT NULL DEFAULT 0,
-		file        TEXT NOT NULL,
-		custom_name TEXT NOT NULL DEFAULT '',
-		path        TEXT NOT NULL,
-		size        BIGINT NOT NULL,
-		status      TEXT NOT NULL,
-		progress    INTEGER NOT NULL DEFAULT 0,
-		tags        TEXT NOT NULL DEFAULT '[]',
-		created_at  ` + timestampType + ` NOT NULL DEFAULT CURRENT_TIMESTAMP,
-		updated_at  ` + timestampType + ` NOT NULL DEFAULT CURRENT_TIMESTAMP
-	)`
-
-	if _, err := db.Exec(query); err != nil {
-		return err
-	}
-
-	// Keep the active-job lookup (status-based) fast as the audit table grows
-	// without bound.
-	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_queue_status ON queue (status)`); err != nil {
-		return err
-	}
-	return nil
+	return r.conn.Current()
 }
 
 // Add inserts a new job row and returns the job populated with its assigned ID

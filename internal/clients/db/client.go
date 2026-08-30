@@ -11,6 +11,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -53,10 +54,18 @@ type Client struct {
 	Dialect Dialect
 }
 
+// MigrationRunner is the interface Connection.SetAndMigrate uses to apply
+// pending database migrations. The concrete implementation lives in
+// internal/migrations; this interface breaks the potential import cycle because
+// migrations imports db and db therefore cannot import migrations.
+type MigrationRunner interface {
+	Run(ctx context.Context, db *Client) error
+}
+
 // NewClient opens a connection to the database described by config, verifies
 // the connection is live and returns a dialect-aware Client. It dispatches to
-// the driver-specific open functions. Table creation is intentionally NOT done
-// here; each feature repository owns its schema via initializeTable.
+// the driver-specific open functions. Schema management is handled separately
+// by the migrations runner, not here.
 func NewClient(config Config) (*Client, error) {
 	switch config.Type {
 	case SQLite:
@@ -138,7 +147,8 @@ func NewConnection() *Connection {
 }
 
 // Set replaces the active client with a new one, closing the previous if any.
-// It is called by the auth service after opening a user's database.
+// Prefer SetAndMigrate when opening a user's database so that pending
+// migrations are applied before any repository code runs.
 func (c *Connection) Set(client *Client) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -146,6 +156,19 @@ func (c *Connection) Set(client *Client) {
 		_ = c.client.Close()
 	}
 	c.client = client
+}
+
+// SetAndMigrate runs pending migrations on client via runner and, if they all
+// succeed, atomically replaces the active connection by calling Set. If
+// migration fails the new client is closed and the error is returned — the
+// caller never receives a partially-initialised database.
+func (c *Connection) SetAndMigrate(ctx context.Context, client *Client, runner MigrationRunner) error {
+	if err := runner.Run(ctx, client); err != nil {
+		_ = client.Close()
+		return fmt.Errorf("database migration failed: %w", err)
+	}
+	c.Set(client)
+	return nil
 }
 
 // Current returns the active client, or ErrNoConnection when none is set (no

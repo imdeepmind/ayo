@@ -68,6 +68,7 @@ type Service struct {
 	validate                 *validator.Validate
 	mu                       sync.Mutex
 	inactivityTimeoutMinutes int
+	migrationRunner          dbclient.MigrationRunner
 }
 
 // Startup stores the Wails application context, which native dialogs (e.g.
@@ -103,10 +104,11 @@ func validatePasswordStrength(fl validator.FieldLevel) bool {
 	return hasUpper && hasLower && hasDigit && hasSymbol
 }
 
-// NewService wires a shared connection holder, the database-credentials
-// keyring repository, the master-key keyring repository and a validator with
-// the custom validation rules into a ready-to-use auth Service.
-func NewService(conn *dbclient.Connection) *Service {
+// NewService wires a shared connection holder, a migration runner, the
+// database-credentials keyring repository, the master-key keyring repository
+// and a validator with the custom validation rules into a ready-to-use auth
+// Service.
+func NewService(conn *dbclient.Connection, migrationRunner dbclient.MigrationRunner) *Service {
 	validate := validator.New()
 
 	// Register custom validators
@@ -118,6 +120,7 @@ func NewService(conn *dbclient.Connection) *Service {
 		repo:                     NewRepository(conn),
 		validate:                 validate,
 		inactivityTimeoutMinutes: 15,
+		migrationRunner:          migrationRunner,
 	}
 }
 
@@ -171,7 +174,12 @@ func (s *Service) Register(input RegisterInput) (*RegisterResult, error) {
 	if err != nil {
 		return nil, errors.ErrDatabaseUnavailable
 	}
-	s.conn.Set(client)
+	// Run migrations so the full schema exists before CreateUser is called.
+	// Registration does not sign the user in, so the connection is always
+	// closed before returning (see defer below).
+	if err := s.conn.SetAndMigrate(context.Background(), client, s.migrationRunner); err != nil {
+		return nil, errors.ErrDatabaseUnavailable
+	}
 	// Registration does not sign the user in, so the temporary connection is
 	// always closed before returning.
 	defer s.conn.Close()
@@ -300,12 +308,15 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 	}
 	config := creds.ToConfig()
 
-	// Connect to the user's database before touching its tables.
+	// Connect to the user's database and run any pending migrations before
+	// touching its tables.
 	client, err := dbclient.NewClient(config)
 	if err != nil {
 		return false, errors.ErrDatabaseUnavailable
 	}
-	s.conn.Set(client)
+	if err := s.conn.SetAndMigrate(context.Background(), client, s.migrationRunner); err != nil {
+		return false, errors.ErrDatabaseUnavailable
+	}
 
 	user, err := s.repo.GetUserByUsername(context.Background(), input.Username)
 	if err != nil {
@@ -395,7 +406,9 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*RegisterResult, erro
 	if err != nil {
 		return nil, errors.ErrDatabaseUnavailable
 	}
-	s.conn.Set(client)
+	if err := s.conn.SetAndMigrate(context.Background(), client, s.migrationRunner); err != nil {
+		return nil, errors.ErrDatabaseUnavailable
+	}
 
 	user, err := s.repo.GetUserByUsername(context.Background(), input.Username)
 	if err != nil {

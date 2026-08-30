@@ -10,6 +10,7 @@ import (
 	"ayo/internal/features/home"
 	"ayo/internal/features/settings"
 	"ayo/internal/features/upload"
+	"ayo/internal/migrations"
 	"ayo/internal/platform/queue"
 
 	"github.com/wailsapp/wails/v2"
@@ -59,6 +60,11 @@ func main() {
 	// queue/upload repositories serve whichever user is currently signed in.
 	conn := dbclient.NewConnection()
 
+	// The migration runner applies pending SQL migrations to the user's database
+	// at login/registration time, before any repository code runs. The runner
+	// reads embedded SQL files from internal/migrations/{sqlite,postgresql}/.
+	migrationRunner := migrations.New()
+
 	// Wire up the internal services. The auth service is the keystone: it owns
 	// the in-memory session, the master key and the active database connection,
 	// and is injected into the settings service (which needs the session to
@@ -67,7 +73,7 @@ func main() {
 	// feature's keyring helpers. The encrypted master-key material can likewise
 	// live in the OS keyring (account-scoped "mkey_{username}") or in the users
 	// table; the auth service migrates between the two via Get/SetMasterKeyStorage.
-	authService := auth.NewService(conn)
+	authService := auth.NewService(conn, migrationRunner)
 
 	// Settings service: stores per-user settings in the OS keyring, encrypted
 	// with the session master key. Provider configs are validated through the

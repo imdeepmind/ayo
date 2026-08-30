@@ -9,7 +9,6 @@ import (
 	stderrors "errors"
 	"fmt"
 	"strings"
-	"sync"
 
 	dbclient "ayo/internal/clients/db"
 	"ayo/internal/platform/keyring"
@@ -53,9 +52,7 @@ type Repository interface {
 }
 
 type repository struct {
-	conn       *dbclient.Connection
-	initMu     sync.Mutex
-	initClient *dbclient.Client
+	conn *dbclient.Connection
 }
 
 // NewRepository returns a repository bound to the shared connection holder. The
@@ -65,56 +62,12 @@ func NewRepository(conn *dbclient.Connection) Repository {
 	return &repository{conn: conn}
 }
 
-// resolve returns the active client for the current session, creating the
-// feature's tables on it the first time it is seen. Each user's database is
-// initialized once, on first access after login (or registration).
+// resolve returns the active database client for the current session. The
+// schema is guaranteed to be up-to-date before any repository method is
+// called, because migrations run inside Connection.SetAndMigrate at login and
+// registration time.
 func (r *repository) resolve() (*dbclient.Client, error) {
-	c, err := r.conn.Current()
-	if err != nil {
-		return nil, err
-	}
-	r.initMu.Lock()
-	defer r.initMu.Unlock()
-	if r.initClient != c {
-		if err := initializeTable(c); err != nil {
-			return nil, err
-		}
-		r.initClient = c
-	}
-	return c, nil
-}
-
-// initializeTable idempotently ensures the users table exists. It stores only
-// hashes and encrypted material - never plaintext credentials. Column types use
-// BYTEA notation but SQLite is untyped, so []byte values are stored as blobs;
-// PostgreSQL stores them in native BYTEA columns. The id column and DDL differ
-// per dialect.
-func initializeTable(db *dbclient.Client) error {
-	idColumn := "id INTEGER PRIMARY KEY AUTOINCREMENT"
-	if db.IsPostgres() {
-		idColumn = "id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY"
-	}
-
-	query := `CREATE TABLE IF NOT EXISTS users (
-		` + idColumn + `,
-		username VARCHAR(255) NOT NULL UNIQUE,
-		password_hash VARCHAR(255) NOT NULL,
-		recovery_key VARCHAR(255) NOT NULL,
-
-		password_salt BYTEA NOT NULL,
-		password_nonce BYTEA NOT NULL,
-		password_master_key BYTEA NOT NULL,
-
-		recovery_salt BYTEA NOT NULL,
-		recovery_nonce BYTEA NOT NULL,
-		recovery_master_key BYTEA NOT NULL
-	)`
-
-	_, err := db.Exec(query)
-	if err != nil {
-		return err
-	}
-	return nil
+	return r.conn.Current()
 }
 
 // CreateUser inserts a new account row and returns the created User populated

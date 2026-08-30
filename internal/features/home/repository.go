@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"sync"
 
 	dbclient "ayo/internal/clients/db"
 	"ayo/internal/features/upload"
@@ -20,8 +19,6 @@ import (
 type repository struct {
 	conn       *dbclient.Connection
 	uploadRepo upload.Repository
-	initMu     sync.Mutex
-	initClient *dbclient.Client
 }
 
 // NewRepository returns a repository bound to the shared connection holder and
@@ -32,24 +29,12 @@ func NewRepository(conn *dbclient.Connection, uploadRepo upload.Repository) *rep
 	return &repository{conn: conn, uploadRepo: uploadRepo}
 }
 
-// resolve returns the active client for the current session, ensuring the
-// shared uploads/chunks schema exists on it the first time it is seen. The DDL
-// lives only in the upload feature; this repository reuses it rather than
-// duplicating it.
+// resolve returns the active database client for the current session. The
+// schema is guaranteed to be up-to-date before any repository method is
+// called, because migrations run inside Connection.SetAndMigrate at login and
+// registration time.
 func (r *repository) resolve() (*dbclient.Client, error) {
-	c, err := r.conn.Current()
-	if err != nil {
-		return nil, err
-	}
-	r.initMu.Lock()
-	defer r.initMu.Unlock()
-	if r.initClient != c {
-		if err := upload.InitializeSchema(c); err != nil {
-			return nil, err
-		}
-		r.initClient = c
-	}
-	return c, nil
+	return r.conn.Current()
 }
 
 // GetRecentFiles returns the most recently uploaded stored files, newest

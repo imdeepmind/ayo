@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"sync"
 
 	dbclient "ayo/internal/clients/db"
 )
@@ -44,9 +43,7 @@ type Repository interface {
 }
 
 type repository struct {
-	conn       *dbclient.Connection
-	initMu     sync.Mutex
-	initClient *dbclient.Client
+	conn *dbclient.Connection
 }
 
 // NewRepository returns a repository bound to the shared connection holder. The
@@ -59,112 +56,12 @@ func NewRepository(conn *dbclient.Connection) *repository {
 	return &repository{conn: conn}
 }
 
-// resolve returns the active client for the current session, creating the
-// feature's tables on it the first time it is seen.
+// resolve returns the active database client for the current session. The
+// schema is guaranteed to be up-to-date before any repository method is
+// called, because migrations run inside Connection.SetAndMigrate at login and
+// registration time.
 func (r *repository) resolve() (*dbclient.Client, error) {
-	c, err := r.conn.Current()
-	if err != nil {
-		return nil, err
-	}
-	r.initMu.Lock()
-	defer r.initMu.Unlock()
-	if r.initClient != c {
-		if err := InitializeSchema(c); err != nil {
-			return nil, err
-		}
-		r.initClient = c
-	}
-	return c, nil
-}
-
-// InitializeSchema idempotently ensures the uploads and chunks tables exist.
-// The upload feature owns the shared schema (it is the writer); the home
-// feature bootstraps the same tables through this function so both read and
-// write the same storage without duplicating the DDL. chunks.file_id references
-// uploads.id (via the foreign_keys pragma on SQLite / a native FK on
-// PostgreSQL), and chunks.chunk_id is globally unique so shard names can never
-// collide even across users or uploads. The uploads table also carries the
-// reconstruction metadata (encrypted size, shard layout, block count) that a
-// local manifest used to hold, so a stored file can always be rebuilt from its
-// row. It also carries the envelope-encryption metadata (the per-file DEK
-// wrapped by the master key and its two nonces) so a stored file can be
-// unwrapped and decrypted from its row alone. The DDL branches on the client's
-// dialect (AUTOINCREMENT vs IDENTITY, DATETIME vs TIMESTAMP, BIGINT for size
-// columns).
-func InitializeSchema(db *dbclient.Client) error {
-	var queries []string
-
-	if db.IsPostgres() {
-		queries = []string{
-			`CREATE TABLE IF NOT EXISTS uploads (
-				id                 BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-				job_id             BIGINT NOT NULL UNIQUE,
-				file               TEXT NOT NULL,
-				custom_name        TEXT NOT NULL DEFAULT '',
-				size               BIGINT NOT NULL,
-				tags               TEXT NOT NULL DEFAULT '[]',
-				encrypted_size     BIGINT NOT NULL,
-				data_shards        INTEGER NOT NULL,
-				parity_shards      INTEGER NOT NULL,
-				shard_size         BIGINT NOT NULL,
-				block_count        INTEGER NOT NULL,
-				file_nonce         BYTEA NOT NULL,
-				encrypted_file_key BYTEA NOT NULL,
-				key_nonce          BYTEA NOT NULL,
-				created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-				updated_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-			)`,
-			`CREATE TABLE IF NOT EXISTS chunks (
-				id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-				file_id     BIGINT NOT NULL,
-				shard_index INTEGER NOT NULL,
-				chunk_id    TEXT NOT NULL UNIQUE,
-				storage_id  TEXT NOT NULL DEFAULT '',
-				created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-				FOREIGN KEY (file_id) REFERENCES uploads(id) ON DELETE CASCADE
-			)`,
-			`CREATE INDEX IF NOT EXISTS idx_chunks_file_id ON chunks(file_id)`,
-		}
-	} else {
-		queries = []string{
-			`CREATE TABLE IF NOT EXISTS uploads (
-				id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-				job_id             INTEGER NOT NULL UNIQUE,
-				file               TEXT NOT NULL,
-				custom_name        TEXT NOT NULL DEFAULT '',
-				size               INTEGER NOT NULL,
-				tags               TEXT NOT NULL DEFAULT '[]',
-				encrypted_size     INTEGER NOT NULL,
-				data_shards        INTEGER NOT NULL,
-				parity_shards      INTEGER NOT NULL,
-				shard_size         INTEGER NOT NULL,
-				block_count        INTEGER NOT NULL,
-				file_nonce         BLOB NOT NULL,
-				encrypted_file_key BLOB NOT NULL,
-				key_nonce          BLOB NOT NULL,
-				created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-				updated_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-			)`,
-			`CREATE TABLE IF NOT EXISTS chunks (
-				id          INTEGER PRIMARY KEY AUTOINCREMENT,
-				file_id     INTEGER NOT NULL,
-				shard_index INTEGER NOT NULL,
-				chunk_id    TEXT NOT NULL UNIQUE,
-				storage_id  TEXT NOT NULL DEFAULT '',
-				created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-				FOREIGN KEY (file_id) REFERENCES uploads(id) ON DELETE CASCADE
-			)`,
-			`CREATE INDEX IF NOT EXISTS idx_chunks_file_id ON chunks(file_id)`,
-		}
-	}
-
-	for _, query := range queries {
-		if _, err := db.Exec(query); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return r.conn.Current()
 }
 
 // CreateUpload inserts a stored-file record and returns it populated with its
