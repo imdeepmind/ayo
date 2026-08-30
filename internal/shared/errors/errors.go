@@ -23,6 +23,13 @@ var (
 		"the information you provided is incomplete or invalid. Please review your input and try again",
 	)
 
+	// ErrWeakPassword means the password did not meet the minimum entropy
+	// threshold. It is returned instead of the generic ErrInvalidInput so the
+	// user knows exactly why their input was rejected.
+	ErrWeakPassword = errors.New(
+		"your password is too weak. Use a longer password or mix in numbers and symbols",
+	)
+
 	// ErrUserAlreadyExists means the requested username is already taken.
 	ErrUserAlreadyExists = errors.New(
 		"an account with this username already exists. Please choose a different username or sign in instead",

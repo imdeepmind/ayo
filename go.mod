@@ -12,6 +12,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/klauspost/reedsolomon v1.13.3
 	github.com/lib/pq v1.12.3
+	github.com/wagslane/go-password-validator v0.3.0
 	github.com/wailsapp/wails/v2 v2.11.0
 	github.com/zalando/go-keyring v0.2.6
 	golang.org/x/crypto v0.48.0

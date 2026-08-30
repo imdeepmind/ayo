@@ -12,19 +12,13 @@ const usernameSchema = z
     'Username can only contain letters, numbers, underscores, and hyphens'
   );
 
-// Password validation: min 8 chars, must contain uppercase, lowercase, number, and symbol
+// Password validation: min 8 chars; strength is enforced by the backend
+// (entropy-based "password_strength" rule)
 const passwordSchema = z
   .string({
     message: 'Password must be a string',
   })
-  .min(8, 'Password must be at least 8 characters')
-  .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
-  .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-  .regex(/[0-9]/, 'Password must contain at least one number')
-  .regex(
-    /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/,
-    'Password must contain at least one special character'
-  );
+  .min(8, 'Password must be at least 8 characters');
 
 // Login form schema
 export const loginSchema = z.object({
@@ -84,51 +78,6 @@ export const accountActionSchema = z
       return true;
     },
     { message: 'New password must be at least 8 characters', path: ['newPassword'] }
-  )
-  .refine(
-    (data) => {
-      if (data.newPassword && data.newPassword.length > 0) {
-        return /[A-Z]/.test(data.newPassword);
-      }
-      return true;
-    },
-    {
-      message: 'New password must contain at least one uppercase letter',
-      path: ['newPassword'],
-    }
-  )
-  .refine(
-    (data) => {
-      if (data.newPassword && data.newPassword.length > 0) {
-        return /[a-z]/.test(data.newPassword);
-      }
-      return true;
-    },
-    {
-      message: 'New password must contain at least one lowercase letter',
-      path: ['newPassword'],
-    }
-  )
-  .refine(
-    (data) => {
-      if (data.newPassword && data.newPassword.length > 0) {
-        return /[0-9]/.test(data.newPassword);
-      }
-      return true;
-    },
-    { message: 'New password must contain at least one number', path: ['newPassword'] }
-  )
-  .refine(
-    (data) => {
-      if (data.newPassword && data.newPassword.length > 0) {
-        return /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(data.newPassword);
-      }
-      return true;
-    },
-    {
-      message: 'New password must contain at least one special character',
-      path: ['newPassword'],
-    }
   )
   .refine(
     (data) => {
