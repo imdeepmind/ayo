@@ -14,7 +14,13 @@ import (
 	"ayo/internal/shared/errors"
 
 	"github.com/go-playground/validator/v10"
+	passwordvalidator "github.com/wagslane/go-password-validator"
 )
+
+// minPasswordEntropy is the entropy floor, in bits, that a password must meet to
+// pass the "password_strength" validation rule. It is a policy decision that the
+// settings feature could later expose to the user.
+const minPasswordEntropy = 70.0
 
 // Session holds the in-memory state of the currently signed-in user. It is the
 // desktop-app equivalent of an auth cookie: it only exists for the lifetime of
@@ -86,22 +92,27 @@ func validateUsernameFormat(fl validator.FieldLevel) bool {
 	return usernameRegex.MatchString(fl.Field().String())
 }
 
-// validatePasswordStrength enforces that a password contains at least one
-// uppercase letter, one lowercase letter, one digit and one symbol. It is
-// registered as the "password_strength" validator rule.
+// validatePasswordStrength enforces that a password has at least
+// minPasswordEntropy bits of Shannon entropy. It is registered as the
+// "password_strength" validator rule.
 func validatePasswordStrength(fl validator.FieldLevel) bool {
-	password := fl.Field().String()
+	return passwordvalidator.Validate(fl.Field().String(), minPasswordEntropy) == nil
+}
 
-	// Check for at least one uppercase letter
-	hasUpper := regexp.MustCompile(`[A-Z]`).MatchString(password)
-	// Check for at least one lowercase letter
-	hasLower := regexp.MustCompile(`[a-z]`).MatchString(password)
-	// Check for at least one digit
-	hasDigit := regexp.MustCompile(`[0-9]`).MatchString(password)
-	// Check for at least one special character
-	hasSymbol := regexp.MustCompile(`[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]`).MatchString(password)
-
-	return hasUpper && hasLower && hasDigit && hasSymbol
+// passwordValidationError maps a struct validation failure to a user-facing
+// error, returning the specific ErrWeakPassword when a password failed the
+// entropy-based "password_strength" rule and the generic ErrInvalidInput for
+// any other validation problem.
+func passwordValidationError(err error) error {
+	var vErrs validator.ValidationErrors
+	if stderrors.As(err, &vErrs) {
+		for _, fe := range vErrs {
+			if fe.Tag() == "password_strength" {
+				return errors.ErrWeakPassword
+			}
+		}
+	}
+	return errors.ErrInvalidInput
 }
 
 // NewService wires a shared connection holder, a migration runner, the
@@ -134,7 +145,7 @@ func NewService(conn *dbclient.Connection, migrationRunner dbclient.MigrationRun
 // must be shown to the user) exactly once.
 func (s *Service) Register(input RegisterInput) (*RegisterResult, error) {
 	if err := s.validate.Struct(input); err != nil {
-		return nil, errors.ErrInvalidInput
+		return nil, passwordValidationError(err)
 	}
 	if err := dbclient.ValidateConfig(input.DBConfig); err != nil {
 		return nil, err
@@ -375,7 +386,7 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 // shown to the user exactly once.
 func (s *Service) ResetPassword(input ResetPasswordInput) (*RegisterResult, error) {
 	if err := s.validate.Struct(input); err != nil {
-		return nil, errors.ErrInvalidInput
+		return nil, passwordValidationError(err)
 	}
 
 	recoveryKeyBytes := []byte(input.RecoveryKey)
