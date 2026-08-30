@@ -3,12 +3,14 @@ package auth
 import (
 	"context"
 	stderrors "errors"
+	"fmt"
 	"os"
 	"regexp"
 	"sync"
 	"time"
 
 	dbclient "ayo/internal/clients/db"
+	"ayo/internal/platform/ratelimit"
 	"ayo/internal/shared/crypto"
 	"ayo/internal/shared/dialog"
 	"ayo/internal/shared/errors"
@@ -16,6 +18,14 @@ import (
 	"github.com/go-playground/validator/v10"
 	passwordvalidator "github.com/wagslane/go-password-validator"
 )
+
+// maxLoginAttempts is the number of consecutive failed attempts allowed for a
+// username before further attempts are rejected.
+const maxLoginAttempts = 5
+
+// loginLockout is how long a username is blocked after exceeding the attempt
+// limit.
+const loginLockout = 5 * time.Minute
 
 // minPasswordEntropy is the entropy floor, in bits, that a password must meet to
 // pass the "password_strength" validation rule. It is a policy decision that the
@@ -75,6 +85,16 @@ type Service struct {
 	mu                       sync.Mutex
 	inactivityTimeoutMinutes int
 	migrationRunner          dbclient.MigrationRunner
+	registerLimiter          *ratelimit.Limiter
+	loginLimiter             *ratelimit.Limiter
+	resetLimiter             *ratelimit.Limiter
+}
+
+// tooManyAttemptsError builds the user-facing lockout error, wrapping the
+// ErrTooManyAttempts sentinel (so errors.Is still matches) with the remaining
+// wait time for a friendlier message.
+func tooManyAttemptsError(retryAfter time.Duration) error {
+	return fmt.Errorf("%w (try again in %s)", errors.ErrTooManyAttempts, retryAfter.Round(time.Second))
 }
 
 // Startup stores the Wails application context, which native dialogs (e.g.
@@ -132,6 +152,9 @@ func NewService(conn *dbclient.Connection, migrationRunner dbclient.MigrationRun
 		validate:                 validate,
 		inactivityTimeoutMinutes: 15,
 		migrationRunner:          migrationRunner,
+		registerLimiter:          ratelimit.New(maxLoginAttempts, loginLockout),
+		loginLimiter:             ratelimit.New(maxLoginAttempts, loginLockout),
+		resetLimiter:             ratelimit.New(maxLoginAttempts, loginLockout),
 	}
 }
 
@@ -143,8 +166,8 @@ func NewService(conn *dbclient.Connection, migrationRunner dbclient.MigrationRun
 // or the SQLite location is writable), then the credentials are dual-encrypted
 // and persisted in the OS keyring. The plaintext recovery key is returned (and
 // must be shown to the user) exactly once.
-func (s *Service) Register(input RegisterInput) (*RegisterResult, error) {
-	if err := s.validate.Struct(input); err != nil {
+func (s *Service) Register(input RegisterInput) (result *RegisterResult, err error) {
+	if err = s.validate.Struct(input); err != nil {
 		return nil, passwordValidationError(err)
 	}
 	if err := dbclient.ValidateConfig(input.DBConfig); err != nil {
@@ -156,6 +179,17 @@ func (s *Service) Register(input RegisterInput) (*RegisterResult, error) {
 	if s.session != nil {
 		return nil, errors.ErrAlreadySignedIn
 	}
+
+	// Reject attempts while this username is locked out for too many failures.
+	if allowed, retryAfter := s.registerLimiter.Check(input.Username); !allowed {
+		return nil, tooManyAttemptsError(retryAfter)
+	}
+	// Count duplicate-username attempts against the lockout, reset on success.
+	defer func() {
+		if stderrors.Is(err, errors.ErrUserAlreadyExists) {
+			s.registerLimiter.RecordFailure(input.Username)
+		}
+	}()
 
 	// Reject usernames already taken on this machine: every registered account
 	// has a database-credentials entry in the OS keyring (dbcreds_{username})
@@ -291,6 +325,7 @@ func (s *Service) Register(input RegisterInput) (*RegisterResult, error) {
 	// return the original recovery key to the user so they can store it. The
 	// []byte buffer is wiped on the way out; this string conversion is the one
 	// immutable copy Wails needs for serialization.
+	s.registerLimiter.Reset(input.Username)
 	return &RegisterResult{User: user, RecoveryKey: string(recoveryKey)}, nil
 }
 
@@ -298,8 +333,8 @@ func (s *Service) Register(input RegisterInput) (*RegisterResult, error) {
 // KEK, opens the user's database and stores the resulting session in memory. A
 // session is not persisted, so the user must log in again after every app
 // restart.
-func (s *Service) Login(input LoginInput) (bool, error) {
-	if err := s.validate.Struct(input); err != nil {
+func (s *Service) Login(input LoginInput) (ok bool, err error) {
+	if err = s.validate.Struct(input); err != nil {
 		return false, errors.ErrInvalidInput
 	}
 
@@ -308,6 +343,18 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 	if s.session != nil {
 		return false, errors.ErrAlreadySignedIn
 	}
+
+	// Reject attempts while this username is locked out for too many failures.
+	// This runs before any Argon2 work, so blocked users never burn CPU.
+	if allowed, retryAfter := s.loginLimiter.Check(input.Username); !allowed {
+		return false, tooManyAttemptsError(retryAfter)
+	}
+	// Count failed credentials against the lockout, reset on success.
+	defer func() {
+		if stderrors.Is(err, errors.ErrInvalidPassword) || stderrors.Is(err, errors.ErrUserNotFound) {
+			s.loginLimiter.RecordFailure(input.Username)
+		}
+	}()
 
 	passwordBytes := []byte(input.Password)
 	defer crypto.Wipe(passwordBytes)
@@ -320,6 +367,12 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 	if err != nil {
 		if stderrors.Is(err, ErrCredentialsNotFound) {
 			return false, errors.ErrUserNotFound
+		}
+		// A wrong password fails GCM authentication here, before the password
+		// hash is ever compared. Map it to the same shared error as the hash
+		// check below so login never distinguishes the two cases.
+		if stderrors.Is(err, errors.ErrInvalidSecret) {
+			return false, errors.ErrInvalidPassword
 		}
 		return false, errors.AsInternalServerError("login: load database credentials", err)
 	}
@@ -345,7 +398,7 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 	}
 
 	// comparing the password against the stored Argon2id PHC hash
-	ok, err := crypto.VerifyPasswordHash(passwordBytes, user.passwordHash)
+	ok, err = crypto.VerifyPasswordHash(passwordBytes, user.passwordHash)
 	if err != nil || !ok {
 		s.conn.Close()
 		return false, errors.ErrInvalidPassword
@@ -380,6 +433,8 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 	}
 	s.dbConfig = config
 
+	s.loginLimiter.Reset(input.Username)
+
 	return true, nil
 }
 
@@ -390,10 +445,21 @@ func (s *Service) Login(input LoginInput) (bool, error) {
 // unwrapped with the recovery key and re-encrypted with the new keys, so the
 // account keeps its database. The new recovery key is returned and must be
 // shown to the user exactly once.
-func (s *Service) ResetPassword(input ResetPasswordInput) (*RegisterResult, error) {
-	if err := s.validate.Struct(input); err != nil {
+func (s *Service) ResetPassword(input ResetPasswordInput) (result *RegisterResult, err error) {
+	if err = s.validate.Struct(input); err != nil {
 		return nil, passwordValidationError(err)
 	}
+
+	// Reject attempts while this username is locked out for too many failures.
+	if allowed, retryAfter := s.resetLimiter.Check(input.Username); !allowed {
+		return nil, tooManyAttemptsError(retryAfter)
+	}
+	// Count invalid recovery-key attempts against the lockout, reset on success.
+	defer func() {
+		if stderrors.Is(err, errors.ErrInvalidRecoveryKey) || stderrors.Is(err, errors.ErrUserNotFound) {
+			s.resetLimiter.RecordFailure(input.Username)
+		}
+	}()
 
 	recoveryKeyBytes := []byte(input.RecoveryKey)
 	defer crypto.Wipe(recoveryKeyBytes)
@@ -546,6 +612,7 @@ func (s *Service) ResetPassword(input ResetPasswordInput) (*RegisterResult, erro
 
 	// The []byte buffer is wiped on the way out; this string conversion is the
 	// one immutable copy Wails needs for serialization.
+	s.resetLimiter.Reset(input.Username)
 	return &RegisterResult{User: user, RecoveryKey: string(newRecoveryKey)}, nil
 }
 
