@@ -57,3 +57,7 @@ export function Startup(arg1) {
 export function TouchSession() {
   return window['go']['auth']['Service']['TouchSession']();
 }
+
+export function WithMasterKey(arg1) {
+  return window['go']['auth']['Service']['WithMasterKey'](arg1);
+}

@@ -498,3 +498,58 @@ func deriveChunkNonce(baseNonce []byte, counter uint64) []byte {
 
 	return nonce
 }
+
+// SplitKey splits a 32-byte master key into two equal-length components (pieceA
+// and pieceB) using XOR-splitting (A ⊕ B = Key). Piece B is filled with random
+// cryptographically secure bytes, and piece A is computed as key ⊕ pieceB.
+// Neither piece alone reveals any information about the original key.
+func SplitKey(key []byte) ([]byte, []byte, error) {
+	if len(key) != KeySize {
+		return nil, nil, fmt.Errorf("invalid key length: expected %d bytes, got %d", KeySize, len(key))
+	}
+
+	pieceB := make([]byte, KeySize)
+	if _, err := io.ReadFull(rand.Reader, pieceB); err != nil {
+		return nil, nil, fmt.Errorf("generate random piece: %w", err)
+	}
+
+	pieceA := make([]byte, KeySize)
+	for i := 0; i < KeySize; i++ {
+		pieceA[i] = key[i] ^ pieceB[i]
+	}
+
+	return pieceA, pieceB, nil
+}
+
+// CombineKey reconstructs the original 32-byte master key from XOR components
+// pieceA and pieceB (A ⊕ B = Key).
+func CombineKey(pieceA, pieceB []byte) ([]byte, error) {
+	if len(pieceA) != KeySize || len(pieceB) != KeySize {
+		return nil, fmt.Errorf(
+			"invalid piece length: expected %d bytes each, got %d and %d",
+			KeySize, len(pieceA), len(pieceB),
+		)
+	}
+
+	key := make([]byte, KeySize)
+	for i := 0; i < KeySize; i++ {
+		key[i] = pieceA[i] ^ pieceB[i]
+	}
+	return key, nil
+}
+
+// CombineKeyToBuffer reconstructs the original 32-byte master key into the
+// pre-allocated dst buffer (such as a memguard LockedBuffer).
+func CombineKeyToBuffer(pieceA, pieceB, dst []byte) error {
+	if len(pieceA) != KeySize || len(pieceB) != KeySize || len(dst) != KeySize {
+		return fmt.Errorf(
+			"invalid slice length: expected %d bytes each, got pieceA=%d, pieceB=%d, dst=%d",
+			KeySize, len(pieceA), len(pieceB), len(dst),
+		)
+	}
+
+	for i := 0; i < KeySize; i++ {
+		dst[i] = pieceA[i] ^ pieceB[i]
+	}
+	return nil
+}

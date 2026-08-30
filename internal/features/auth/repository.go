@@ -49,6 +49,9 @@ type Repository interface {
 	SaveMasterKeyKeyring(username string, material *Material) error
 	LoadMasterKeyKeyring(username string) (*Material, error)
 	DeleteMasterKeyKeyring(username string) error
+	SaveMasterKeyPieceB(username string, pieceB []byte) error
+	LoadMasterKeyPieceB(username string) ([]byte, error)
+	DeleteMasterKeyPieceB(username string) error
 }
 
 type repository struct {
@@ -276,6 +279,21 @@ func (r *repository) DeleteMasterKeyKeyring(username string) error {
 	return deleteMasterKeyKeyring(username)
 }
 
+// SaveMasterKeyPieceB stores Piece B of the XOR-split master key in the OS keyring.
+func (r *repository) SaveMasterKeyPieceB(username string, pieceB []byte) error {
+	return saveMasterKeyPieceB(username, pieceB)
+}
+
+// LoadMasterKeyPieceB retrieves Piece B of the XOR-split master key from the OS keyring.
+func (r *repository) LoadMasterKeyPieceB(username string) ([]byte, error) {
+	return loadMasterKeyPieceB(username)
+}
+
+// DeleteMasterKeyPieceB removes Piece B of the XOR-split master key from the OS keyring.
+func (r *repository) DeleteMasterKeyPieceB(username string) error {
+	return deleteMasterKeyPieceB(username)
+}
+
 // dbCredsKeyringUser maps an account username to the keyring entry holding its
 // database credentials, keeping it separate from the "ayo" entries used by
 // settings and the "mkey_" entries used by the master-key keyring.
@@ -460,4 +478,41 @@ func GenerateJunk() (*Material, error) {
 		RecoveryNonce:     recoveryNonce,
 		RecoveryMasterKey: recoveryMasterKey,
 	}, nil
+}
+
+// ErrPieceBNotFound is returned when no Piece B entry exists in the keyring.
+var ErrPieceBNotFound = stderrors.New("master key piece B not found in keyring")
+
+func pieceBKeyringUser(username string) string {
+	return "pieceb_" + username
+}
+
+func saveMasterKeyPieceB(username string, pieceB []byte) error {
+	encoded := base64.StdEncoding.EncodeToString(pieceB)
+	if err := keyring.Set("ayo", pieceBKeyringUser(username), encoded); err != nil {
+		return fmt.Errorf("save master key piece B to keyring: %w", err)
+	}
+	return nil
+}
+
+func loadMasterKeyPieceB(username string) ([]byte, error) {
+	encoded, err := keyring.Get("ayo", pieceBKeyringUser(username))
+	if err != nil {
+		if keyring.IsNotFound(err) {
+			return nil, ErrPieceBNotFound
+		}
+		return nil, fmt.Errorf("load master key piece B from keyring: %w", err)
+	}
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("decode master key piece B: %w", err)
+	}
+	return decoded, nil
+}
+
+func deleteMasterKeyPieceB(username string) error {
+	if err := keyring.Delete("ayo", pieceBKeyringUser(username)); err != nil {
+		return fmt.Errorf("delete master key piece B from keyring: %w", err)
+	}
+	return nil
 }

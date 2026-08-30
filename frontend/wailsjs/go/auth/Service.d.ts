@@ -31,3 +31,5 @@ export function SetMasterKeyStorage(arg1:string):Promise<string>;
 export function Startup(arg1:context.Context):Promise<void>;
 
 export function TouchSession():Promise<void>;
+
+export function WithMasterKey(arg1:any):Promise<void>;

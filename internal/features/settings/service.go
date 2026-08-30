@@ -16,6 +16,7 @@ import (
 // SessionProvider is the subset of auth.Service that settings depends on.
 type SessionProvider interface {
 	RequireSession() (*auth.Session, error)
+	WithMasterKey(fn func(masterKey []byte) error) error
 }
 
 // DatabaseConfigProvider exposes the signed-in user's database configuration so
@@ -105,7 +106,12 @@ func (s *Service) GetSettings() (*Settings, error) {
 		return defaultSettings, nil
 	}
 
-	decryptedData, err := crypto.DecryptData(session.MasterKey(), data)
+	var decryptedData []byte
+	err = s.sessionProvider.WithMasterKey(func(masterKey []byte) error {
+		var dErr error
+		decryptedData, dErr = crypto.DecryptData(masterKey, data)
+		return dErr
+	})
 	if err != nil {
 		return nil, errors.AsInternalServerError("get settings: decrypt", err)
 	}
@@ -167,7 +173,12 @@ func (s *Service) UpdateSettings(input UpdateSettingsInput) error {
 		return errors.AsInternalServerError("update settings: marshal", err)
 	}
 
-	encryptedData, err := crypto.EncryptData(session.MasterKey(), data)
+	var encryptedData []byte
+	err = s.sessionProvider.WithMasterKey(func(masterKey []byte) error {
+		var eErr error
+		encryptedData, eErr = crypto.EncryptData(masterKey, data)
+		return eErr
+	})
 	if err != nil {
 		return errors.AsInternalServerError("update settings: encrypt", err)
 	}

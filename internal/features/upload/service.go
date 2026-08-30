@@ -20,6 +20,7 @@ import (
 // SessionProvider is the subset of auth.Service that upload depends on.
 type SessionProvider interface {
 	RequireSession() (*auth.Session, error)
+	WithMasterKey(fn func(masterKey []byte) error) error
 }
 
 // SettingsProvider is the subset of settings.Service that upload depends on. It

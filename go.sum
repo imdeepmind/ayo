@@ -2,6 +2,10 @@ al.essio.dev/pkg/shellescape v1.5.1 h1:86HrALUujYS/h+GtqoB26SBEdkWfmMI6FubjXlsXy
 al.essio.dev/pkg/shellescape v1.5.1/go.mod h1:6sIqp7X2P6mThCQ7twERpZTuigpr6KbZWtls1U8I890=
 github.com/alexedwards/argon2id v1.0.0 h1:wJzDx66hqWX7siL/SRUmgz3F8YMrd/nfX/xHHcQQP0w=
 github.com/alexedwards/argon2id v1.0.0/go.mod h1:tYKkqIjzXvZdzPvADMWOEZ+l6+BD6CtBXMj5fnJppiw=
+github.com/awnumar/memcall v0.4.0 h1:B7hgZYdfH6Ot1Goaz8jGne/7i8xD4taZie/PNSFZ29g=
+github.com/awnumar/memcall v0.4.0/go.mod h1:8xOx1YbfyuCg3Fy6TO8DK0kZUua3V42/goA5Ru47E8w=
+github.com/awnumar/memguard v0.23.0 h1:sJ3a1/SWlcuKIQ7MV+R9p0Pvo9CWsMbGZvcZQtmc68A=
+github.com/awnumar/memguard v0.23.0/go.mod h1:olVofBrsPdITtJ2HgxQKrEYEMyIBAIciVG4wNnZhW9M=
 github.com/aws/aws-sdk-go-v2 v1.43.4 h1:b9FTvbRwy+JCsfp2Wp6wV/KbOx3Aj7nkoFb2cRX0IhE=
 github.com/aws/aws-sdk-go-v2 v1.43.4/go.mod h1:70vwSy16txshwG+g55WkpgPKDIByzHI8ccBsOteo3bQ=
 github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.16 h1:aiuaKlDweRC5qExJondpWjOgyzMHpofpwspGXUtwn4c=

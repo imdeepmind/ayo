@@ -209,8 +209,7 @@ func (p *Processor) processUpload(job *queue.Job) {
 		return
 	}
 
-	session, err := p.sessionProvider.RequireSession()
-	if err != nil {
+	if _, err := p.sessionProvider.RequireSession(); err != nil {
 		// No session means no master key. Keep the job pending rather than
 		// failing it; it will be picked up on the next resume.
 		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusPending, 0)
@@ -255,7 +254,12 @@ func (p *Processor) processUpload(job *queue.Job) {
 		return
 	}
 
-	encryptedFileKey, keyNonce, err := crypto.WrapDEK(session.MasterKey(), dek)
+	var encryptedFileKey, keyNonce []byte
+	err = p.sessionProvider.WithMasterKey(func(masterKey []byte) error {
+		var wErr error
+		encryptedFileKey, keyNonce, wErr = crypto.WrapDEK(masterKey, dek)
+		return wErr
+	})
 	if err != nil {
 		_ = encryptedFile.Close()
 		_ = p.local.Remove(encryptedPath)
@@ -426,8 +430,7 @@ func (p *Processor) processDownload(job *queue.Job) {
 		return
 	}
 
-	session, err := p.sessionProvider.RequireSession()
-	if err != nil {
+	if _, err := p.sessionProvider.RequireSession(); err != nil {
 		// No session means no master key. Keep the job pending rather than
 		// failing it; it will be picked up on the next resume.
 		_ = p.queue.UpdateStatusAndProgress(id, queue.StatusPending, 0)
@@ -542,7 +545,12 @@ func (p *Processor) processDownload(job *queue.Job) {
 	// at upload time. A corrupted wrapped DEK or key nonce fails the
 	// authentication check here, aborting the download securely before any
 	// payload bytes are processed.
-	dek, err := crypto.UnwrapDEK(session.MasterKey(), upload.encryptedFileKey, upload.keyNonce)
+	var dek []byte
+	err = p.sessionProvider.WithMasterKey(func(masterKey []byte) error {
+		var uErr error
+		dek, uErr = crypto.UnwrapDEK(masterKey, upload.encryptedFileKey, upload.keyNonce)
+		return uErr
+	})
 	if err != nil {
 		_ = stagingFile.Close()
 		_ = p.local.Remove(tempEncryptedPath)
